@@ -103,7 +103,7 @@ const AdminDashboard = () => {
   const { data: bookings } = useQuery({
     queryKey: ['admin-bookings', filterTherapist],
     queryFn: async () => {
-      let query = supabase.from('bookings').select('*, services(name, duration_minutes), therapists(name)')
+      let query = supabase.from('bookings').select('*, services(name, duration_minutes, price), therapists(name)')
         .order('booking_date', { ascending: true }).order('start_time', { ascending: true });
       if (filterTherapist !== 'all') query = query.eq('therapist_id', filterTherapist);
       const { data, error } = await query;
