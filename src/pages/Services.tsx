@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Clock, ArrowLeft } from 'lucide-react';
 import logoImg from '@/assets/logo.png';
 import { Skeleton } from '@/components/ui/skeleton';
+import { LanguageSwitcher } from '@/hooks/useI18n';
 
 const Services = () => {
   const { data: services, isLoading } = useQuery({
