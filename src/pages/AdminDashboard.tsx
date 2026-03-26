@@ -1320,6 +1320,16 @@ const AdminDashboard = () => {
                   />
                 </div>
                 <div>
+                  <Label>{t('Model')}</Label>
+                  <Input
+                    value={openaiModel}
+                    onChange={e => setOpenaiModel(e.target.value)}
+                    placeholder="gpt-4o-mini"
+                    className="mt-1 font-mono text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">{t('VD: gpt-4o-mini, gpt-4o, gpt-3.5-turbo')}</p>
+                </div>
+                <div>
                   <Label>{t('Base URL')}</Label>
                   <Input
                     value={openaiBaseUrl}
