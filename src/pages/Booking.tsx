@@ -174,13 +174,18 @@ const Booking = () => {
       setAssignedTherapistName(t?.name || '');
     }
 
+    const bookingId = crypto.randomUUID();
+    const bookingDateStr = format(selectedDate, 'yyyy-MM-dd');
+    const therapistName = therapists?.find(t => t.id === therapistId)?.name || '';
+
     const { error } = await supabase.from('bookings').insert({
+      id: bookingId,
       service_id: selectedService,
       therapist_id: therapistId,
       customer_name: customerName.trim(),
       customer_phone: customerPhone.trim(),
       customer_email: customerEmail.trim() || null,
-      booking_date: format(selectedDate, 'yyyy-MM-dd'),
+      booking_date: bookingDateStr,
       start_time: startTime,
       end_time: endTime,
       status: 'confirmed',
@@ -191,6 +196,24 @@ const Booking = () => {
       toast({ title: 'Lỗi', description: 'Không thể đặt lịch. Vui lòng thử lại.', variant: 'destructive' });
     } else {
       setBookingComplete(true);
+      // Send confirmation email if customer provided email
+      if (customerEmail.trim()) {
+        supabase.functions.invoke('send-transactional-email', {
+          body: {
+            templateName: 'booking-confirmation',
+            recipientEmail: customerEmail.trim(),
+            idempotencyKey: `booking-confirm-${bookingId}`,
+            templateData: {
+              customerName: customerName.trim(),
+              serviceName: currentService?.name || '',
+              therapistName,
+              bookingDate: format(selectedDate, 'dd/MM/yyyy'),
+              startTime: selectedTime,
+              endTime: format(endDate, 'HH:mm'),
+            },
+          },
+        }).catch(err => console.error('Failed to send confirmation email:', err));
+      }
     }
   };
 
