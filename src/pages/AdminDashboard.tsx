@@ -802,7 +802,7 @@ const AdminDashboard = () => {
                             <span className="text-muted-foreground ml-1">({(t as any).break_start}:00–{(t as any).break_end}:00)</span>
                           )}
                         </TableCell>
-                        <TableCell><Badge variant={t.is_active ? 'default' : 'secondary'}>{t.is_active ? 'Active' : 'Off'}</Badge></TableCell>
+                        <TableCell><Badge variant={t.is_active ? 'default' : 'secondary'}>{t.is_active ? t('Hoạt động') : t('Tắt')}</Badge></TableCell>
                         <TableCell>
                           <Button variant="ghost" size="sm" onClick={() => openTherapistEdit(t)}><Pencil className="h-4 w-4" /></Button>
                         </TableCell>
