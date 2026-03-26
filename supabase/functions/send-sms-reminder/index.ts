@@ -82,7 +82,8 @@ Deno.serve(async (req) => {
       const message = `Royal Head Spa nhắc lịch: Bạn có lịch hẹn "${serviceName}" lúc ${booking.start_time.slice(0, 5)} hôm nay với ${therapistName}. Hẹn gặp bạn!`;
 
       try {
-        const response = await fetch(`${GATEWAY_URL}/Messages.json`, {
+        // Send SMS
+        const smsResponse = await fetch(`${GATEWAY_URL}/Messages.json`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${LOVABLE_API_KEY}`,
@@ -96,12 +97,33 @@ Deno.serve(async (req) => {
           }),
         });
 
-        const data = await response.json();
-        if (!response.ok) {
-          results.push({ booking_id: booking.id, phone, error: data });
-        } else {
-          results.push({ booking_id: booking.id, phone, sid: data.sid });
+        const smsData = await smsResponse.json();
+        const result: any = { booking_id: booking.id, phone, sms: smsResponse.ok ? smsData.sid : smsData };
+
+        // Send WhatsApp if enabled
+        if (whatsappEnabled) {
+          try {
+            const waResponse = await fetch(`${GATEWAY_URL}/Messages.json`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${LOVABLE_API_KEY}`,
+                "X-Connection-Api-Key": TWILIO_API_KEY,
+                "Content-Type": "application/x-www-form-urlencoded",
+              },
+              body: new URLSearchParams({
+                To: `whatsapp:${phone}`,
+                From: `whatsapp:${fromNumber}`,
+                Body: message,
+              }),
+            });
+            const waData = await waResponse.json();
+            result.whatsapp = waResponse.ok ? waData.sid : waData;
+          } catch (waErr) {
+            result.whatsapp_error = String(waErr);
+          }
         }
+
+        results.push(result);
       } catch (err) {
         results.push({ booking_id: booking.id, phone, error: String(err) });
       }
