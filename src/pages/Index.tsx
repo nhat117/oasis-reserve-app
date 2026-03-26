@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { LanguageSwitcher } from '@/hooks/useI18n';
 import { Button } from '@/components/ui/button';
 import { Clock, Phone, MapPin } from 'lucide-react';
 import logoImg from '@/assets/logo.png';
@@ -19,7 +20,8 @@ const Index = () => {
               <span className="text-[11px] text-muted-foreground tracking-wider uppercase">Gội đầu dưỡng sinh</span>
             </div>
           </Link>
-          <nav className="flex items-center gap-4">
+          <nav className="flex items-center gap-3">
+            <LanguageSwitcher />
             <Link to="/services" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Dịch vụ
             </Link>

@@ -14,6 +14,7 @@ import logoImg from '@/assets/logo.png';
 import { format, addMinutes, isBefore, isToday, startOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { LanguageSwitcher, useI18n } from '@/hooks/useI18n';
 
 const Booking = () => {
   const [searchParams] = useSearchParams();
@@ -70,6 +71,17 @@ const Booking = () => {
     enabled: !!selectedDate,
   });
 
+  const { data: shopHolidays } = useQuery({
+    queryKey: ['shop-holidays-list'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('shop_holidays').select('holiday_date');
+      if (error) throw error;
+      return data.map((h: any) => h.holiday_date as string);
+    },
+  });
+
+  const isShopHoliday = selectedDate ? shopHolidays?.includes(format(selectedDate, 'yyyy-MM-dd')) : false;
+
   const { data: existingBookings } = useQuery({
     queryKey: ['bookings-availability', selectedDate?.toISOString()],
     queryFn: async () => {
@@ -111,7 +123,7 @@ const Booking = () => {
   };
 
   const availableSlots = useMemo(() => {
-    if (!currentService || !selectedDate || !therapists) return [];
+    if (!currentService || !selectedDate || !therapists || isShopHoliday) return [];
     const duration = currentService.duration_minutes;
     const slots: { time: string; therapistCount: number }[] = [];
     const now = new Date();
@@ -259,6 +271,7 @@ const Booking = () => {
             <img src={logoImg} alt="Royal Head Spa" className="h-10 w-10 object-contain" />
             <span className="text-xl font-semibold font-serif text-primary">Royal Head Spa</span>
           </Link>
+          <LanguageSwitcher />
         </div>
       </header>
 
@@ -321,11 +334,19 @@ const Booking = () => {
                       mode="single"
                       selected={selectedDate}
                       onSelect={(d) => { setSelectedDate(d); setSelectedTime(''); }}
-                      disabled={(date) => isBefore(startOfDay(date), startOfDay(new Date())) || date.getDay() === 0}
+                      disabled={(date) => {
+                        if (isBefore(startOfDay(date), startOfDay(new Date()))) return true;
+                        if (date.getDay() === 0) return true;
+                        if (shopHolidays?.includes(format(date, 'yyyy-MM-dd'))) return true;
+                        return false;
+                      }}
                       className="p-3 pointer-events-auto"
                     />
                   </PopoverContent>
                 </Popover>
+                {isShopHoliday && (
+                  <p className="text-sm text-destructive mt-2">🏖️ Tiệm nghỉ ngày này. Vui lòng chọn ngày khác.</p>
+                )}
               </div>
 
               {selectedDate && (
