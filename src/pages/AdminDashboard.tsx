@@ -98,6 +98,7 @@ const AdminDashboard = () => {
   // OpenAI settings state
   const [openaiApiKey, setOpenaiApiKey] = useState('');
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState('');
+  const [openaiModel, setOpenaiModel] = useState('gpt-4o-mini');
 
   const { data: bookings } = useQuery({
     queryKey: ['admin-bookings', filterTherapist],
@@ -350,7 +351,7 @@ const AdminDashboard = () => {
     queryKey: ['openai-settings'],
     queryFn: async () => {
       const { data, error } = await supabase.from('app_settings').select('key, value')
-        .in('key', ['openai_api_key', 'openai_base_url']);
+        .in('key', ['openai_api_key', 'openai_base_url', 'openai_model']);
       if (error) throw error;
       const map: Record<string, string> = {};
       data?.forEach(r => { map[r.key] = r.value; });
@@ -362,6 +363,7 @@ const AdminDashboard = () => {
     if (openaiSettings) {
       setOpenaiApiKey(openaiSettings['openai_api_key'] || '');
       setOpenaiBaseUrl(openaiSettings['openai_base_url'] || '');
+      setOpenaiModel(openaiSettings['openai_model'] || 'gpt-4o-mini');
     }
   }, [openaiSettings]);
 
@@ -370,6 +372,7 @@ const AdminDashboard = () => {
       const rows = [
         { key: 'openai_api_key', value: openaiApiKey },
         { key: 'openai_base_url', value: openaiBaseUrl || 'https://api.openai.com/v1' },
+        { key: 'openai_model', value: openaiModel || 'gpt-4o-mini' },
       ];
       for (const row of rows) {
         if (row.value) {
@@ -1317,6 +1320,16 @@ const AdminDashboard = () => {
                   />
                 </div>
                 <div>
+                  <Label>{t('Model')}</Label>
+                  <Input
+                    value={openaiModel}
+                    onChange={e => setOpenaiModel(e.target.value)}
+                    placeholder="gpt-4o-mini"
+                    className="mt-1 font-mono text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">{t('VD: gpt-4o-mini, gpt-4o, gpt-3.5-turbo')}</p>
+                </div>
+                <div>
                   <Label>{t('Base URL')}</Label>
                   <Input
                     value={openaiBaseUrl}
@@ -1335,6 +1348,7 @@ const AdminDashboard = () => {
                     {openaiSettings['openai_base_url'] && (
                       <p className="text-muted-foreground">Base URL: <strong>{openaiSettings['openai_base_url']}</strong></p>
                     )}
+                    <p className="text-muted-foreground">Model: <strong>{openaiSettings['openai_model'] || 'gpt-4o-mini'}</strong></p>
                   </div>
                 )}
               </CardContent>

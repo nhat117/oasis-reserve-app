@@ -43,13 +43,14 @@ serve(async (req) => {
     const { data: settings } = await supabase
       .from("app_settings")
       .select("key, value")
-      .in("key", ["openai_api_key", "openai_base_url"]);
+      .in("key", ["openai_api_key", "openai_base_url", "openai_model"]);
 
     const settingsMap: Record<string, string> = {};
     (settings || []).forEach((r: any) => { settingsMap[r.key] = r.value; });
 
     const apiKey = settingsMap["openai_api_key"];
     const baseUrl = settingsMap["openai_base_url"] || "https://api.openai.com/v1";
+    const model = settingsMap["openai_model"] || "gpt-4o-mini";
 
     if (!apiKey) {
       return new Response(JSON.stringify({ error: "OpenAI API key not configured. Set it in Admin Settings." }), {
@@ -67,7 +68,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model,
         messages: [
           { role: "system", content: "You are a translator. Return ONLY a valid JSON object mapping each input string to its translation. No markdown, no explanation." },
           { role: "user", content: prompt },
