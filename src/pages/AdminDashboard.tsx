@@ -775,9 +775,10 @@ const AdminDashboard = () => {
                         </div>
                         <div>
                           <Label>{t('Thợ')}</Label>
-                          <Select value={bookingTherapistId} onValueChange={setBookingTherapistId}>
+                          <Select value={bookingTherapistId} onValueChange={(v) => { setBookingTherapistId(v); setBookingTime(''); }}>
                             <SelectTrigger className="mt-1"><SelectValue placeholder={t('Chọn thợ')} /></SelectTrigger>
                             <SelectContent>
+                              <SelectItem value="random">{t('Tự động (ai rảnh)')}</SelectItem>
                               {therapists?.filter(t => t.is_active).map(t => (
                                 <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                               ))}
@@ -793,20 +794,42 @@ const AdminDashboard = () => {
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0" align="start">
-                              <Calendar mode="single" selected={bookingDate} onSelect={setBookingDate} className="p-3 pointer-events-auto" />
+                              <Calendar mode="single" selected={bookingDate} onSelect={(d) => { setBookingDate(d); setBookingTime(''); }} className="p-3 pointer-events-auto" />
                             </PopoverContent>
                           </Popover>
                         </div>
                         <div>
                           <Label>{t('Giờ')}</Label>
-                          <Select value={bookingTime} onValueChange={setBookingTime}>
-                            <SelectTrigger className="mt-1"><SelectValue placeholder={t('Chọn giờ')} /></SelectTrigger>
-                            <SelectContent>
-                              {getTimeSlots().map(t => (
-                                <SelectItem key={t} value={t}>{t}</SelectItem>
+                          {!bookingServiceId || !bookingDate ? (
+                            <p className="text-sm text-muted-foreground mt-1">{t('Chọn dịch vụ và ngày trước')}</p>
+                          ) : availableSlots.length === 0 ? (
+                            <p className="text-sm text-destructive mt-1">{t('Không có khung giờ trống')}</p>
+                          ) : (
+                            <div className="flex flex-wrap gap-1.5 mt-2 max-h-[200px] overflow-y-auto">
+                              {availableSlots.filter((_, i) => i % 2 === 0).map(slot => (
+                                <button key={slot.time} type="button" disabled={!slot.available}
+                                  onClick={() => {
+                                    setBookingTime(slot.time);
+                                    if (slot.therapistId && (bookingTherapistId === 'random' || !bookingTherapistId)) {
+                                      setBookingTherapistId(slot.therapistId);
+                                    }
+                                  }}
+                                  className={cn(
+                                    "px-2.5 py-1.5 rounded-md text-xs font-medium border transition-all",
+                                    slot.available && bookingTime !== slot.time && "border-border hover:border-primary hover:bg-primary/5 cursor-pointer",
+                                    slot.available && bookingTime === slot.time && "border-primary bg-primary text-primary-foreground",
+                                    !slot.available && "border-border bg-muted text-muted-foreground line-through opacity-50 cursor-not-allowed"
+                                  )}
+                                  title={slot.available ? (slot.therapistName || '') : t('Đã đặt')}
+                                >
+                                  {slot.time}
+                                  {slot.available && bookingTherapistId === 'random' && slot.therapistName && (
+                                    <span className="block text-[9px] opacity-70">{slot.therapistName.split(' ').pop()}</span>
+                                  )}
+                                </button>
                               ))}
-                            </SelectContent>
-                          </Select>
+                            </div>
+                          )}
                         </div>
                         <div>
                           <Label>{t('Tên khách hàng')}</Label>
