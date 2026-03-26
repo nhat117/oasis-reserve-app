@@ -322,7 +322,7 @@ const Booking = () => {
         {/* Step 1: Service */}
         {step === 1 && (
           <Card>
-            <CardHeader><CardTitle>1. Chọn dịch vụ</CardTitle></CardHeader>
+            <CardHeader><CardTitle>{t('1. Chọn dịch vụ')}</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               {services?.map(service => (
                 <button
