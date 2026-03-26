@@ -543,13 +543,17 @@ const Booking = () => {
             <CardContent className="space-y-4">
               <div className="bg-muted rounded-lg p-4 space-y-2 text-sm">
                 <p><strong>{t('Dịch vụ')}:</strong> {currentService?.name}</p>
+                {addOnServices.length > 0 && (
+                  <p><strong>{t('Dịch vụ thêm')}:</strong> {addOnServices.map(s => s.name).join(', ')}</p>
+                )}
                 <p><strong>{t('Ngày')}:</strong> {selectedDate && format(selectedDate, 'dd/MM/yyyy')}</p>
                 <p><strong>{t('Giờ')}:</strong> {selectedTime}</p>
+                <p><strong>{t('Thời lượng')}:</strong> {totalDuration} {t('phút')}</p>
                 <p><strong>{t('Thợ')}:</strong> {selectedTherapistName}</p>
                 <p><strong>{t('Khách')}:</strong> {customerName}</p>
                 <p><strong>{t('SĐT')}:</strong> {customerPhone}</p>
                 {customerEmail && <p><strong>Email:</strong> {customerEmail}</p>}
-                <p><strong>{t('Giá')}:</strong> {currentService && formatPrice(currentService.price)}</p>
+                <p><strong>{t('Giá')}:</strong> {formatPrice(totalPrice)}</p>
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setStep(3)}>{t('Quay lại')}</Button>
