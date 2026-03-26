@@ -66,6 +66,63 @@ function minutesToTime(mins: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
 }
 
+// Compute overlap columns for bookings (Google Calendar style)
+interface LayoutedBooking extends Booking {
+  col: number;
+  totalCols: number;
+}
+
+function layoutOverlappingBookings(bookings: Booking[]): LayoutedBooking[] {
+  if (bookings.length === 0) return [];
+  const sorted = [...bookings].sort((a, b) => a.start_time.localeCompare(b.start_time) || a.end_time.localeCompare(b.end_time));
+  const result: LayoutedBooking[] = [];
+  const groups: Booking[][] = [];
+
+  // Group overlapping bookings
+  let currentGroup: Booking[] = [sorted[0]];
+  let groupEnd = timeToMinutes(sorted[0].end_time);
+
+  for (let i = 1; i < sorted.length; i++) {
+    const bStart = timeToMinutes(sorted[i].start_time);
+    if (bStart < groupEnd) {
+      currentGroup.push(sorted[i]);
+      groupEnd = Math.max(groupEnd, timeToMinutes(sorted[i].end_time));
+    } else {
+      groups.push(currentGroup);
+      currentGroup = [sorted[i]];
+      groupEnd = timeToMinutes(sorted[i].end_time);
+    }
+  }
+  groups.push(currentGroup);
+
+  // Assign columns within each group
+  for (const group of groups) {
+    const columns: number[] = []; // end times per column
+    const assignments: { booking: Booking; col: number }[] = [];
+    for (const b of group) {
+      const bStart = timeToMinutes(b.start_time);
+      let placed = false;
+      for (let c = 0; c < columns.length; c++) {
+        if (bStart >= columns[c]) {
+          columns[c] = timeToMinutes(b.end_time);
+          assignments.push({ booking: b, col: c });
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        assignments.push({ booking: b, col: columns.length });
+        columns.push(timeToMinutes(b.end_time));
+      }
+    }
+    const totalCols = columns.length;
+    for (const a of assignments) {
+      result.push({ ...a.booking, col: a.col, totalCols });
+    }
+  }
+  return result;
+}
+
 export function BookingCalendar({ bookings, onCancel, onReschedule }: BookingCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
