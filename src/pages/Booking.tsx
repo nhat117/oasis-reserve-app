@@ -231,7 +231,7 @@ const Booking = () => {
 
     setIsSubmitting(false);
     if (error) {
-      toast({ title: 'Lỗi', description: 'Không thể đặt lịch. Vui lòng thử lại.', variant: 'destructive' });
+      toast({ title: t('Lỗi'), description: t('Không thể đặt lịch. Vui lòng thử lại.'), variant: 'destructive' });
     } else {
       setBookingComplete(true);
       // Send confirmation email if customer provided email
