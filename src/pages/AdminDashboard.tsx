@@ -313,7 +313,28 @@ const AdminDashboard = () => {
     onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
 
+  // Card surcharge setting
+  const { data: cardSurchargeSetting } = useQuery({
+    queryKey: ['card-surcharge-setting'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'card_surcharge_percent').single();
+      if (error) return '0';
+      return data.value;
+    },
+  });
+
   useEffect(() => {
+    if (cardSurchargeSetting) setCardSurchargePercent(cardSurchargeSetting);
+  }, [cardSurchargeSetting]);
+
+  const saveCardSurcharge = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from('app_settings').upsert({ key: 'card_surcharge_percent', value: cardSurchargePercent });
+      if (error) throw error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['card-surcharge-setting'] }); toast({ title: t('Đã lưu phụ phí thẻ') }); },
+  });
+
     if (currencySettings) {
       setExchangeUSD(currencySettings['exchange_rate_usd'] || '0.000039');
       setExchangeEUR(currencySettings['exchange_rate_eur'] || '0.000036');
