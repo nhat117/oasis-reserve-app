@@ -124,6 +124,32 @@ const AdminDashboard = () => {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-unavailability'] }); toast({ title: 'Đã xoá ngày nghỉ' }); },
   });
 
+  // Shop holidays
+  const { data: shopHolidays } = useQuery({
+    queryKey: ['shop-holidays'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('shop_holidays').select('*').order('holiday_date', { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const addHoliday = useMutation({
+    mutationFn: async ({ date, reason }: { date: string; reason?: string }) => {
+      const { error } = await supabase.from('shop_holidays').insert({ holiday_date: date, reason });
+      if (error) throw error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['shop-holidays'] }); toast({ title: 'Đã thêm ngày nghỉ tiệm' }); },
+  });
+
+  const removeHoliday = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('shop_holidays').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['shop-holidays'] }); toast({ title: 'Đã xoá ngày nghỉ tiệm' }); },
+  });
+
   const cancelBooking = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', id);
