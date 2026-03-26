@@ -1282,7 +1282,7 @@ const AdminDashboard = () => {
             {/* Card Surcharge Settings */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">💳 {t('Phụ phí thẻ tín dụng')}</CardTitle>
+                <CardTitle className="text-base">{t('Phụ phí thẻ tín dụng')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div>
