@@ -38,7 +38,7 @@ const THERAPIST_COLORS = [
   '#8b5cf6', '#06b6d4', '#ec4899', '#f97316',
 ];
 
-export function BookingCalendar({ bookings, onCancel, onDelete, onReschedule }: BookingCalendarProps) {
+export function BookingCalendar({ bookings, onCancel, onDelete, onReschedule, onDateSelect }: BookingCalendarProps) {
   const { t, lang } = useI18n();
   const calendarRef = useRef<FullCalendar>(null);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
