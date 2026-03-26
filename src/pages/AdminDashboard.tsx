@@ -314,10 +314,71 @@ const AdminDashboard = () => {
           </TabsContent>
 
           {/* Therapists Tab */}
-          <TabsContent value="therapists">
+          <TabsContent value="therapists" className="space-y-6">
+            {/* Random therapist toggle */}
+            <Card>
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-sm">Tự động chọn thợ ngẫu nhiên</p>
+                  <p className="text-xs text-muted-foreground">Cho phép khách chọn "bất kỳ thợ trống" khi đặt lịch</p>
+                </div>
+                <Switch checked={randomEnabled !== false} onCheckedChange={(v) => toggleRandom.mutate(v)} />
+              </CardContent>
+            </Card>
+
+            {/* Unavailability */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Ngày nghỉ / Không khả dụng</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  <Select value={unavailTherapist} onValueChange={setUnavailTherapist}>
+                    <SelectTrigger className="w-[160px]"><SelectValue placeholder="Chọn thợ" /></SelectTrigger>
+                    <SelectContent>
+                      {therapists?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className={cn(!unavailDate && "text-muted-foreground")}>
+                        <CalendarOff className="h-4 w-4 mr-1" />
+                        {unavailDate ? format(unavailDate, 'dd/MM/yyyy') : 'Chọn ngày'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={unavailDate} onSelect={setUnavailDate} className="p-3 pointer-events-auto" />
+                    </PopoverContent>
+                  </Popover>
+                  <Button size="sm" disabled={!unavailTherapist || !unavailDate}
+                    onClick={() => {
+                      if (unavailTherapist && unavailDate) {
+                        addUnavailability.mutate({ therapistId: unavailTherapist, date: format(unavailDate, 'yyyy-MM-dd') });
+                        setUnavailDate(undefined);
+                      }
+                    }}>
+                    <Plus className="h-4 w-4 mr-1" /> Thêm ngày nghỉ
+                  </Button>
+                </div>
+                {unavailabilities && unavailabilities.length > 0 && (
+                  <div className="space-y-1">
+                    {unavailabilities.filter(u => u.unavailable_date >= format(new Date(), 'yyyy-MM-dd')).map(u => (
+                      <div key={u.id} className="flex items-center justify-between py-1.5 px-3 bg-muted rounded text-sm">
+                        <span><strong>{(u as any).therapists?.name}</strong> — {u.unavailable_date}</span>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeUnavailability.mutate(u.id)}>
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Therapist list */}
             <Card>
               <CardHeader className="flex-row items-center justify-between space-y-0">
-                <CardTitle>Quản lý thợ</CardTitle>
+                <CardTitle>Danh sách thợ</CardTitle>
                 <Dialog open={therapistDialog} onOpenChange={setTherapistDialog}>
                   <DialogTrigger asChild>
                     <Button size="sm" onClick={() => openTherapistEdit()}><Plus className="h-4 w-4 mr-1" /> Thêm</Button>
