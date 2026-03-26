@@ -344,7 +344,7 @@ const Booking = () => {
         {/* Step 2: Date & Time */}
         {step === 2 && (
           <Card>
-            <CardHeader><CardTitle>2. Chọn ngày & giờ</CardTitle></CardHeader>
+            <CardHeader><CardTitle>{t('2. Chọn ngày & giờ')}</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div>
                 <Label>Ngày</Label>
