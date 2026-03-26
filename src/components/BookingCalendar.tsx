@@ -213,12 +213,25 @@ export function BookingCalendar({ bookings, onCancel, onDelete, onReschedule }: 
     setDragOverSlot(null);
   };
 
-  const handleDrop = (e: React.DragEvent, date: string, hour?: number) => {
+  const handleDrop = (e: React.DragEvent, date: string, hour?: number, containerEl?: HTMLElement) => {
     e.preventDefault();
     setDragOverSlot(null);
     if (!dragBooking || dragBooking.status !== 'confirmed') return;
     const duration = timeToMinutes(dragBooking.end_time) - timeToMinutes(dragBooking.start_time);
-    const rawMins = hour !== undefined ? hour * 60 : timeToMinutes(dragBooking.start_time);
+    
+    let rawMins: number;
+    if (hour !== undefined && containerEl) {
+      // Calculate precise minute based on mouse Y position within the hour slot
+      const rect = containerEl.getBoundingClientRect();
+      const relY = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
+      const fraction = relY / rect.height;
+      rawMins = hour * 60 + fraction * 60;
+    } else if (hour !== undefined) {
+      rawMins = hour * 60;
+    } else {
+      rawMins = timeToMinutes(dragBooking.start_time);
+    }
+    
     const newStartMins = Math.round(rawMins / 15) * 15;
     const newEndMins = newStartMins + duration;
     if (newEndMins > 18 * 60) return;
