@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
       bookings: {
         Row: {
           booking_date: string
@@ -109,6 +127,38 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      therapist_unavailability: {
+        Row: {
+          created_at: string
+          id: string
+          reason: string | null
+          therapist_id: string
+          unavailable_date: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          reason?: string | null
+          therapist_id: string
+          unavailable_date: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          reason?: string | null
+          therapist_id?: string
+          unavailable_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "therapist_unavailability_therapist_id_fkey"
+            columns: ["therapist_id"]
+            isOneToOne: false
+            referencedRelation: "therapists"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       therapists: {
         Row: {
