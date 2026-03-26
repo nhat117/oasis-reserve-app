@@ -79,7 +79,18 @@ const AdminDashboard = () => {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-bookings'] }); toast({ title: 'Đã huỷ lịch hẹn' }); },
   });
 
-  const saveService = useMutation({
+  const rescheduleBooking = useMutation({
+    mutationFn: async ({ id, newDate, newStartTime, newEndTime }: { id: string; newDate: string; newStartTime: string; newEndTime: string }) => {
+      const { error } = await supabase.from('bookings').update({
+        booking_date: newDate,
+        start_time: newStartTime,
+        end_time: newEndTime,
+      }).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-bookings'] }); toast({ title: 'Đã dời lịch hẹn' }); },
+  });
+
     mutationFn: async () => {
       const payload = { name: serviceName, description: serviceDesc || null, duration_minutes: parseInt(serviceDuration), price: parseInt(servicePrice) };
       if (editingService) {
