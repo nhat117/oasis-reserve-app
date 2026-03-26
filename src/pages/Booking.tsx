@@ -193,6 +193,7 @@ const Booking = () => {
               <p><strong>Thợ:</strong> {assignedTherapistName || selectedTherapistName}</p>
               <p><strong>Khách:</strong> {customerName}</p>
               <p><strong>SĐT:</strong> {customerPhone}</p>
+              {customerEmail && <p><strong>Email:</strong> {customerEmail}</p>}
             </div>
             <p className="text-muted-foreground text-sm">Cảm ơn bạn đã đặt lịch. Chúng tôi sẽ liên hệ xác nhận.</p>
             <Link to="/">
