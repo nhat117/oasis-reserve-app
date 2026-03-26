@@ -96,6 +96,12 @@ const AdminDashboard = () => {
   // Card surcharge state
   const [cardSurchargePercent, setCardSurchargePercent] = useState('0');
 
+  // Sales filter state
+  const [salesFilterMethod, setSalesFilterMethod] = useState('all');
+  const [salesFilterDateFrom, setSalesFilterDateFrom] = useState('');
+  const [salesFilterDateTo, setSalesFilterDateTo] = useState('');
+  const [salesFilterSearch, setSalesFilterSearch] = useState('');
+
   // OpenAI settings state
   const [openaiApiKey, setOpenaiApiKey] = useState('');
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState('');
@@ -1035,13 +1041,46 @@ const AdminDashboard = () => {
                 </Dialog>
               </CardHeader>
               <CardContent>
-                {(!sales || sales.length === 0) ? (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <DollarSign className="h-10 w-10 mx-auto mb-2 opacity-30" />
-                    <p className="text-sm font-medium">{t('Chưa có thanh toán')}</p>
-                    <p className="text-xs mt-1">{t('Tạo thanh toán để dữ liệu xuất hiện')}</p>
-                  </div>
-                ) : (
+                {/* Sales filters */}
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <Input placeholder={t('Tìm khách hàng...')} value={salesFilterSearch} onChange={e => setSalesFilterSearch(e.target.value)} className="w-40 h-8 text-sm" />
+                  <Input type="date" value={salesFilterDateFrom} onChange={e => setSalesFilterDateFrom(e.target.value)} className="w-36 h-8 text-sm" />
+                  <span className="self-center text-xs text-muted-foreground">—</span>
+                  <Input type="date" value={salesFilterDateTo} onChange={e => setSalesFilterDateTo(e.target.value)} className="w-36 h-8 text-sm" />
+                  <Select value={salesFilterMethod} onValueChange={setSalesFilterMethod}>
+                    <SelectTrigger className="w-28 h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">{t('Tất cả')}</SelectItem>
+                      <SelectItem value="cash">{t('Tiền mặt')}</SelectItem>
+                      <SelectItem value="card">{t('Thẻ')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {(salesFilterSearch || salesFilterDateFrom || salesFilterDateTo || salesFilterMethod !== 'all') && (
+                    <Button variant="ghost" size="sm" className="h-8" onClick={() => { setSalesFilterSearch(''); setSalesFilterDateFrom(''); setSalesFilterDateTo(''); setSalesFilterMethod('all'); }}>
+                      <X className="h-3 w-3 mr-1" />{t('Xóa lọc')}
+                    </Button>
+                  )}
+                </div>
+                {(() => {
+                  const filtered = (sales || []).filter((s: any) => {
+                    if (salesFilterMethod !== 'all' && s.payment_method !== salesFilterMethod) return false;
+                    if (salesFilterDateFrom && s.sale_date < salesFilterDateFrom) return false;
+                    if (salesFilterDateTo && s.sale_date > salesFilterDateTo) return false;
+                    if (salesFilterSearch) {
+                      const q = salesFilterSearch.toLowerCase();
+                      const name = (s.bookings?.customer_name || '').toLowerCase();
+                      const note = (s.notes || '').toLowerCase();
+                      if (!name.includes(q) && !note.includes(q)) return false;
+                    }
+                    return true;
+                  });
+                  if (filtered.length === 0) return (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <DollarSign className="h-10 w-10 mx-auto mb-2 opacity-30" />
+                      <p className="text-sm font-medium">{sales?.length ? t('Không tìm thấy kết quả') : t('Chưa có thanh toán')}</p>
+                    </div>
+                  );
+                  return (
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -1055,7 +1094,7 @@ const AdminDashboard = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {sales.map((s: any) => (
+                      {filtered.map((s: any) => (
                         <TableRow key={s.id}>
                           <TableCell className="text-sm">{s.sale_date}</TableCell>
                           <TableCell className="text-sm">{s.bookings?.customer_name || '—'}</TableCell>
@@ -1075,8 +1114,9 @@ const AdminDashboard = () => {
                         </TableRow>
                       ))}
                     </TableBody>
-                  </Table>
-                )}
+                   </Table>
+                  );
+                })()}
               </CardContent>
             </Card>
           </TabsContent>

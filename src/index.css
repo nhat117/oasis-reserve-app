@@ -105,12 +105,28 @@
   --fc-now-indicator-color: hsl(var(--primary));
   --fc-event-border-color: transparent;
   --fc-page-bg-color: transparent;
-  font-family: 'Be Vietnam Pro', sans-serif;
+  font-family: 'Be Vietnam Pro', system-ui, sans-serif;
 }
 
 .fc-custom .fc .fc-toolbar-title {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Be Vietnam Pro', system-ui, sans-serif;
   font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Remove highlight/selection outline on click */
+.fc-custom .fc .fc-highlight {
+  background: transparent !important;
+}
+.fc-custom .fc .fc-daygrid-day.fc-day-today {
+  background: hsl(var(--primary) / 0.04) !important;
+}
+.fc-custom .fc td:focus,
+.fc-custom .fc .fc-daygrid-day:focus,
+.fc-custom .fc .fc-timegrid-slot:focus {
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .fc-custom .fc .fc-button {
