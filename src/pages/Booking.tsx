@@ -26,6 +26,7 @@ const Booking = () => {
   const [selectedTherapist, setSelectedTherapist] = useState('any');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookingComplete, setBookingComplete] = useState(false);
   const [assignedTherapistName, setAssignedTherapistName] = useState('');
