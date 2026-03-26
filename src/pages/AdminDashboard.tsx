@@ -816,6 +816,24 @@ const AdminDashboard = () => {
 
           {/* Settings Tab */}
           <TabsContent value="settings" className="space-y-6">
+            {/* Shop Info */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">🏪 {t('Thông tin tiệm')}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label>{t('Số điện thoại tiệm')}</Label>
+                  <Input value={shopPhone} onChange={e => setShopPhone(e.target.value)} className="mt-1" placeholder="+84 123 456 789" />
+                </div>
+                <div>
+                  <Label>{t('Địa chỉ')}</Label>
+                  <Input value={shopAddress} onChange={e => setShopAddress(e.target.value)} className="mt-1" placeholder={t('Nhập địa chỉ tiệm')} />
+                </div>
+                <Button size="sm" onClick={() => saveShopInfo.mutate()}>{t('Lưu thông tin')}</Button>
+              </CardContent>
+            </Card>
+
             {/* Random therapist toggle */}
             <Card>
               <CardContent className="p-4 flex items-center justify-between">
