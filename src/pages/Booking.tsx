@@ -340,7 +340,8 @@ const Booking = () => {
                       disabled={(date) => {
                         if (isBefore(startOfDay(date), startOfDay(new Date()))) return true;
                         if (date.getDay() === 0) return true;
-                        if (shopHolidays?.includes(format(date, 'yyyy-MM-dd'))) return true;
+                        const holiday = shopHolidays?.find((h: any) => h.holiday_date === format(date, 'yyyy-MM-dd'));
+                        if (holiday && !holiday.early_close_hour) return true;
                         return false;
                       }}
                       className="p-3 pointer-events-auto"
