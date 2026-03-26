@@ -284,6 +284,7 @@ export function BookingCalendar({ bookings, onCancel, onReschedule }: BookingCal
   };
 
   // ============ WEEK VIEW ============
+  const HOUR_HEIGHT_WEEK = 60;
   const WeekView = () => {
     const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
     const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -300,38 +301,54 @@ export function BookingCalendar({ bookings, onCancel, onReschedule }: BookingCal
               </div>
             ))}
           </div>
-          {HOURS.map(hour => (
-            <div key={hour} className="grid grid-cols-[60px_repeat(7,1fr)] gap-0 border-b min-h-[60px]">
-              <div className="p-1 text-xs text-muted-foreground text-right pr-2 pt-1">{String(hour).padStart(2, '0')}:00</div>
-              {days.map((day, di) => {
-                const dateStr = format(day, 'yyyy-MM-dd');
-                const slotKey = `week-${dateStr}-${hour}`;
-                const slotBookings = (bookingsByDate[dateStr] || []).filter(b => parseInt(b.start_time) === hour);
-                return (
-                  <div key={di} className={cn("border-l p-0.5 relative transition-colors", dragOverSlot === slotKey && "bg-primary/10")}
-                    onDragOver={(e) => handleDragOver(e, slotKey)} onDragLeave={handleDragLeave}
-                    onDrop={(e) => handleDrop(e, dateStr, hour)}>
-                    {slotBookings.map(b => {
-                      const durationMins = timeToMinutes(b.end_time) - timeToMinutes(b.start_time);
-                      const heightPx = Math.max(20, (durationMins / 60) * 56);
-                      return (
-                        <div key={b.id} draggable={b.status === 'confirmed'}
-                          onDragStart={(e) => handleDragStart(e, b)} onDragEnd={handleDragEnd}
-                          onClick={() => openBookingDetail(b)}
-                          className={cn("text-[10px] leading-tight px-1.5 py-1 rounded cursor-grab active:cursor-grabbing mb-0.5",
-                            getBookingStyle(b), dragBooking?.id === b.id && "opacity-50")}
-                          style={{ minHeight: `${heightPx}px` }}>
-                          <div className="font-medium">{b.start_time?.slice(0, 5)}–{b.end_time?.slice(0, 5)}</div>
-                          <div className="truncate">{b.customer_name}</div>
-                          <div className="truncate opacity-80">{b.services?.name}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
+          <div className="grid grid-cols-[60px_repeat(7,1fr)] gap-0">
+            <div>
+              {HOURS.map(hour => (
+                <div key={hour} className="border-b text-right pr-2 pt-1 text-xs text-muted-foreground" style={{ height: `${HOUR_HEIGHT_WEEK}px` }}>
+                  {String(hour).padStart(2, '0')}:00
+                </div>
+              ))}
             </div>
-          ))}
+            {days.map((day, di) => {
+              const dateStr = format(day, 'yyyy-MM-dd');
+              const allDayBookings = bookingsByDate[dateStr] || [];
+              const layouted = layoutOverlappingBookings(allDayBookings);
+              const firstHour = HOURS[0];
+              return (
+                <div key={di} className="border-l relative" style={{ height: `${HOURS.length * HOUR_HEIGHT_WEEK}px` }}>
+                  {HOURS.map((hour, hi) => {
+                    const slotKey = `week-${dateStr}-${hour}`;
+                    return (
+                      <div key={hour} className={cn("border-b absolute w-full", dragOverSlot === slotKey && "bg-primary/10")}
+                        style={{ top: `${hi * HOUR_HEIGHT_WEEK}px`, height: `${HOUR_HEIGHT_WEEK}px` }}
+                        onDragOver={(e) => handleDragOver(e, slotKey)} onDragLeave={handleDragLeave}
+                        onDrop={(e) => handleDrop(e, dateStr, hour)} />
+                    );
+                  })}
+                  {layouted.map(b => {
+                    const startMins = timeToMinutes(b.start_time);
+                    const endMins = timeToMinutes(b.end_time);
+                    const topPx = ((startMins - firstHour * 60) / 60) * HOUR_HEIGHT_WEEK;
+                    const heightPx = Math.max(16, ((endMins - startMins) / 60) * HOUR_HEIGHT_WEEK);
+                    const widthPct = 100 / b.totalCols;
+                    const leftPct = b.col * widthPct;
+                    return (
+                      <div key={b.id} draggable={b.status === 'confirmed'}
+                        onDragStart={(e) => handleDragStart(e, b)} onDragEnd={handleDragEnd}
+                        onClick={() => openBookingDetail(b)}
+                        className={cn("absolute text-[10px] leading-tight px-1 py-0.5 rounded cursor-grab active:cursor-grabbing overflow-hidden border border-background/20",
+                          getBookingStyle(b), dragBooking?.id === b.id && "opacity-50")}
+                        style={{ top: `${topPx}px`, height: `${heightPx}px`, left: `${leftPct}%`, width: `${widthPct}%`, zIndex: 10 }}>
+                        <div className="font-medium truncate">{b.start_time?.slice(0, 5)}–{b.end_time?.slice(0, 5)}</div>
+                        <div className="truncate">{b.customer_name}</div>
+                        <div className="truncate opacity-80">{b.services?.name}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     );
