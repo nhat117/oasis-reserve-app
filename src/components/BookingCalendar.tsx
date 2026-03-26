@@ -102,6 +102,21 @@ export function BookingCalendar({ bookings, onCancel, onDelete, onReschedule, on
     setDialogOpen(true);
   };
 
+  // Handle date/time selection (click on empty slot)
+  const handleDateSelect = (info: DateSelectArg) => {
+    if (!onDateSelect) return;
+    const dateStr = format(info.start, 'yyyy-MM-dd');
+    // If in time grid, also pass the start time
+    if (info.view.type.includes('timeGrid')) {
+      const timeStr = format(info.start, 'HH:mm');
+      onDateSelect(dateStr, timeStr);
+    } else {
+      onDateSelect(dateStr);
+    }
+    const calApi = calendarRef.current?.getApi();
+    calApi?.unselect();
+  };
+
   // Legend
   const uniqueTherapists = useMemo(() => {
     return [...new Map(
