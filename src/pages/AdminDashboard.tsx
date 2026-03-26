@@ -95,6 +95,10 @@ const AdminDashboard = () => {
   // Card surcharge state
   const [cardSurchargePercent, setCardSurchargePercent] = useState('0');
 
+  // OpenAI settings state
+  const [openaiApiKey, setOpenaiApiKey] = useState('');
+  const [openaiBaseUrl, setOpenaiBaseUrl] = useState('');
+
   const { data: bookings } = useQuery({
     queryKey: ['admin-bookings', filterTherapist],
     queryFn: async () => {
