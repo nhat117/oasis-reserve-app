@@ -74,6 +74,10 @@ const AdminDashboard = () => {
   const [exchangeAUD, setExchangeAUD] = useState('');
   const [defaultCurrency, setDefaultCurrency] = useState('AUD');
 
+  // Shop info state
+  const [shopPhone, setShopPhone] = useState('');
+  const [shopAddress, setShopAddress] = useState('');
+
   const { data: bookings } = useQuery({
     queryKey: ['admin-bookings', filterTherapist],
     queryFn: async () => {
@@ -171,6 +175,40 @@ const AdminDashboard = () => {
       data?.forEach(r => { map[r.key] = r.value; });
       return map;
     },
+  });
+
+  // Shop info settings
+  const { data: shopInfoSettings } = useQuery({
+    queryKey: ['shop-info-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('app_settings').select('key, value')
+        .in('key', ['shop_phone', 'shop_address']);
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      data?.forEach(r => { map[r.key] = r.value; });
+      return map;
+    },
+  });
+
+  useEffect(() => {
+    if (shopInfoSettings) {
+      setShopPhone(shopInfoSettings['shop_phone'] || '');
+      setShopAddress(shopInfoSettings['shop_address'] || '');
+    }
+  }, [shopInfoSettings]);
+
+  const saveShopInfo = useMutation({
+    mutationFn: async () => {
+      const rows = [
+        { key: 'shop_phone', value: shopPhone },
+        { key: 'shop_address', value: shopAddress },
+      ];
+      for (const row of rows) {
+        const { error } = await supabase.from('app_settings').upsert(row);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['shop-info-settings'] }); toast({ title: t('Đã lưu thông tin tiệm') }); },
   });
 
   useEffect(() => {
@@ -778,6 +816,24 @@ const AdminDashboard = () => {
 
           {/* Settings Tab */}
           <TabsContent value="settings" className="space-y-6">
+            {/* Shop Info */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">🏪 {t('Thông tin tiệm')}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label>{t('Số điện thoại tiệm')}</Label>
+                  <Input value={shopPhone} onChange={e => setShopPhone(e.target.value)} className="mt-1" placeholder="+84 123 456 789" />
+                </div>
+                <div>
+                  <Label>{t('Địa chỉ')}</Label>
+                  <Input value={shopAddress} onChange={e => setShopAddress(e.target.value)} className="mt-1" placeholder={t('Nhập địa chỉ tiệm')} />
+                </div>
+                <Button size="sm" onClick={() => saveShopInfo.mutate()}>{t('Lưu thông tin')}</Button>
+              </CardContent>
+            </Card>
+
             {/* Random therapist toggle */}
             <Card>
               <CardContent className="p-4 flex items-center justify-between">
