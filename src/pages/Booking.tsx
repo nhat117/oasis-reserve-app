@@ -70,6 +70,17 @@ const Booking = () => {
     enabled: !!selectedDate,
   });
 
+  const { data: shopHolidays } = useQuery({
+    queryKey: ['shop-holidays-list'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('shop_holidays').select('holiday_date');
+      if (error) throw error;
+      return data.map((h: any) => h.holiday_date as string);
+    },
+  });
+
+  const isShopHoliday = selectedDate ? shopHolidays?.includes(format(selectedDate, 'yyyy-MM-dd')) : false;
+
   const { data: existingBookings } = useQuery({
     queryKey: ['bookings-availability', selectedDate?.toISOString()],
     queryFn: async () => {
