@@ -509,6 +509,27 @@ const AdminDashboard = () => {
     },
   });
 
+  // Admin accounts list
+  const { data: adminAccounts, refetch: refetchAdmins } = useQuery({
+    queryKey: ['admin-accounts'],
+    queryFn: async () => {
+      const { data: { session: s } } = await supabase.auth.getSession();
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-admins`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${s?.access_token}`,
+          },
+        }
+      );
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Failed');
+      return result.admins as { id: string; email: string; created_at: string; is_current: boolean }[];
+    },
+  });
+
   const addHoliday = useMutation({
     mutationFn: async ({ date, reason, earlyCloseHour }: { date: string; reason?: string; earlyCloseHour?: number }) => {
       const { error } = await supabase.from('shop_holidays').insert({
