@@ -423,7 +423,7 @@ const AdminDashboard = () => {
     return <Badge variant={variant as any}>{map[status] || status}</Badge>;
   };
 
-  const formatPrice = (p: number) => new Intl.NumberFormat('vi-VN').format(p) + 'đ';
+  const formatPrice = (p: number) => `A$ ${p.toLocaleString()}`;
 
   // Generate time slots for booking
   const getTimeSlots = () => {
