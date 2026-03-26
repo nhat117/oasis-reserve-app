@@ -102,7 +102,10 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
     if (translations[key]) return translations[key];
     if (!requestedRef.current.has(key)) {
       requestedRef.current.add(key);
-      setPendingKeys(prev => new Set(prev).add(key));
+      // Defer state update to avoid setState during render
+      queueMicrotask(() => {
+        setPendingKeys(prev => new Set(prev).add(key));
+      });
     }
     return key;
   }, [lang, translations]);
