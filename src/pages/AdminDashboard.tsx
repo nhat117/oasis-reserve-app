@@ -1063,7 +1063,7 @@ const AdminDashboard = () => {
                     {shopHolidays.filter((h: any) => h.holiday_date >= format(new Date(), 'yyyy-MM-dd')).map((h: any) => (
                       <div key={h.id} className="flex items-center justify-between py-1.5 px-3 bg-destructive/10 rounded text-sm">
                         <span>
-                          {h.early_close_hour ? '⏰' : '🏖️'} <strong>{h.holiday_date}</strong>
+                          <strong>{h.holiday_date}</strong>
                           {h.early_close_hour ? ` — ${t('Đóng cửa lúc')} ${h.early_close_hour}:00` : ` — ${t('Nghỉ cả ngày')}`}
                           {h.reason ? ` (${h.reason})` : ''}
                         </span>
