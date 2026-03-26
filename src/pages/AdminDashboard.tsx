@@ -74,6 +74,10 @@ const AdminDashboard = () => {
   const [exchangeAUD, setExchangeAUD] = useState('');
   const [defaultCurrency, setDefaultCurrency] = useState('AUD');
 
+  // Shop info state
+  const [shopPhone, setShopPhone] = useState('');
+  const [shopAddress, setShopAddress] = useState('');
+
   const { data: bookings } = useQuery({
     queryKey: ['admin-bookings', filterTherapist],
     queryFn: async () => {

@@ -127,7 +127,7 @@ export const LanguageSwitcher = ({ className }: { className?: string }) => {
       onClick={() => setLang(lang === 'en' ? 'vi' : 'en')}
       className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium border border-border bg-card hover:bg-accent transition-colors ${className || ''}`}
     >
-      {lang === 'en' ? '🇻🇳 VI' : '🇬🇧 EN'}
+      {lang === 'vi' ? '🇬🇧 EN' : '🇻🇳 VI'}
     </button>
   );
 };
