@@ -1,0 +1,4 @@
+
+ALTER TABLE public.therapists 
+  ADD COLUMN start_hour INTEGER NOT NULL DEFAULT 9,
+  ADD COLUMN end_hour INTEGER NOT NULL DEFAULT 18;

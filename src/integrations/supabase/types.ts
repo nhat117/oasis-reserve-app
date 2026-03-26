@@ -110,28 +110,34 @@ export type Database = {
       therapists: {
         Row: {
           created_at: string
+          end_hour: number
           id: string
           is_active: boolean
           name: string
           phone: string | null
+          start_hour: number
           updated_at: string
           working_days: number[]
         }
         Insert: {
           created_at?: string
+          end_hour?: number
           id?: string
           is_active?: boolean
           name: string
           phone?: string | null
+          start_hour?: number
           updated_at?: string
           working_days?: number[]
         }
         Update: {
           created_at?: string
+          end_hour?: number
           id?: string
           is_active?: boolean
           name?: string
           phone?: string | null
+          start_hour?: number
           updated_at?: string
           working_days?: number[]
         }
