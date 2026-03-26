@@ -47,7 +47,6 @@ const AdminDashboard = () => {
   const [therapistEndHour, setTherapistEndHour] = useState('18');
   const [therapistBreakStart, setTherapistBreakStart] = useState('');
   const [therapistBreakEnd, setTherapistBreakEnd] = useState('');
-  const [therapistEndHour, setTherapistEndHour] = useState('18');
   const [unavailDate, setUnavailDate] = useState<Date | undefined>();
   const [unavailTherapist, setUnavailTherapist] = useState('');
   const [holidayDate, setHolidayDate] = useState<Date | undefined>();
