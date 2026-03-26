@@ -31,6 +31,9 @@ const I18nContext = createContext<I18nContextType>({
   setLang: () => {},
   t: (k) => k,
   loading: false,
+  currency: 'AUD',
+  setCurrency: () => {},
+  formatPrice: (v) => String(v),
 });
 
 // Default Vietnamese strings (dashboard default)
