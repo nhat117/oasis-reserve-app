@@ -101,6 +101,9 @@ const Booking = () => {
 
   const currentService = services?.find(s => s.id === selectedService);
 
+  // Buffer time between services (in minutes)
+  const BUFFER_MINUTES = 15;
+
   // Find available therapists for a given time slot
   const getAvailableTherapists = (timeStr: string, duration: number) => {
     if (!therapists || !selectedDate) return [];
@@ -128,11 +131,18 @@ const Booking = () => {
         // Slot overlaps with break if it starts before break ends and ends after break starts
         if (slotStartMin < breakEnd && slotEndMin > breakStart) return false;
       }
-      // Check if already booked
-      const isBooked = existingBookings?.some(b =>
-        b.therapist_id === t.id &&
-        b.start_time < endStr + ':00' && b.end_time > timeStr + ':00'
-      );
+      // Check if already booked (with buffer time between services)
+      const slotStartMin = parseInt(timeStr.split(':')[0]) * 60 + parseInt(timeStr.split(':')[1]);
+      const slotEndMin = parseInt(endStr.split(':')[0]) * 60 + parseInt(endStr.split(':')[1]);
+      const isBooked = existingBookings?.some(b => {
+        if (b.therapist_id !== t.id) return false;
+        const bStartParts = b.start_time.split(':');
+        const bEndParts = b.end_time.split(':');
+        const bStartMin = parseInt(bStartParts[0]) * 60 + parseInt(bStartParts[1]);
+        const bEndMin = parseInt(bEndParts[0]) * 60 + parseInt(bEndParts[1]);
+        // Add buffer: new slot must not overlap with [bStart - buffer, bEnd + buffer]
+        return slotStartMin < (bEndMin + BUFFER_MINUTES) && slotEndMin > (bStartMin - BUFFER_MINUTES);
+      });
       return !isBooked;
     });
   };
