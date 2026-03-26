@@ -78,7 +78,50 @@ const AdminDashboard = () => {
     },
   });
 
-  const cancelBooking = useMutation({
+  // Random therapist setting
+  const { data: randomEnabled } = useQuery({
+    queryKey: ['random-therapist-setting'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'random_therapist_enabled').single();
+      if (error) return true;
+      return data.value === 'true';
+    },
+  });
+
+  const toggleRandom = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const { error } = await supabase.from('app_settings').update({ value: String(enabled) }).eq('key', 'random_therapist_enabled');
+      if (error) throw error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['random-therapist-setting'] }); toast({ title: 'Đã cập nhật cài đặt' }); },
+  });
+
+  // Therapist unavailability
+  const { data: unavailabilities } = useQuery({
+    queryKey: ['admin-unavailability'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('therapist_unavailability').select('*, therapists(name)').order('unavailable_date', { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const addUnavailability = useMutation({
+    mutationFn: async ({ therapistId, date, reason }: { therapistId: string; date: string; reason?: string }) => {
+      const { error } = await supabase.from('therapist_unavailability').insert({ therapist_id: therapistId, unavailable_date: date, reason });
+      if (error) throw error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-unavailability'] }); toast({ title: 'Đã thêm ngày nghỉ' }); },
+  });
+
+  const removeUnavailability = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('therapist_unavailability').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-unavailability'] }); toast({ title: 'Đã xoá ngày nghỉ' }); },
+  });
+
     mutationFn: async (id: string) => {
       const { error } = await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', id);
       if (error) throw error;
