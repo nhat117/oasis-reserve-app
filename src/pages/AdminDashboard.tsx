@@ -218,7 +218,14 @@ const AdminDashboard = () => {
 
   const saveTherapist = useMutation({
     mutationFn: async () => {
-      const payload = { name: therapistName, phone: therapistPhone || null, start_hour: parseInt(therapistStartHour), end_hour: parseInt(therapistEndHour) };
+      const payload = {
+        name: therapistName,
+        phone: therapistPhone || null,
+        start_hour: parseInt(therapistStartHour),
+        end_hour: parseInt(therapistEndHour),
+        break_start: therapistBreakStart ? parseInt(therapistBreakStart) : null,
+        break_end: therapistBreakEnd ? parseInt(therapistBreakEnd) : null,
+      } as any;
       if (editingTherapist) {
         const { error } = await supabase.from('therapists').update(payload).eq('id', editingTherapist.id);
         if (error) throw error;
