@@ -14,7 +14,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { BookingCalendar } from '@/components/BookingCalendar';
 import { Textarea } from '@/components/ui/textarea';
 import { BookingStats } from '@/components/BookingStats';
-import { Leaf, LogOut, Plus, Pencil } from 'lucide-react';
+import { Leaf, LogOut, Plus, Pencil, CalendarOff, X } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -42,6 +45,8 @@ const AdminDashboard = () => {
   const [therapistPhone, setTherapistPhone] = useState('');
   const [therapistStartHour, setTherapistStartHour] = useState('9');
   const [therapistEndHour, setTherapistEndHour] = useState('18');
+  const [unavailDate, setUnavailDate] = useState<Date | undefined>();
+  const [unavailTherapist, setUnavailTherapist] = useState('');
 
   const { data: bookings } = useQuery({
     queryKey: ['admin-bookings', filterTherapist],
@@ -71,6 +76,50 @@ const AdminDashboard = () => {
       if (error) throw error;
       return data;
     },
+  });
+
+  // Random therapist setting
+  const { data: randomEnabled } = useQuery({
+    queryKey: ['random-therapist-setting'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'random_therapist_enabled').single();
+      if (error) return true;
+      return data.value === 'true';
+    },
+  });
+
+  const toggleRandom = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const { error } = await supabase.from('app_settings').update({ value: String(enabled) }).eq('key', 'random_therapist_enabled');
+      if (error) throw error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['random-therapist-setting'] }); toast({ title: 'Đã cập nhật cài đặt' }); },
+  });
+
+  // Therapist unavailability
+  const { data: unavailabilities } = useQuery({
+    queryKey: ['admin-unavailability'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('therapist_unavailability').select('*, therapists(name)').order('unavailable_date', { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const addUnavailability = useMutation({
+    mutationFn: async ({ therapistId, date, reason }: { therapistId: string; date: string; reason?: string }) => {
+      const { error } = await supabase.from('therapist_unavailability').insert({ therapist_id: therapistId, unavailable_date: date, reason });
+      if (error) throw error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-unavailability'] }); toast({ title: 'Đã thêm ngày nghỉ' }); },
+  });
+
+  const removeUnavailability = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('therapist_unavailability').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-unavailability'] }); toast({ title: 'Đã xoá ngày nghỉ' }); },
   });
 
   const cancelBooking = useMutation({
@@ -265,10 +314,71 @@ const AdminDashboard = () => {
           </TabsContent>
 
           {/* Therapists Tab */}
-          <TabsContent value="therapists">
+          <TabsContent value="therapists" className="space-y-6">
+            {/* Random therapist toggle */}
+            <Card>
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-sm">Tự động chọn thợ ngẫu nhiên</p>
+                  <p className="text-xs text-muted-foreground">Cho phép khách chọn "bất kỳ thợ trống" khi đặt lịch</p>
+                </div>
+                <Switch checked={randomEnabled !== false} onCheckedChange={(v) => toggleRandom.mutate(v)} />
+              </CardContent>
+            </Card>
+
+            {/* Unavailability */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Ngày nghỉ / Không khả dụng</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  <Select value={unavailTherapist} onValueChange={setUnavailTherapist}>
+                    <SelectTrigger className="w-[160px]"><SelectValue placeholder="Chọn thợ" /></SelectTrigger>
+                    <SelectContent>
+                      {therapists?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className={cn(!unavailDate && "text-muted-foreground")}>
+                        <CalendarOff className="h-4 w-4 mr-1" />
+                        {unavailDate ? format(unavailDate, 'dd/MM/yyyy') : 'Chọn ngày'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={unavailDate} onSelect={setUnavailDate} className="p-3 pointer-events-auto" />
+                    </PopoverContent>
+                  </Popover>
+                  <Button size="sm" disabled={!unavailTherapist || !unavailDate}
+                    onClick={() => {
+                      if (unavailTherapist && unavailDate) {
+                        addUnavailability.mutate({ therapistId: unavailTherapist, date: format(unavailDate, 'yyyy-MM-dd') });
+                        setUnavailDate(undefined);
+                      }
+                    }}>
+                    <Plus className="h-4 w-4 mr-1" /> Thêm ngày nghỉ
+                  </Button>
+                </div>
+                {unavailabilities && unavailabilities.length > 0 && (
+                  <div className="space-y-1">
+                    {unavailabilities.filter(u => u.unavailable_date >= format(new Date(), 'yyyy-MM-dd')).map(u => (
+                      <div key={u.id} className="flex items-center justify-between py-1.5 px-3 bg-muted rounded text-sm">
+                        <span><strong>{(u as any).therapists?.name}</strong> — {u.unavailable_date}</span>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeUnavailability.mutate(u.id)}>
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Therapist list */}
             <Card>
               <CardHeader className="flex-row items-center justify-between space-y-0">
-                <CardTitle>Quản lý thợ</CardTitle>
+                <CardTitle>Danh sách thợ</CardTitle>
                 <Dialog open={therapistDialog} onOpenChange={setTherapistDialog}>
                   <DialogTrigger asChild>
                     <Button size="sm" onClick={() => openTherapistEdit()}><Plus className="h-4 w-4 mr-1" /> Thêm</Button>
