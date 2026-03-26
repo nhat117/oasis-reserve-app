@@ -83,6 +83,7 @@ const AdminDashboard = () => {
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [creatingAdmin, setCreatingAdmin] = useState(false);
+  const [deletingAdminId, setDeletingAdminId] = useState<string | null>(null);
 
   // Currency settings state
   const [exchangeUSD, setExchangeUSD] = useState('');
