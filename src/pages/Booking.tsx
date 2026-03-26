@@ -156,6 +156,7 @@ const Booking = () => {
       therapist_id: therapistId,
       customer_name: customerName.trim(),
       customer_phone: customerPhone.trim(),
+      customer_email: customerEmail.trim() || null,
       booking_date: format(selectedDate, 'yyyy-MM-dd'),
       start_time: startTime,
       end_time: endTime,
