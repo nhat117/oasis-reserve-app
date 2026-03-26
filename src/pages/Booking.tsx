@@ -234,21 +234,26 @@ const Booking = () => {
       toast({ title: t('Lỗi'), description: t('Không thể đặt lịch. Vui lòng thử lại.'), variant: 'destructive' });
     } else {
       setBookingComplete(true);
-      // Send confirmation email if customer provided email
+      // Send confirmation email via Resend if customer provided email
       if (customerEmail.trim()) {
-        supabase.functions.invoke('send-transactional-email', {
+        const emailHtml = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h1 style="color: #1a1a1a; font-size: 22px;">Booking Confirmed! ✅</h1>
+            <p style="color: #555; font-size: 14px; line-height: 1.6;">Hi <strong>${customerName.trim()}</strong>, your booking has been confirmed.</p>
+            <div style="background: #f5f5f5; border-radius: 8px; padding: 16px; margin: 20px 0;">
+              <p style="margin: 4px 0;"><strong>Service:</strong> ${currentService?.name || ''}</p>
+              <p style="margin: 4px 0;"><strong>Date:</strong> ${format(selectedDate, 'dd/MM/yyyy')}</p>
+              <p style="margin: 4px 0;"><strong>Time:</strong> ${selectedTime} - ${format(endDate, 'HH:mm')}</p>
+              <p style="margin: 4px 0;"><strong>Therapist:</strong> ${therapistName}</p>
+            </div>
+            <p style="color: #555; font-size: 14px;">Thank you for choosing Royal Head Spa. We look forward to seeing you!</p>
+          </div>
+        `;
+        supabase.functions.invoke('send-email-resend', {
           body: {
-            templateName: 'booking-confirmation',
-            recipientEmail: customerEmail.trim(),
-            idempotencyKey: `booking-confirm-${bookingId}`,
-            templateData: {
-              customerName: customerName.trim(),
-              serviceName: currentService?.name || '',
-              therapistName,
-              bookingDate: format(selectedDate, 'dd/MM/yyyy'),
-              startTime: selectedTime,
-              endTime: format(endDate, 'HH:mm'),
-            },
+            to: customerEmail.trim(),
+            subject: `Booking Confirmed - ${currentService?.name || 'Royal Head Spa'}`,
+            html: emailHtml,
           },
         }).catch(err => console.error('Failed to send confirmation email:', err));
       }
