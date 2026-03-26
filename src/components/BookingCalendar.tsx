@@ -152,6 +152,9 @@ export function BookingCalendar({ bookings, onCancel, onDelete, onReschedule, on
           locale={lang === 'vi' ? 'vi' : 'en-au'}
           events={events}
           editable={true}
+          selectable={true}
+          selectMirror={true}
+          select={handleDateSelect}
           droppable={true}
           eventDrop={handleEventDrop}
           eventClick={handleEventClick}
