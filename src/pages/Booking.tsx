@@ -271,6 +271,7 @@ const Booking = () => {
             <img src={logoImg} alt="Royal Head Spa" className="h-10 w-10 object-contain" />
             <span className="text-xl font-semibold font-serif text-primary">Royal Head Spa</span>
           </Link>
+          <LanguageSwitcher />
         </div>
       </header>
 
