@@ -74,13 +74,15 @@ const Booking = () => {
   const { data: shopHolidays } = useQuery({
     queryKey: ['shop-holidays-list'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('shop_holidays').select('holiday_date');
+      const { data, error } = await supabase.from('shop_holidays').select('*');
       if (error) throw error;
-      return data.map((h: any) => h.holiday_date as string);
+      return data as any[];
     },
   });
 
-  const isShopHoliday = selectedDate ? shopHolidays?.includes(format(selectedDate, 'yyyy-MM-dd')) : false;
+  const todayHoliday = selectedDate ? shopHolidays?.find((h: any) => h.holiday_date === format(selectedDate, 'yyyy-MM-dd')) : null;
+  const isShopHoliday = todayHoliday && !todayHoliday.early_close_hour;
+  const earlyCloseHour = todayHoliday?.early_close_hour as number | undefined;
 
   const { data: existingBookings } = useQuery({
     queryKey: ['bookings-availability', selectedDate?.toISOString()],
