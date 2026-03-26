@@ -831,10 +831,10 @@ const AdminDashboard = () => {
                         <Label>{t('Phương thức thanh toán')}</Label>
                         <div className="flex gap-2 mt-1">
                           <Button type="button" variant={salePaymentMethod === 'cash' ? 'default' : 'outline'} className="flex-1" onClick={() => setSalePaymentMethod('cash')}>
-                            💵 {t('Tiền mặt')}
+                            {t('Tiền mặt')}
                           </Button>
                           <Button type="button" variant={salePaymentMethod === 'card' ? 'default' : 'outline'} className="flex-1" onClick={() => setSalePaymentMethod('card')}>
-                            💳 {t('Thẻ')}
+                            {t('Thẻ')}
                           </Button>
                         </div>
                         {salePaymentMethod === 'card' && parseFloat(cardSurchargeSetting || '0') > 0 && saleAmount && (
