@@ -347,7 +347,7 @@ const Booking = () => {
             <CardHeader><CardTitle>{t('2. Chọn ngày & giờ')}</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label>Ngày</Label>
+                <Label>{t('Ngày')}</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button variant="outline" className={cn("w-full justify-start text-left font-normal mt-1", !selectedDate && "text-muted-foreground")}>
