@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ArrowLeft, CalendarIcon, Check } from 'lucide-react';
 import logoImg from '@/assets/logo.png';
 import { format, addMinutes, isBefore, isToday, startOfDay } from 'date-fns';
+import { vi as viLocale, enAU } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { LanguageSwitcher, useI18n } from '@/hooks/useI18n';
