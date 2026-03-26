@@ -24,7 +24,6 @@ const AdminDashboard = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [filterDate, setFilterDate] = useState<Date | undefined>();
   const [filterTherapist, setFilterTherapist] = useState('all');
 
   // Service form state
