@@ -1272,7 +1272,7 @@ const AdminDashboard = () => {
                 </Button>
                 {resendSettings?.['resend_api_key'] && (
                   <div className="bg-muted rounded-lg p-3 text-sm space-y-1">
-                    <p className="text-muted-foreground">✅ {t('Resend API key đã được cấu hình')}</p>
+                    <p className="text-muted-foreground">{t('Resend API key đã được cấu hình')}</p>
                     <p className="text-muted-foreground">{t('Email gửi từ')}: <strong>{resendSettings['resend_from_email'] || 'onboarding@resend.dev'}</strong></p>
                   </div>
                 )}
