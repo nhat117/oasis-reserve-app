@@ -49,6 +49,27 @@ const Booking = () => {
     },
   });
 
+  const { data: randomEnabled } = useQuery({
+    queryKey: ['random-therapist-setting'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'random_therapist_enabled').single();
+      if (error) return true;
+      return data.value === 'true';
+    },
+  });
+
+  const { data: unavailability } = useQuery({
+    queryKey: ['therapist-unavailability', selectedDate?.toISOString()],
+    queryFn: async () => {
+      if (!selectedDate) return [];
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      const { data, error } = await supabase.from('therapist_unavailability').select('therapist_id').eq('unavailable_date', dateStr);
+      if (error) throw error;
+      return data.map(d => d.therapist_id);
+    },
+    enabled: !!selectedDate,
+  });
+
   const { data: existingBookings } = useQuery({
     queryKey: ['bookings-availability', selectedDate?.toISOString()],
     queryFn: async () => {
