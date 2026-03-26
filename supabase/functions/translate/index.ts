@@ -50,6 +50,7 @@ serve(async (req) => {
 
     const apiKey = settingsMap["openai_api_key"];
     const baseUrl = settingsMap["openai_base_url"] || "https://api.openai.com/v1";
+    const model = settingsMap["openai_model"] || "gpt-4o-mini";
 
     if (!apiKey) {
       return new Response(JSON.stringify({ error: "OpenAI API key not configured. Set it in Admin Settings." }), {
