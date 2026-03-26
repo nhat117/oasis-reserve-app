@@ -594,7 +594,7 @@ const AdminDashboard = () => {
                       <div><Label>{t('Mô tả')}</Label><Textarea value={serviceDesc} onChange={e => setServiceDesc(e.target.value)} className="mt-1" /></div>
                       <div className="grid grid-cols-2 gap-4">
                         <div><Label>{t('Thời gian (phút)')}</Label><Input type="number" value={serviceDuration} onChange={e => setServiceDuration(e.target.value)} className="mt-1" /></div>
-                        <div><Label>{t('Giá (VNĐ)')}</Label><Input type="number" value={servicePrice} onChange={e => setServicePrice(e.target.value)} className="mt-1" /></div>
+                        <div><Label>{t('Giá (AUD)')}</Label><Input type="number" value={servicePrice} onChange={e => setServicePrice(e.target.value)} className="mt-1" /></div>
                       </div>
                       <Button className="w-full" onClick={() => saveService.mutate()} disabled={!serviceName.trim()}>
                         {editingService ? t('Cập nhật') : t('Thêm mới')}
