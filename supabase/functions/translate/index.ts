@@ -43,7 +43,7 @@ serve(async (req) => {
     const { data: settings } = await supabase
       .from("app_settings")
       .select("key, value")
-      .in("key", ["openai_api_key", "openai_base_url"]);
+      .in("key", ["openai_api_key", "openai_base_url", "openai_model"]);
 
     const settingsMap: Record<string, string> = {};
     (settings || []).forEach((r: any) => { settingsMap[r.key] = r.value; });
