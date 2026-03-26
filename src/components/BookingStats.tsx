@@ -1,19 +1,49 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { CalendarDays, TrendingUp, DollarSign, Clock, CalendarCheck, Users } from 'lucide-react';
-import { format, subDays, addDays, startOfMonth, endOfMonth, isSameDay } from 'date-fns';
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CalendarDays, TrendingUp, DollarSign, Clock, CalendarCheck, Users, CalendarIcon } from 'lucide-react';
+import { format, subDays, addDays, startOfMonth, endOfMonth, differenceInDays, eachDayOfInterval } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { useI18n } from '@/hooks/useI18n';
+import { cn } from '@/lib/utils';
 
 interface StatsProps {
   className?: string;
 }
 
+type DateRange = { from: Date; to: Date };
+
+const PRESET_RANGES = [
+  { key: '7d', label: '7 ngày qua', days: 7 },
+  { key: '14d', label: '14 ngày qua', days: 14 },
+  { key: '30d', label: '30 ngày qua', days: 30 },
+  { key: '90d', label: '90 ngày qua', days: 90 },
+] as const;
+
 export function BookingStats({ className }: StatsProps) {
   const { t } = useI18n();
+  const today = new Date();
+  const todayStr = format(today, 'yyyy-MM-dd');
+
+  const [rangePreset, setRangePreset] = useState<string>('7d');
+  const [customFrom, setCustomFrom] = useState<Date | undefined>();
+  const [customTo, setCustomTo] = useState<Date | undefined>();
+
+  const dateRange: DateRange = useMemo(() => {
+    if (rangePreset === 'custom' && customFrom && customTo) {
+      return { from: customFrom, to: customTo };
+    }
+    const preset = PRESET_RANGES.find(r => r.key === rangePreset) || PRESET_RANGES[0];
+    return { from: subDays(today, preset.days - 1), to: today };
+  }, [rangePreset, customFrom, customTo]);
+
+  const rangeDays = differenceInDays(dateRange.to, dateRange.from) + 1;
 
   const { data: bookings } = useQuery({
     queryKey: ['stats-bookings'],
@@ -27,8 +57,6 @@ export function BookingStats({ className }: StatsProps) {
   });
 
   const formatPrice = (p: number) => `A$ ${p.toLocaleString()}`;
-  const today = new Date();
-  const todayStr = format(today, 'yyyy-MM-dd');
 
   const stats = useMemo(() => {
     if (!bookings) return null;
@@ -37,29 +65,21 @@ export function BookingStats({ className }: StatsProps) {
     const completed = bookings.filter(b => b.status === 'completed');
     const active = [...confirmed, ...completed];
 
-    // ── Last 7 days ──
-    const last7Start = subDays(today, 6);
-    const last7Bookings = active.filter(b => {
-      const d = new Date(b.booking_date);
-      return d >= last7Start && d <= today;
-    });
-    const last7Revenue = last7Bookings.reduce((s, b) => s + ((b as any).services?.price || 0), 0);
-    const last7Value = last7Bookings.reduce((s, b) => s + ((b as any).services?.price || 0), 0);
+    // ── Date range filtered bookings ──
+    const fromStr = format(dateRange.from, 'yyyy-MM-dd');
+    const toStr = format(dateRange.to, 'yyyy-MM-dd');
+    const rangeBookings = active.filter(b => b.booking_date >= fromStr && b.booking_date <= toStr);
+    const rangeRevenue = rangeBookings.reduce((s, b) => s + ((b as any).services?.price || 0), 0);
 
-    // Chart data for last 8 days
-    const chartData = [];
-    for (let i = 7; i >= 0; i--) {
-      const d = subDays(today, i);
+    // Chart data for range
+    const allDays = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
+    const chartData = allDays.map(d => {
       const dateStr = format(d, 'yyyy-MM-dd');
-      const dayLabel = format(d, 'EEE d');
+      const dayLabel = rangeDays <= 14 ? format(d, 'EEE d') : format(d, 'dd/MM');
       const dayBookings = active.filter(b => b.booking_date === dateStr);
       const sales = dayBookings.reduce((s, b) => s + ((b as any).services?.price || 0), 0);
-      chartData.push({
-        name: dayLabel,
-        Sales: sales,
-        Appointments: dayBookings.length,
-      });
-    }
+      return { name: dayLabel, Sales: sales, Appointments: dayBookings.length };
+    });
 
     // ── Upcoming 7 days ──
     const next7End = addDays(today, 7);
@@ -119,9 +139,9 @@ export function BookingStats({ className }: StatsProps) {
     const topTeam = Object.values(therapistRevenue).sort((a, b) => b.revenue - a.revenue);
 
     return {
-      last7Revenue,
-      last7Count: last7Bookings.length,
-      last7Value,
+      rangeRevenue,
+      rangeCount: rangeBookings.length,
+      rangeValue: rangeRevenue,
       chartData,
       upcomingBookings,
       recentActivity,
@@ -129,12 +149,57 @@ export function BookingStats({ className }: StatsProps) {
       topServices,
       topTeam,
     };
-  }, [bookings]);
+  }, [bookings, dateRange]);
 
   if (!stats) return null;
 
+  const rangeLabel = PRESET_RANGES.find(r => r.key === rangePreset)?.label || 
+    (customFrom && customTo ? `${format(customFrom, 'dd/MM')} – ${format(customTo, 'dd/MM')}` : '');
+
   return (
     <div className={className}>
+      {/* Date Range Filter */}
+      <div className="flex items-center gap-2 mb-6 flex-wrap">
+        <Select value={rangePreset} onValueChange={(v) => setRangePreset(v)}>
+          <SelectTrigger className="w-[160px] h-9">
+            <SelectValue placeholder={t('Chọn khoảng thời gian')} />
+          </SelectTrigger>
+          <SelectContent>
+            {PRESET_RANGES.map(r => (
+              <SelectItem key={r.key} value={r.key}>{t(r.label)}</SelectItem>
+            ))}
+            <SelectItem value="custom">{t('Tuỳ chỉnh')}</SelectItem>
+          </SelectContent>
+        </Select>
+        {rangePreset === 'custom' && (
+          <div className="flex items-center gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn("gap-1", !customFrom && "text-muted-foreground")}>
+                  <CalendarIcon className="h-3.5 w-3.5" />
+                  {customFrom ? format(customFrom, 'dd/MM/yyyy') : t('Từ ngày')}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={customFrom} onSelect={setCustomFrom} className="p-3 pointer-events-auto" />
+              </PopoverContent>
+            </Popover>
+            <span className="text-muted-foreground">–</span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn("gap-1", !customTo && "text-muted-foreground")}>
+                  <CalendarIcon className="h-3.5 w-3.5" />
+                  {customTo ? format(customTo, 'dd/MM/yyyy') : t('Đến ngày')}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={customTo} onSelect={setCustomTo} className="p-3 pointer-events-auto" />
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
+      </div>
+
       <div className="grid lg:grid-cols-2 gap-6">
         {/* ── Recent Sales ── */}
         <Card>
@@ -143,20 +208,20 @@ export function BookingStats({ className }: StatsProps) {
               <DollarSign className="h-4 w-4 text-primary" />
               {t('Doanh thu gần đây')}
             </CardTitle>
-            <p className="text-xs text-muted-foreground">{t('7 ngày qua')}</p>
+            <p className="text-xs text-muted-foreground">{t(rangeLabel)}</p>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-3 gap-4 mb-4">
               <div>
-                <p className="text-2xl font-bold">{formatPrice(stats.last7Revenue)}</p>
+                <p className="text-2xl font-bold">{formatPrice(stats.rangeRevenue)}</p>
                 <p className="text-xs text-muted-foreground">{t('Doanh thu')}</p>
               </div>
               <div>
-                <p className="text-2xl font-bold">{stats.last7Count}</p>
+                <p className="text-2xl font-bold">{stats.rangeCount}</p>
                 <p className="text-xs text-muted-foreground">{t('Lịch hẹn')}</p>
               </div>
               <div>
-                <p className="text-2xl font-bold">{formatPrice(stats.last7Value)}</p>
+                <p className="text-2xl font-bold">{formatPrice(stats.rangeValue)}</p>
                 <p className="text-xs text-muted-foreground">{t('Giá trị lịch hẹn')}</p>
               </div>
             </div>
@@ -164,7 +229,7 @@ export function BookingStats({ className }: StatsProps) {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={stats.chartData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} className="text-muted-foreground" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} className="text-muted-foreground" interval={rangeDays > 14 ? Math.floor(rangeDays / 7) : 0} />
                   <YAxis tick={{ fontSize: 11 }} className="text-muted-foreground" />
                   <Tooltip
                     contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
