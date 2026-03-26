@@ -2,24 +2,14 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import { supabase } from '@/integrations/supabase/client';
 
 type Lang = 'vi' | 'en';
-type Currency = 'AUD';
 
-const DEFAULT_CURRENCY: Currency = 'AUD';
-
-const DEFAULT_RATES: Record<Currency, number> = {
-  VND: 1,
-  USD: 0.000039,
-  EUR: 0.000036,
-  AUD: 0.000061,
-};
+const DEFAULT_AUD_RATE = 0.000061;
 
 interface I18nContextType {
   lang: Lang;
   setLang: (l: Lang) => void;
   t: (key: string) => string;
   loading: boolean;
-  currency: Currency;
-  setCurrency: (c: Currency) => void;
   formatPrice: (vndAmount: number) => string;
 }
 
@@ -28,95 +18,29 @@ const I18nContext = createContext<I18nContextType>({
   setLang: () => {},
   t: (k) => k,
   loading: false,
-  currency: 'AUD',
-  setCurrency: () => {},
   formatPrice: (v) => String(v),
 });
-
-// Default Vietnamese strings (dashboard default)
-const VI_DEFAULTS: Record<string, string> = {
-  // Navigation & general
-  'Home': 'Trang chủ',
-  'Services': 'Dịch vụ',
-  'Book Now': 'Đặt lịch ngay',
-  'Admin': 'Quản trị',
-  'Log Out': 'Đăng xuất',
-  'Back': 'Quay lại',
-  'Save': 'Lưu',
-  'Cancel': 'Hủy',
-  'Delete': 'Xóa',
-  'Edit': 'Sửa',
-  'Add': 'Thêm',
-  'Close': 'Đóng',
-  'Loading...': 'Đang tải...',
-  
-  // Booking page
-  'Select Service': 'Chọn dịch vụ',
-  'Select Date': 'Chọn ngày',
-  'Select Time': 'Chọn giờ',
-  'Select Therapist': 'Chọn thợ',
-  'Any available': '🎲 Tự động chọn (bất kỳ thợ trống)',
-  'Your Information': 'Thông tin của bạn',
-  'Full Name': 'Họ và tên',
-  'Phone Number': 'Số điện thoại',
-  'Email (optional)': 'Email (tùy chọn)',
-  'Notes': 'Ghi chú',
-  'Confirm Booking': 'Xác nhận đặt lịch',
-  'Booking Successful!': 'Đặt lịch thành công!',
-  'minutes': 'phút',
-  'No available slots': 'Không có khung giờ trống',
-  'Shop is closed on this day': 'Tiệm nghỉ ngày này',
-  
-  // Services page
-  'Our Services': 'Dịch vụ của chúng tôi',
-  'Duration': 'Thời gian',
-  'Price': 'Giá',
-  
-  // Index/Home
-  'Welcome': 'Chào mừng',
-  'Book an appointment': 'Đặt lịch hẹn',
-  'View all services': 'Xem tất cả dịch vụ',
-};
 
 export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
   const [lang, setLangState] = useState<Lang>(() => {
     return (localStorage.getItem('app-lang') as Lang) || 'en';
   });
-  const [currency, setCurrencyState] = useState<Currency>(() => {
-    const saved = localStorage.getItem('app-currency') as Currency;
-    if (saved) return saved;
-    const savedLang = (localStorage.getItem('app-lang') as Lang) || 'en';
-    return CURRENCY_MAP[savedLang];
-  });
   const [translations, setTranslations] = useState<Record<string, string>>({});
-  const [exchangeRates, setExchangeRates] = useState<Record<Currency, number>>(DEFAULT_RATES);
+  const [audRate, setAudRate] = useState(DEFAULT_AUD_RATE);
   const [loading, setLoading] = useState(false);
   const [pendingKeys, setPendingKeys] = useState<Set<string>>(new Set());
   const requestedRef = React.useRef<Set<string>>(new Set());
 
-  // Load exchange rates from DB
+  // Load AUD exchange rate from DB
   useEffect(() => {
-    const loadRates = async () => {
-      const { data } = await supabase.from('app_settings').select('key, value')
-        .in('key', ['exchange_rate_usd', 'exchange_rate_eur', 'exchange_rate_aud', 'default_currency']);
-      if (data && data.length > 0) {
-        const map: Record<string, string> = {};
-        data.forEach((r: any) => { map[r.key] = r.value; });
-        setExchangeRates({
-          VND: 1,
-          USD: parseFloat(map['exchange_rate_usd']) || DEFAULT_RATES.USD,
-          EUR: parseFloat(map['exchange_rate_eur']) || DEFAULT_RATES.EUR,
-          AUD: parseFloat(map['exchange_rate_aud']) || DEFAULT_RATES.AUD,
-        });
-        // Set default currency for English if not manually chosen
-        if (map['default_currency'] && !localStorage.getItem('app-currency')) {
-          const dc = map['default_currency'] as Currency;
-          CURRENCY_MAP.en = dc;
-          if (lang === 'en') setCurrencyState(dc);
-        }
+    const loadRate = async () => {
+      const { data } = await supabase.from('app_settings').select('value').eq('key', 'exchange_rate_aud').single();
+      if (data) {
+        const rate = parseFloat(data.value);
+        if (rate > 0) setAudRate(rate);
       }
     };
-    loadRates();
+    loadRate();
   }, []);
 
   const setLang = useCallback((l: Lang) => {
@@ -124,23 +48,12 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.setItem('app-lang', l);
     setTranslations({});
     requestedRef.current = new Set();
-    const newCurrency = CURRENCY_MAP[l];
-    setCurrencyState(newCurrency);
-    localStorage.setItem('app-currency', newCurrency);
-  }, []);
-
-  const setCurrency = useCallback((c: Currency) => {
-    setCurrencyState(c);
-    localStorage.setItem('app-currency', c);
   }, []);
 
   const formatPrice = useCallback((vndAmount: number): string => {
-    if (currency === 'VND') {
-      return new Intl.NumberFormat('vi-VN').format(vndAmount) + 'đ';
-    }
-    const converted = vndAmount * exchangeRates[currency];
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(converted);
-  }, [currency, exchangeRates]);
+    const converted = vndAmount * audRate;
+    return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(converted);
+  }, [audRate]);
 
   // Load cached translations from DB on lang change
   useEffect(() => {
@@ -180,23 +93,22 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
         console.error('Translation error:', e);
       }
       setLoading(false);
-    }, 300); // debounce 300ms
+    }, 300);
     return () => clearTimeout(timer);
   }, [pendingKeys, lang]);
 
   const t = useCallback((key: string): string => {
-    if (lang === 'vi') return key; // Vietnamese is the source language
+    if (lang === 'vi') return key;
     if (translations[key]) return translations[key];
-    // Queue for translation
     if (!requestedRef.current.has(key)) {
       requestedRef.current.add(key);
       setPendingKeys(prev => new Set(prev).add(key));
     }
-    return key; // Return Vietnamese key as fallback while translating
+    return key;
   }, [lang, translations]);
 
   return (
-    <I18nContext.Provider value={{ lang, setLang, t, loading, currency, setCurrency, formatPrice }}>
+    <I18nContext.Provider value={{ lang, setLang, t, loading, formatPrice }}>
       {children}
     </I18nContext.Provider>
   );
@@ -204,27 +116,15 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
 
 export const useI18n = () => useContext(I18nContext);
 
-// Language & currency switcher component
+// Language switcher component (no currency picker)
 export const LanguageSwitcher = ({ className }: { className?: string }) => {
-  const { lang, setLang, currency, setCurrency } = useI18n();
-  const currencies: Currency[] = ['VND', 'USD', 'EUR', 'AUD'];
+  const { lang, setLang } = useI18n();
   return (
-    <div className={`flex items-center gap-1.5 ${className || ''}`}>
-      <button
-        onClick={() => setLang(lang === 'en' ? 'vi' : 'en')}
-        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium border border-border bg-card hover:bg-accent transition-colors"
-      >
-        {lang === 'en' ? '🇻🇳 VI' : '🇬🇧 EN'}
-      </button>
-      <select
-        value={currency}
-        onChange={e => setCurrency(e.target.value as Currency)}
-        className="text-xs px-2 py-1.5 rounded-full border border-border bg-card hover:bg-accent transition-colors cursor-pointer"
-      >
-        {currencies.map(c => (
-          <option key={c} value={c}>{c}</option>
-        ))}
-      </select>
-    </div>
+    <button
+      onClick={() => setLang(lang === 'en' ? 'vi' : 'en')}
+      className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium border border-border bg-card hover:bg-accent transition-colors ${className || ''}`}
+    >
+      {lang === 'en' ? '🇻🇳 VI' : '🇬🇧 EN'}
+    </button>
   );
 };
