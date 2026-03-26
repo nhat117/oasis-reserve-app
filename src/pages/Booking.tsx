@@ -154,7 +154,7 @@ const Booking = () => {
 
   const availableSlots = useMemo(() => {
     if (!currentService || !selectedDate || !therapists || isShopHoliday) return [];
-    const duration = currentService.duration_minutes;
+    const duration = totalDuration;
     const slots: { time: string; therapistCount: number }[] = [];
     const now = new Date();
     const dayOfWeek = selectedDate.getDay() === 0 ? 7 : selectedDate.getDay();
