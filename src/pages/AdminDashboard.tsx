@@ -112,6 +112,12 @@ const AdminDashboard = () => {
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState('');
   const [openaiModel, setOpenaiModel] = useState('gpt-4o-mini');
 
+  // Reminder settings state
+  const [reminderEmailEnabled, setReminderEmailEnabled] = useState(false);
+  const [reminderSmsEnabled, setReminderSmsEnabled] = useState(false);
+  const [reminder1stHours, setReminder1stHours] = useState('24');
+  const [reminder2ndHours, setReminder2ndHours] = useState('1');
+
   const { data: bookings } = useQuery({
     queryKey: ['admin-bookings', filterTherapist],
     queryFn: async () => {
