@@ -355,45 +355,60 @@ export function BookingCalendar({ bookings, onCancel, onReschedule }: BookingCal
   };
 
   // ============ DAY VIEW ============
+  const HOUR_HEIGHT_DAY = 80;
   const DayView = () => {
     const dateStr = format(currentDate, 'yyyy-MM-dd');
     const dayBookings = bookingsByDate[dateStr] || [];
+    const layouted = layoutOverlappingBookings(dayBookings);
+    const firstHour = HOURS[0];
     return (
       <div>
         <div className="mb-4 text-center">
           <p className="text-sm text-muted-foreground">{dayBookings.filter(b => b.status === 'confirmed').length} lịch hẹn</p>
         </div>
-        <div className="space-y-0">
-          {HOURS.map(hour => {
-            const slotKey = `day-${dateStr}-${hour}`;
-            const hourBookings = dayBookings.filter(b => parseInt(b.start_time) === hour);
-            return (
-              <div key={hour} className={cn("flex border-b min-h-[70px] transition-colors", dragOverSlot === slotKey && "bg-primary/10")}
-                onDragOver={(e) => handleDragOver(e, slotKey)} onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, dateStr, hour)}>
-                <div className="w-16 shrink-0 p-2 text-sm text-muted-foreground text-right pr-3 pt-2 border-r">{String(hour).padStart(2, '0')}:00</div>
-                <div className="flex-1 p-1 space-y-1">
-                  {hourBookings.map(b => {
-                    const durationMins = timeToMinutes(b.end_time) - timeToMinutes(b.start_time);
-                    return (
-                      <div key={b.id} draggable={b.status === 'confirmed'}
-                        onDragStart={(e) => handleDragStart(e, b)} onDragEnd={handleDragEnd}
-                        onClick={() => openBookingDetail(b)}
-                        className={cn("rounded-lg px-3 py-2 cursor-grab active:cursor-grabbing transition-opacity",
-                          getBookingStyle(b), dragBooking?.id === b.id && "opacity-50")}>
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-sm">{b.start_time?.slice(0, 5)} – {b.end_time?.slice(0, 5)}</span>
-                          <span className="text-xs opacity-80">{durationMins} phút</span>
-                        </div>
-                        <div className="text-sm mt-0.5">{b.customer_name} · {b.customer_phone}</div>
-                        <div className="text-xs opacity-80 mt-0.5">{b.services?.name} · {b.therapists?.name}</div>
-                      </div>
-                    );
-                  })}
-                </div>
+        <div className="flex">
+          <div className="w-16 shrink-0">
+            {HOURS.map(hour => (
+              <div key={hour} className="border-b border-r text-sm text-muted-foreground text-right pr-3 pt-2" style={{ height: `${HOUR_HEIGHT_DAY}px` }}>
+                {String(hour).padStart(2, '0')}:00
               </div>
-            );
-          })}
+            ))}
+          </div>
+          <div className="flex-1 relative" style={{ height: `${HOURS.length * HOUR_HEIGHT_DAY}px` }}>
+            {HOURS.map((hour, hi) => {
+              const slotKey = `day-${dateStr}-${hour}`;
+              return (
+                <div key={hour} className={cn("border-b absolute w-full", dragOverSlot === slotKey && "bg-primary/10")}
+                  style={{ top: `${hi * HOUR_HEIGHT_DAY}px`, height: `${HOUR_HEIGHT_DAY}px` }}
+                  onDragOver={(e) => handleDragOver(e, slotKey)} onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, dateStr, hour)} />
+              );
+            })}
+            {layouted.map(b => {
+              const startMins = timeToMinutes(b.start_time);
+              const endMins = timeToMinutes(b.end_time);
+              const durationMins = endMins - startMins;
+              const topPx = ((startMins - firstHour * 60) / 60) * HOUR_HEIGHT_DAY;
+              const heightPx = Math.max(24, (durationMins / 60) * HOUR_HEIGHT_DAY);
+              const widthPct = 100 / b.totalCols;
+              const leftPct = b.col * widthPct;
+              return (
+                <div key={b.id} draggable={b.status === 'confirmed'}
+                  onDragStart={(e) => handleDragStart(e, b)} onDragEnd={handleDragEnd}
+                  onClick={() => openBookingDetail(b)}
+                  className={cn("absolute rounded-lg px-3 py-2 cursor-grab active:cursor-grabbing overflow-hidden border border-background/20",
+                    getBookingStyle(b), dragBooking?.id === b.id && "opacity-50")}
+                  style={{ top: `${topPx}px`, height: `${heightPx}px`, left: `calc(${leftPct}% + 2px)`, width: `calc(${widthPct}% - 4px)`, zIndex: 10 }}>
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-sm">{b.start_time?.slice(0, 5)} – {b.end_time?.slice(0, 5)}</span>
+                    <span className="text-xs opacity-80">{durationMins} phút</span>
+                  </div>
+                  <div className="text-sm mt-0.5 truncate">{b.customer_name} · {b.customer_phone}</div>
+                  <div className="text-xs opacity-80 mt-0.5 truncate">{b.services?.name} · {b.therapists?.name}</div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     );
