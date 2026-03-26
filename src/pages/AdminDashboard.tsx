@@ -68,6 +68,13 @@ const AdminDashboard = () => {
   const [bookingCustomerEmail, setBookingCustomerEmail] = useState('');
   const [bookingNotes, setBookingNotes] = useState('');
 
+  // Sales form state
+  const [saleDialog, setSaleDialog] = useState(false);
+  const [saleBookingId, setSaleBookingId] = useState('');
+  const [saleAmount, setSaleAmount] = useState('');
+  const [salePaymentMethod, setSalePaymentMethod] = useState<'cash' | 'card'>('cash');
+  const [saleNotes, setSaleNotes] = useState('');
+
   // Currency settings state
   const [exchangeUSD, setExchangeUSD] = useState('');
   const [exchangeEUR, setExchangeEUR] = useState('');
