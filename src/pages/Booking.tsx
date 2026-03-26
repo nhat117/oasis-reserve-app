@@ -400,9 +400,9 @@ const Booking = () => {
 
               {selectedDate && (
                 <div>
-                  <Label>Giờ</Label>
+                  <Label>{t('Giờ')}</Label>
                   {availableSlots.length === 0 ? (
-                    <p className="text-sm text-muted-foreground mt-2">Không có khung giờ trống. Vui lòng chọn ngày hoặc thợ khác.</p>
+                    <p className="text-sm text-muted-foreground mt-2">{t('Không có khung giờ trống. Vui lòng chọn ngày hoặc thợ khác.')}</p>
                   ) : (
                     <div className="grid grid-cols-4 gap-2 mt-2">
                       {availableSlots.map(slot => (
