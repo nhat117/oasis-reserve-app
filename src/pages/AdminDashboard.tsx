@@ -79,6 +79,11 @@ const AdminDashboard = () => {
   const [saleNotes, setSaleNotes] = useState('');
   const [saleAddOns, setSaleAddOns] = useState<string[]>([]);
 
+  // Create admin state
+  const [newAdminEmail, setNewAdminEmail] = useState('');
+  const [newAdminPassword, setNewAdminPassword] = useState('');
+  const [creatingAdmin, setCreatingAdmin] = useState(false);
+
   // Currency settings state
   const [exchangeUSD, setExchangeUSD] = useState('');
   const [exchangeEUR, setExchangeEUR] = useState('');
@@ -1575,6 +1580,67 @@ const AdminDashboard = () => {
                   <p className="text-xs text-muted-foreground mt-1">{t('Phụ phí sẽ được tự động cộng thêm khi khách thanh toán bằng thẻ')}</p>
                 </div>
                 <Button size="sm" onClick={() => saveCardSurcharge.mutate()}>{t('Lưu')}</Button>
+              </CardContent>
+            </Card>
+
+            {/* Create Admin Account */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">👤 {t('Tạo tài khoản admin mới')}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label>Email</Label>
+                  <Input
+                    type="email"
+                    value={newAdminEmail}
+                    onChange={e => setNewAdminEmail(e.target.value)}
+                    placeholder="admin@example.com"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label>{t('Mật khẩu')}</Label>
+                  <Input
+                    type="password"
+                    value={newAdminPassword}
+                    onChange={e => setNewAdminPassword(e.target.value)}
+                    placeholder={t('Tối thiểu 6 ký tự')}
+                    className="mt-1"
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  disabled={creatingAdmin || !newAdminEmail.trim() || newAdminPassword.length < 6}
+                  onClick={async () => {
+                    setCreatingAdmin(true);
+                    try {
+                      const { data: { session: s } } = await supabase.auth.getSession();
+                      const res = await fetch(
+                        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-admin`,
+                        {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${s?.access_token}`,
+                          },
+                          body: JSON.stringify({ email: newAdminEmail.trim(), password: newAdminPassword }),
+                        }
+                      );
+                      const result = await res.json();
+                      if (!res.ok) throw new Error(result.error || 'Failed');
+                      toast({ title: t('Đã tạo tài khoản admin'), description: newAdminEmail });
+                      setNewAdminEmail('');
+                      setNewAdminPassword('');
+                    } catch (err: any) {
+                      toast({ title: t('Lỗi'), description: err.message, variant: 'destructive' });
+                    } finally {
+                      setCreatingAdmin(false);
+                    }
+                  }}
+                >
+                  {creatingAdmin ? t('Đang tạo...') : t('Tạo tài khoản admin')}
+                </Button>
               </CardContent>
             </Card>
 
