@@ -767,7 +767,7 @@ const AdminDashboard = () => {
             <TabsList className="w-full h-auto bg-transparent rounded-none grid grid-cols-6 gap-0 p-0">
               {[
                 { value: 'stats', icon: BarChart3, label: t('Thống kê') },
-                { value: 'bookings', icon: Calendar, label: t('Lịch') },
+                { value: 'bookings', icon: CalendarDays, label: t('Lịch') },
                 { value: 'sales', icon: DollarSign, label: t('Thu') },
                 { value: 'services', icon: Scissors, label: t('Dịch vụ') },
                 { value: 'therapists', icon: Users, label: t('Thợ') },
