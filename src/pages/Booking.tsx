@@ -34,7 +34,7 @@ const Booking = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookingComplete, setBookingComplete] = useState(false);
   const [assignedTherapistName, setAssignedTherapistName] = useState('');
-
+  const [selectedAddOns, setSelectedAddOns] = useState<string[]>([]);
   const { data: services } = useQuery({
     queryKey: ['services'],
     queryFn: async () => {
