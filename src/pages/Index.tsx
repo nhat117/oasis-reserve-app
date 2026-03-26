@@ -111,12 +111,15 @@ const Index = () => {
             <div className="bg-background rounded-xl p-8 border shadow-sm text-center space-y-3">
               <Phone className="h-8 w-8 text-primary mx-auto" />
               <h3 className="font-semibold text-lg">{t('Liên hệ')}</h3>
-              <p className="text-muted-foreground">{t('Gọi ngay để đặt lịch')}<br />{t('hoặc đặt online 24/7')}</p>
+              <p className="text-muted-foreground">
+                {shopPhone ? <a href={`tel:${shopPhone}`} className="hover:text-primary transition-colors">{shopPhone}</a> : t('Gọi ngay để đặt lịch')}
+                <br />{t('hoặc đặt online 24/7')}
+              </p>
             </div>
             <div className="bg-background rounded-xl p-8 border shadow-sm text-center space-y-3">
               <MapPin className="h-8 w-8 text-primary mx-auto" />
               <h3 className="font-semibold text-lg">{t('Địa chỉ')}</h3>
-              <p className="text-muted-foreground">{t('Liên hệ để biết')}<br />{t('địa chỉ chi tiết')}</p>
+              <p className="text-muted-foreground">{shopAddress || t('Liên hệ để biết địa chỉ chi tiết')}</p>
             </div>
           </div>
         </div>
