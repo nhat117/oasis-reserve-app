@@ -102,6 +102,9 @@ const Booking = () => {
   });
 
   const currentService = services?.find(s => s.id === selectedService);
+  const addOnServices = services?.filter(s => selectedAddOns.includes(s.id)) || [];
+  const totalDuration = (currentService?.duration_minutes || 0) + addOnServices.reduce((sum, s) => sum + s.duration_minutes, 0);
+  const totalPrice = (currentService?.price || 0) + addOnServices.reduce((sum, s) => sum + s.price, 0);
 
   // Buffer time between services (in minutes)
   const BUFFER_MINUTES = 15;
