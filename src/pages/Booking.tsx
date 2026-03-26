@@ -221,6 +221,9 @@ const Booking = () => {
     const bookingDateStr = format(selectedDate, 'yyyy-MM-dd');
     const therapistName = therapists?.find(t => t.id === therapistId)?.name || '';
 
+    const addOnNames = addOnServices.map(s => s.name).join(', ');
+    const notesText = addOnNames ? `Add-ons: ${addOnNames}` : null;
+
     const { error } = await supabase.from('bookings').insert({
       id: bookingId,
       service_id: selectedService,
@@ -232,6 +235,7 @@ const Booking = () => {
       start_time: startTime,
       end_time: endTime,
       status: 'confirmed',
+      notes: notesText,
     });
 
     setIsSubmitting(false);
