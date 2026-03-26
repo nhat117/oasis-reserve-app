@@ -45,6 +45,8 @@ const AdminDashboard = () => {
   const [therapistPhone, setTherapistPhone] = useState('');
   const [therapistStartHour, setTherapistStartHour] = useState('9');
   const [therapistEndHour, setTherapistEndHour] = useState('18');
+  const [therapistBreakStart, setTherapistBreakStart] = useState('');
+  const [therapistBreakEnd, setTherapistBreakEnd] = useState('');
   const [unavailDate, setUnavailDate] = useState<Date | undefined>();
   const [unavailTherapist, setUnavailTherapist] = useState('');
   const [holidayDate, setHolidayDate] = useState<Date | undefined>();
@@ -117,6 +119,24 @@ const AdminDashboard = () => {
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['twilio-number-setting'] }); toast({ title: 'Đã lưu số SMS' }); },
+  });
+
+  // WhatsApp setting
+  const { data: whatsappEnabled } = useQuery({
+    queryKey: ['whatsapp-setting'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'whatsapp_enabled').single();
+      if (error) return false;
+      return data.value === 'true';
+    },
+  });
+
+  const toggleWhatsapp = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const { error } = await supabase.from('app_settings').upsert({ key: 'whatsapp_enabled', value: String(enabled) });
+      if (error) throw error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['whatsapp-setting'] }); toast({ title: 'Đã cập nhật WhatsApp' }); },
   });
 
   // Therapist unavailability
@@ -215,7 +235,14 @@ const AdminDashboard = () => {
 
   const saveTherapist = useMutation({
     mutationFn: async () => {
-      const payload = { name: therapistName, phone: therapistPhone || null, start_hour: parseInt(therapistStartHour), end_hour: parseInt(therapistEndHour) };
+      const payload = {
+        name: therapistName,
+        phone: therapistPhone || null,
+        start_hour: parseInt(therapistStartHour),
+        end_hour: parseInt(therapistEndHour),
+        break_start: therapistBreakStart ? parseInt(therapistBreakStart) : null,
+        break_end: therapistBreakEnd ? parseInt(therapistBreakEnd) : null,
+      } as any;
       if (editingTherapist) {
         const { error } = await supabase.from('therapists').update(payload).eq('id', editingTherapist.id);
         if (error) throw error;
@@ -246,6 +273,8 @@ const AdminDashboard = () => {
     setTherapistPhone(therapist?.phone || '');
     setTherapistStartHour(String(therapist?.start_hour || 9));
     setTherapistEndHour(String(therapist?.end_hour || 18));
+    setTherapistBreakStart(therapist?.break_start ? String(therapist.break_start) : '');
+    setTherapistBreakEnd(therapist?.break_end ? String(therapist.break_end) : '');
     setTherapistDialog(true);
   };
 
@@ -379,12 +408,12 @@ const AdminDashboard = () => {
               </CardContent>
             </Card>
 
-            {/* SMS Notification Settings */}
+            {/* SMS & WhatsApp Notification Settings */}
             <Card>
               <CardContent className="p-4 space-y-3">
                 <div>
-                  <p className="font-medium text-sm">📱 Nhắc lịch qua SMS (Twilio)</p>
-                  <p className="text-xs text-muted-foreground">Gửi SMS nhắc khách hàng 1 tiếng trước lịch hẹn</p>
+                  <p className="font-medium text-sm">📱 Nhắc lịch qua SMS & WhatsApp</p>
+                  <p className="text-xs text-muted-foreground">Gửi SMS/WhatsApp nhắc khách hàng 1 tiếng trước lịch hẹn</p>
                 </div>
                 <div className="flex gap-2">
                   <Input
@@ -400,6 +429,13 @@ const AdminDashboard = () => {
                 {twilioNumber && (
                   <p className="text-xs text-muted-foreground">Số hiện tại: <strong>{twilioNumber}</strong></p>
                 )}
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <div>
+                    <p className="font-medium text-sm">💬 WhatsApp</p>
+                    <p className="text-xs text-muted-foreground">Gửi thêm nhắc nhở qua WhatsApp</p>
+                  </div>
+                  <Switch checked={whatsappEnabled === true} onCheckedChange={(v) => toggleWhatsapp.mutate(v)} />
+                </div>
               </CardContent>
             </Card>
 
@@ -535,6 +571,10 @@ const AdminDashboard = () => {
                         <div><Label>Giờ bắt đầu</Label><Input type="number" min="6" max="22" value={therapistStartHour} onChange={e => setTherapistStartHour(e.target.value)} className="mt-1" /></div>
                         <div><Label>Giờ kết thúc</Label><Input type="number" min="6" max="22" value={therapistEndHour} onChange={e => setTherapistEndHour(e.target.value)} className="mt-1" /></div>
                       </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div><Label>Nghỉ trưa từ</Label><Input type="number" min="6" max="22" placeholder="VD: 12" value={therapistBreakStart} onChange={e => setTherapistBreakStart(e.target.value)} className="mt-1" /></div>
+                        <div><Label>Nghỉ trưa đến</Label><Input type="number" min="6" max="22" placeholder="VD: 13" value={therapistBreakEnd} onChange={e => setTherapistBreakEnd(e.target.value)} className="mt-1" /></div>
+                      </div>
                       <Button className="w-full" onClick={() => saveTherapist.mutate()} disabled={!therapistName.trim()}>
                         {editingTherapist ? 'Cập nhật' : 'Thêm mới'}
                       </Button>
@@ -558,7 +598,12 @@ const AdminDashboard = () => {
                       <TableRow key={t.id}>
                         <TableCell className="font-medium">{t.name}</TableCell>
                         <TableCell>{t.phone || '—'}</TableCell>
-                        <TableCell className="text-sm">{t.start_hour}:00 – {t.end_hour}:00</TableCell>
+                        <TableCell className="text-sm">
+                          {t.start_hour}:00 – {t.end_hour}:00
+                          {(t as any).break_start != null && (t as any).break_end != null && (
+                            <span className="text-muted-foreground ml-1">(nghỉ {(t as any).break_start}:00–{(t as any).break_end}:00)</span>
+                          )}
+                        </TableCell>
                         <TableCell><Badge variant={t.is_active ? 'default' : 'secondary'}>{t.is_active ? 'Hoạt động' : 'Tắt'}</Badge></TableCell>
                         <TableCell>
                           <Button variant="ghost" size="sm" onClick={() => openTherapistEdit(t)}><Pencil className="h-4 w-4" /></Button>

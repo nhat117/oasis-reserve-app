@@ -19,6 +19,7 @@ import { LanguageSwitcher, useI18n } from '@/hooks/useI18n';
 const Booking = () => {
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  const { formatPrice } = useI18n();
 
   const [step, setStep] = useState(1);
   const [selectedService, setSelectedService] = useState(searchParams.get('service') || '');
@@ -113,8 +114,20 @@ const Booking = () => {
       if (!t.working_days.includes(dayOfWeek)) return false;
       // Check working hours
       const slotHour = parseInt(timeStr);
+      const slotMin = parseInt(timeStr.split(':')[1]);
       const endHour = parseInt(endStr);
+      const endMin = parseInt(endStr.split(':')[1]);
       if (slotHour < t.start_hour || endHour > t.end_hour) return false;
+      // Check break time
+      const tAny = t as any;
+      if (tAny.break_start != null && tAny.break_end != null) {
+        const breakStart = tAny.break_start * 60;
+        const breakEnd = tAny.break_end * 60;
+        const slotStartMin = slotHour * 60 + slotMin;
+        const slotEndMin = endHour * 60 + endMin;
+        // Slot overlaps with break if it starts before break ends and ends after break starts
+        if (slotStartMin < breakEnd && slotEndMin > breakStart) return false;
+      }
       // Check if already booked
       const isBooked = existingBookings?.some(b =>
         b.therapist_id === t.id &&
@@ -311,7 +324,7 @@ const Booking = () => {
                   )}
                 >
                   <div className="font-medium">{service.name}</div>
-                  <div className="text-sm text-muted-foreground mt-1">{service.duration_minutes} phút · {new Intl.NumberFormat('vi-VN').format(service.price)}đ</div>
+                  <div className="text-sm text-muted-foreground mt-1">{service.duration_minutes} phút · {formatPrice(service.price)}</div>
                 </button>
               ))}
             </CardContent>
@@ -461,7 +474,7 @@ const Booking = () => {
                 <p><strong>Khách:</strong> {customerName}</p>
                 <p><strong>SĐT:</strong> {customerPhone}</p>
                 {customerEmail && <p><strong>Email:</strong> {customerEmail}</p>}
-                <p><strong>Giá:</strong> {currentService && new Intl.NumberFormat('vi-VN').format(currentService.price)}đ</p>
+                <p><strong>Giá:</strong> {currentService && formatPrice(currentService.price)}</p>
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setStep(3)}>Quay lại</Button>

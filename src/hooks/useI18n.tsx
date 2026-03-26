@@ -2,12 +2,28 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import { supabase } from '@/integrations/supabase/client';
 
 type Lang = 'vi' | 'en';
+type Currency = 'VND' | 'USD' | 'EUR' | 'AUD';
+
+const CURRENCY_MAP: Record<Lang, Currency> = {
+  vi: 'VND',
+  en: 'AUD',
+};
+
+const EXCHANGE_RATES: Record<Currency, number> = {
+  VND: 1,
+  USD: 0.000039,
+  EUR: 0.000036,
+  AUD: 0.000061,
+};
 
 interface I18nContextType {
   lang: Lang;
   setLang: (l: Lang) => void;
   t: (key: string) => string;
   loading: boolean;
+  currency: Currency;
+  setCurrency: (c: Currency) => void;
+  formatPrice: (vndAmount: number) => string;
 }
 
 const I18nContext = createContext<I18nContextType>({
@@ -15,6 +31,9 @@ const I18nContext = createContext<I18nContextType>({
   setLang: () => {},
   t: (k) => k,
   loading: false,
+  currency: 'AUD',
+  setCurrency: () => {},
+  formatPrice: (v) => String(v),
 });
 
 // Default Vietnamese strings (dashboard default)
@@ -66,6 +85,12 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
   const [lang, setLangState] = useState<Lang>(() => {
     return (localStorage.getItem('app-lang') as Lang) || 'en';
   });
+  const [currency, setCurrencyState] = useState<Currency>(() => {
+    const saved = localStorage.getItem('app-currency') as Currency;
+    if (saved) return saved;
+    const savedLang = (localStorage.getItem('app-lang') as Lang) || 'en';
+    return CURRENCY_MAP[savedLang];
+  });
   const [translations, setTranslations] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [pendingKeys, setPendingKeys] = useState<Set<string>>(new Set());
@@ -76,7 +101,24 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.setItem('app-lang', l);
     setTranslations({});
     requestedRef.current = new Set();
+    // Auto-switch currency
+    const newCurrency = CURRENCY_MAP[l];
+    setCurrencyState(newCurrency);
+    localStorage.setItem('app-currency', newCurrency);
   }, []);
+
+  const setCurrency = useCallback((c: Currency) => {
+    setCurrencyState(c);
+    localStorage.setItem('app-currency', c);
+  }, []);
+
+  const formatPrice = useCallback((vndAmount: number): string => {
+    if (currency === 'VND') {
+      return new Intl.NumberFormat('vi-VN').format(vndAmount) + 'đ';
+    }
+    const converted = vndAmount * EXCHANGE_RATES[currency];
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(converted);
+  }, [currency]);
 
   // Load cached translations from DB on lang change
   useEffect(() => {
@@ -132,7 +174,7 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
   }, [lang, translations]);
 
   return (
-    <I18nContext.Provider value={{ lang, setLang, t, loading }}>
+    <I18nContext.Provider value={{ lang, setLang, t, loading, currency, setCurrency, formatPrice }}>
       {children}
     </I18nContext.Provider>
   );
@@ -140,15 +182,27 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
 
 export const useI18n = () => useContext(I18nContext);
 
-// Language switcher component
+// Language & currency switcher component
 export const LanguageSwitcher = ({ className }: { className?: string }) => {
-  const { lang, setLang } = useI18n();
+  const { lang, setLang, currency, setCurrency } = useI18n();
+  const currencies: Currency[] = ['VND', 'USD', 'EUR', 'AUD'];
   return (
-    <button
-      onClick={() => setLang(lang === 'en' ? 'vi' : 'en')}
-      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-border bg-card hover:bg-accent transition-colors ${className || ''}`}
-    >
-      {lang === 'en' ? '🇻🇳 Tiếng Việt' : '🇬🇧 English'}
-    </button>
+    <div className={`flex items-center gap-1.5 ${className || ''}`}>
+      <button
+        onClick={() => setLang(lang === 'en' ? 'vi' : 'en')}
+        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium border border-border bg-card hover:bg-accent transition-colors"
+      >
+        {lang === 'en' ? '🇻🇳 VI' : '🇬🇧 EN'}
+      </button>
+      <select
+        value={currency}
+        onChange={e => setCurrency(e.target.value as Currency)}
+        className="text-xs px-2 py-1.5 rounded-full border border-border bg-card hover:bg-accent transition-colors cursor-pointer"
+      >
+        {currencies.map(c => (
+          <option key={c} value={c}>{c}</option>
+        ))}
+      </select>
+    </div>
   );
 };
