@@ -30,6 +30,7 @@ interface BookingCalendarProps {
   onCancel: (id: string) => void;
   onDelete: (id: string) => void;
   onReschedule: (id: string, newDate: string, newStartTime: string, newEndTime: string) => void;
+  onDateSelect?: (date: string, startTime?: string) => void;
 }
 
 const THERAPIST_COLORS = [
