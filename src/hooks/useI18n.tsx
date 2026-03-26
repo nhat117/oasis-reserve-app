@@ -89,9 +89,11 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
         });
         if (!error && data?.translations) {
           setTranslations(prev => ({ ...prev, ...data.translations }));
+        } else if (data?.error) {
+          console.warn('Translation skipped:', data.error);
         }
       } catch (e) {
-        console.error('Translation error:', e);
+        console.warn('Translation unavailable:', e);
       }
       setLoading(false);
     }, 300);
