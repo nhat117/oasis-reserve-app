@@ -103,7 +103,7 @@ const AdminDashboard = () => {
   const { data: bookings } = useQuery({
     queryKey: ['admin-bookings', filterTherapist],
     queryFn: async () => {
-      let query = supabase.from('bookings').select('*, services(name, duration_minutes), therapists(name)')
+      let query = supabase.from('bookings').select('*, services(name, duration_minutes, price), therapists(name)')
         .order('booking_date', { ascending: true }).order('start_time', { ascending: true });
       if (filterTherapist !== 'all') query = query.eq('therapist_id', filterTherapist);
       const { data, error } = await query;
@@ -770,10 +770,10 @@ const AdminDashboard = () => {
                         <Label>{t('Loại')}</Label>
                         <div className="flex gap-2 mt-1">
                           <Button type="button" variant={saleType === 'booking' ? 'default' : 'outline'} className="flex-1" onClick={() => { setSaleType('booking'); setSaleServiceId(''); setSaleCustomerName(''); }}>
-                            📅 {t('Lịch hẹn')}
+                            {t('Lịch hẹn')}
                           </Button>
                           <Button type="button" variant={saleType === 'walkin' ? 'default' : 'outline'} className="flex-1" onClick={() => { setSaleType('walkin'); setSaleBookingId(''); }}>
-                            🚶 {t('Khách vãng lai')}
+                            {t('Khách vãng lai')}
                           </Button>
                         </div>
                       </div>
@@ -831,15 +831,15 @@ const AdminDashboard = () => {
                         <Label>{t('Phương thức thanh toán')}</Label>
                         <div className="flex gap-2 mt-1">
                           <Button type="button" variant={salePaymentMethod === 'cash' ? 'default' : 'outline'} className="flex-1" onClick={() => setSalePaymentMethod('cash')}>
-                            💵 {t('Tiền mặt')}
+                            {t('Tiền mặt')}
                           </Button>
                           <Button type="button" variant={salePaymentMethod === 'card' ? 'default' : 'outline'} className="flex-1" onClick={() => setSalePaymentMethod('card')}>
-                            💳 {t('Thẻ')}
+                            {t('Thẻ')}
                           </Button>
                         </div>
                         {salePaymentMethod === 'card' && parseFloat(cardSurchargeSetting || '0') > 0 && saleAmount && (
                           <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-950/30 rounded text-sm text-amber-700 dark:text-amber-400">
-                            ⚠️ {t('Phụ phí thẻ')}: {cardSurchargeSetting}% = <strong>A$ {(parseFloat(saleAmount) * parseFloat(cardSurchargeSetting) / 100).toFixed(2)}</strong>
+                            {t('Phụ phí thẻ')}: {cardSurchargeSetting}% = <strong>A$ {(parseFloat(saleAmount) * parseFloat(cardSurchargeSetting) / 100).toFixed(2)}</strong>
                             <br />{t('Tổng')}: <strong>A$ {(parseFloat(saleAmount) * (1 + parseFloat(cardSurchargeSetting) / 100)).toFixed(2)}</strong>
                           </div>
                         )}
@@ -885,7 +885,7 @@ const AdminDashboard = () => {
                           <TableCell className="font-semibold">A$ {Number(s.amount).toLocaleString()}</TableCell>
                           <TableCell>
                             <Badge variant={s.payment_method === 'card' ? 'default' : 'secondary'}>
-                              {s.payment_method === 'card' ? '💳 ' + t('Thẻ') : '💵 ' + t('Tiền mặt')}
+                              {s.payment_method === 'card' ? t('Thẻ') : t('Tiền mặt')}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground max-w-[150px] truncate">{s.notes || '—'}</TableCell>
@@ -1063,7 +1063,7 @@ const AdminDashboard = () => {
                     {shopHolidays.filter((h: any) => h.holiday_date >= format(new Date(), 'yyyy-MM-dd')).map((h: any) => (
                       <div key={h.id} className="flex items-center justify-between py-1.5 px-3 bg-destructive/10 rounded text-sm">
                         <span>
-                          {h.early_close_hour ? '⏰' : '🏖️'} <strong>{h.holiday_date}</strong>
+                          <strong>{h.holiday_date}</strong>
                           {h.early_close_hour ? ` — ${t('Đóng cửa lúc')} ${h.early_close_hour}:00` : ` — ${t('Nghỉ cả ngày')}`}
                           {h.reason ? ` (${h.reason})` : ''}
                         </span>
@@ -1272,7 +1272,7 @@ const AdminDashboard = () => {
                 </Button>
                 {resendSettings?.['resend_api_key'] && (
                   <div className="bg-muted rounded-lg p-3 text-sm space-y-1">
-                    <p className="text-muted-foreground">✅ {t('Resend API key đã được cấu hình')}</p>
+                    <p className="text-muted-foreground">{t('Resend API key đã được cấu hình')}</p>
                     <p className="text-muted-foreground">{t('Email gửi từ')}: <strong>{resendSettings['resend_from_email'] || 'onboarding@resend.dev'}</strong></p>
                   </div>
                 )}
@@ -1282,7 +1282,7 @@ const AdminDashboard = () => {
             {/* Card Surcharge Settings */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">💳 {t('Phụ phí thẻ tín dụng')}</CardTitle>
+                <CardTitle className="text-base">{t('Phụ phí thẻ tín dụng')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div>

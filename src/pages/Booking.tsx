@@ -34,7 +34,7 @@ const Booking = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookingComplete, setBookingComplete] = useState(false);
   const [assignedTherapistName, setAssignedTherapistName] = useState('');
-
+  const [selectedAddOns, setSelectedAddOns] = useState<string[]>([]);
   const { data: services } = useQuery({
     queryKey: ['services'],
     queryFn: async () => {
@@ -102,6 +102,9 @@ const Booking = () => {
   });
 
   const currentService = services?.find(s => s.id === selectedService);
+  const addOnServices = services?.filter(s => selectedAddOns.includes(s.id)) || [];
+  const totalDuration = (currentService?.duration_minutes || 0) + addOnServices.reduce((sum, s) => sum + s.duration_minutes, 0);
+  const totalPrice = (currentService?.price || 0) + addOnServices.reduce((sum, s) => sum + s.price, 0);
 
   // Buffer time between services (in minutes)
   const BUFFER_MINUTES = 15;
@@ -151,7 +154,7 @@ const Booking = () => {
 
   const availableSlots = useMemo(() => {
     if (!currentService || !selectedDate || !therapists || isShopHoliday) return [];
-    const duration = currentService.duration_minutes;
+    const duration = totalDuration;
     const slots: { time: string; therapistCount: number }[] = [];
     const now = new Date();
     const dayOfWeek = selectedDate.getDay() === 0 ? 7 : selectedDate.getDay();
@@ -186,14 +189,14 @@ const Booking = () => {
       }
     }
     return slots;
-  }, [currentService, selectedDate, existingBookings, selectedTherapist, therapists, unavailability, earlyCloseHour, isShopHoliday]);
+  }, [currentService, selectedDate, existingBookings, selectedTherapist, therapists, unavailability, earlyCloseHour, isShopHoliday, totalDuration]);
 
   const handleSubmit = async () => {
     if (!currentService || !selectedDate || !selectedTime) return;
     setIsSubmitting(true);
 
     const startTime = selectedTime + ':00';
-    const endDate = addMinutes(new Date(`2000-01-01T${selectedTime}`), currentService.duration_minutes);
+    const endDate = addMinutes(new Date(`2000-01-01T${selectedTime}`), totalDuration);
     const endTime = format(endDate, 'HH:mm') + ':00';
 
     // Determine therapist
@@ -218,6 +221,9 @@ const Booking = () => {
     const bookingDateStr = format(selectedDate, 'yyyy-MM-dd');
     const therapistName = therapists?.find(t => t.id === therapistId)?.name || '';
 
+    const addOnNames = addOnServices.map(s => s.name).join(', ');
+    const notesText = addOnNames ? `Add-ons: ${addOnNames}` : null;
+
     const { error } = await supabase.from('bookings').insert({
       id: bookingId,
       service_id: selectedService,
@@ -229,6 +235,7 @@ const Booking = () => {
       start_time: startTime,
       end_time: endTime,
       status: 'confirmed',
+      notes: notesText,
     });
 
     setIsSubmitting(false);
@@ -240,7 +247,7 @@ const Booking = () => {
       if (customerEmail.trim()) {
         const emailHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h1 style="color: #1a1a1a; font-size: 22px;">Booking Confirmed! ✅</h1>
+            <h1 style="color: #1a1a1a; font-size: 22px;">Booking Confirmed!</h1>
             <p style="color: #555; font-size: 14px; line-height: 1.6;">Hi <strong>${customerName.trim()}</strong>, your booking has been confirmed.</p>
             <div style="background: #f5f5f5; border-radius: 8px; padding: 16px; margin: 20px 0;">
               <p style="margin: 4px 0;"><strong>Service:</strong> ${currentService?.name || ''}</p>
@@ -330,20 +337,66 @@ const Booking = () => {
         {step === 1 && (
           <Card>
             <CardHeader><CardTitle>{t('1. Chọn dịch vụ')}</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              {services?.map(service => (
-                <button
-                  key={service.id}
-                  onClick={() => { setSelectedService(service.id); setStep(2); }}
-                  className={cn(
-                    "w-full text-left p-4 rounded-lg border transition-colors",
-                    selectedService === service.id ? "border-primary bg-primary/5" : "hover:border-primary/50"
-                  )}
-                >
-                   <div className="font-medium">{service.name}</div>
-                   <div className="text-sm text-muted-foreground mt-1">{service.duration_minutes} {t('phút')} · {formatPrice(service.price)}</div>
-                </button>
-              ))}
+            <CardContent className="space-y-4">
+              <div>
+                <Label className="text-base font-medium">{t('Dịch vụ chính')}</Label>
+                <div className="space-y-2 mt-2">
+                  {services?.map(service => (
+                    <button
+                      key={service.id}
+                      onClick={() => { setSelectedService(service.id); setSelectedAddOns(prev => prev.filter(id => id !== service.id)); }}
+                      className={cn(
+                        "w-full text-left p-4 rounded-lg border transition-colors",
+                        selectedService === service.id ? "border-primary bg-primary/5" : "hover:border-primary/50"
+                      )}
+                    >
+                       <div className="font-medium">{service.name}</div>
+                       <div className="text-sm text-muted-foreground mt-1">{service.duration_minutes} {t('phút')} · {formatPrice(service.price)}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {selectedService && services && services.filter(s => s.id !== selectedService).length > 0 && (
+                <div>
+                  <Label className="text-base font-medium">{t('Dịch vụ thêm (không bắt buộc)')}</Label>
+                  <div className="space-y-2 mt-2">
+                    {services.filter(s => s.id !== selectedService).map(service => {
+                      const isSelected = selectedAddOns.includes(service.id);
+                      return (
+                        <button
+                          key={service.id}
+                          onClick={() => setSelectedAddOns(prev => isSelected ? prev.filter(id => id !== service.id) : [...prev, service.id])}
+                          className={cn(
+                            "w-full text-left p-3 rounded-lg border transition-colors flex items-center gap-3",
+                            isSelected ? "border-primary bg-primary/5" : "hover:border-primary/50"
+                          )}
+                        >
+                          <div className={cn(
+                            "w-5 h-5 rounded border-2 flex items-center justify-center shrink-0",
+                            isSelected ? "border-primary bg-primary" : "border-muted-foreground/30"
+                          )}>
+                            {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-medium text-sm">{service.name}</div>
+                            <div className="text-xs text-muted-foreground">{service.duration_minutes} {t('phút')} · {formatPrice(service.price)}</div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {selectedService && (
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <div className="text-sm text-muted-foreground">
+                    {t('Tổng')}: {totalDuration} {t('phút')} · {formatPrice(totalPrice)}
+                  </div>
+                  <Button onClick={() => setStep(2)}>{t('Tiếp tục')}</Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -384,10 +437,10 @@ const Booking = () => {
                   </PopoverContent>
                 </Popover>
                 {isShopHoliday && (
-                  <p className="text-sm text-destructive mt-2">🏖️ {t('Tiệm nghỉ ngày này. Vui lòng chọn ngày khác.')}</p>
+                  <p className="text-sm text-destructive mt-2">{t('Tiệm nghỉ ngày này. Vui lòng chọn ngày khác.')}</p>
                 )}
                 {earlyCloseHour && !isShopHoliday && (
-                  <p className="text-sm text-amber-600 mt-2">⏰ {t('Tiệm đóng cửa sớm lúc')} {earlyCloseHour}:00 {t('ngày này.')}</p>
+                  <p className="text-sm text-amber-600 mt-2">{t('Tiệm đóng cửa sớm lúc')} {earlyCloseHour}:00 {t('ngày này.')}</p>
                 )}
               </div>
 
@@ -398,7 +451,7 @@ const Booking = () => {
                     <SelectTrigger className="mt-1"><SelectValue placeholder={t('Chọn thợ')} /></SelectTrigger>
                     <SelectContent>
                       {randomEnabled !== false && (
-                        <SelectItem value="any">🎲 {t('Tự động chọn (bất kỳ thợ trống)')}</SelectItem>
+                        <SelectItem value="any">{t('Tự động chọn (bất kỳ thợ trống)')}</SelectItem>
                       )}
                       {therapists?.filter(t => !unavailability?.includes(t.id)).map(t => (
                         <SelectItem key={t.id} value={t.id}>
@@ -490,13 +543,17 @@ const Booking = () => {
             <CardContent className="space-y-4">
               <div className="bg-muted rounded-lg p-4 space-y-2 text-sm">
                 <p><strong>{t('Dịch vụ')}:</strong> {currentService?.name}</p>
+                {addOnServices.length > 0 && (
+                  <p><strong>{t('Dịch vụ thêm')}:</strong> {addOnServices.map(s => s.name).join(', ')}</p>
+                )}
                 <p><strong>{t('Ngày')}:</strong> {selectedDate && format(selectedDate, 'dd/MM/yyyy')}</p>
                 <p><strong>{t('Giờ')}:</strong> {selectedTime}</p>
+                <p><strong>{t('Thời lượng')}:</strong> {totalDuration} {t('phút')}</p>
                 <p><strong>{t('Thợ')}:</strong> {selectedTherapistName}</p>
                 <p><strong>{t('Khách')}:</strong> {customerName}</p>
                 <p><strong>{t('SĐT')}:</strong> {customerPhone}</p>
                 {customerEmail && <p><strong>Email:</strong> {customerEmail}</p>}
-                <p><strong>{t('Giá')}:</strong> {currentService && formatPrice(currentService.price)}</p>
+                <p><strong>{t('Giá')}:</strong> {formatPrice(totalPrice)}</p>
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setStep(3)}>{t('Quay lại')}</Button>
