@@ -514,6 +514,7 @@ const AdminDashboard = () => {
           <TabsList className="mb-6">
             <TabsTrigger value="stats">{t('Thống kê')}</TabsTrigger>
             <TabsTrigger value="bookings">{t('Lịch hẹn')}</TabsTrigger>
+            <TabsTrigger value="sales"><DollarSign className="h-4 w-4 mr-1" /> {t('Thanh toán')}</TabsTrigger>
             <TabsTrigger value="services">{t('Dịch vụ')}</TabsTrigger>
             <TabsTrigger value="therapists">{t('Thợ')}</TabsTrigger>
             <TabsTrigger value="settings"><Settings className="h-4 w-4 mr-1" /> {t('Cài đặt')}</TabsTrigger>
