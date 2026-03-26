@@ -270,6 +270,43 @@ const AdminDashboard = () => {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['shop-info-settings'] }); toast({ title: t('Đã lưu thông tin tiệm') }); },
   });
 
+  // Resend email settings
+  const { data: resendSettings } = useQuery({
+    queryKey: ['resend-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('app_settings').select('key, value')
+        .in('key', ['resend_api_key', 'resend_from_email']);
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      data?.forEach(r => { map[r.key] = r.value; });
+      return map;
+    },
+  });
+
+  useEffect(() => {
+    if (resendSettings) {
+      setResendApiKey(resendSettings['resend_api_key'] || '');
+      setResendFromEmail(resendSettings['resend_from_email'] || '');
+    }
+  }, [resendSettings]);
+
+  const saveResendSettings = useMutation({
+    mutationFn: async () => {
+      const rows = [
+        { key: 'resend_api_key', value: resendApiKey },
+        { key: 'resend_from_email', value: resendFromEmail },
+      ];
+      for (const row of rows) {
+        if (row.value) {
+          const { error } = await supabase.from('app_settings').upsert(row);
+          if (error) throw error;
+        }
+      }
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['resend-settings'] }); toast({ title: t('Đã lưu cài đặt Resend') }); },
+    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+  });
+
   useEffect(() => {
     if (currencySettings) {
       setExchangeUSD(currencySettings['exchange_rate_usd'] || '0.000039');
