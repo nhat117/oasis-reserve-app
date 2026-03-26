@@ -256,7 +256,7 @@ const Booking = () => {
   };
 
   const selectedTherapistName = selectedTherapist === 'any'
-    ? (assignedTherapistName || 'Tự động chọn')
+    ? (assignedTherapistName || t('Tự động chọn'))
     : therapists?.find(t => t.id === selectedTherapist)?.name || '';
 
   if (bookingComplete) {
