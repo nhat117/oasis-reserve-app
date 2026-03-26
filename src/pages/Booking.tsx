@@ -333,8 +333,8 @@ const Booking = () => {
                     selectedService === service.id ? "border-primary bg-primary/5" : "hover:border-primary/50"
                   )}
                 >
-                  <div className="font-medium">{service.name}</div>
-                  <div className="text-sm text-muted-foreground mt-1">{service.duration_minutes} phút · {formatPrice(service.price)}</div>
+                   <div className="font-medium">{service.name}</div>
+                   <div className="text-sm text-muted-foreground mt-1">{service.duration_minutes} {t('phút')} · {formatPrice(service.price)}</div>
                 </button>
               ))}
             </CardContent>
