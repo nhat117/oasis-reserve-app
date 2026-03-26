@@ -2,6 +2,19 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import { supabase } from '@/integrations/supabase/client';
 
 type Lang = 'vi' | 'en';
+type Currency = 'VND' | 'USD' | 'EUR' | 'AUD';
+
+const CURRENCY_MAP: Record<Lang, Currency> = {
+  vi: 'VND',
+  en: 'AUD',
+};
+
+const EXCHANGE_RATES: Record<Currency, number> = {
+  VND: 1,
+  USD: 0.000039,
+  EUR: 0.000036,
+  AUD: 0.000061,
+};
 
 interface I18nContextType {
   lang: Lang;
