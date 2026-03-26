@@ -528,9 +528,21 @@ export function BookingCalendar({ bookings, onCancel, onDelete, onReschedule }: 
                 <p><span className="text-muted-foreground">{t('Dịch vụ')}:</span> {selectedBooking.services?.name}</p>
               </div>
               {selectedBooking.status === 'confirmed' && (
-                <Button variant="outline" size="sm" className="w-full text-destructive hover:text-destructive"
-                  onClick={() => { onCancel(selectedBooking.id); setDialogOpen(false); }}>
-                  {t('Huỷ lịch hẹn')}
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="flex-1 text-destructive hover:text-destructive"
+                    onClick={() => { onCancel(selectedBooking.id); setDialogOpen(false); }}>
+                    {t('Huỷ lịch hẹn')}
+                  </Button>
+                  <Button variant="destructive" size="sm" className="flex-1"
+                    onClick={() => { onDelete(selectedBooking.id); setDialogOpen(false); }}>
+                    {t('Xoá')}
+                  </Button>
+                </div>
+              )}
+              {selectedBooking.status === 'cancelled' && (
+                <Button variant="destructive" size="sm" className="w-full"
+                  onClick={() => { onDelete(selectedBooking.id); setDialogOpen(false); }}>
+                  {t('Xoá lịch hẹn')}
                 </Button>
               )}
             </div>
