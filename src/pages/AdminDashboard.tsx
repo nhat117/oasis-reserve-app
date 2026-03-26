@@ -92,6 +92,9 @@ const AdminDashboard = () => {
   const [resendApiKey, setResendApiKey] = useState('');
   const [resendFromEmail, setResendFromEmail] = useState('');
 
+  // Card surcharge state
+  const [cardSurchargePercent, setCardSurchargePercent] = useState('0');
+
   const { data: bookings } = useQuery({
     queryKey: ['admin-bookings', filterTherapist],
     queryFn: async () => {
