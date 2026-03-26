@@ -408,7 +408,46 @@ const AdminDashboard = () => {
     onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
 
+  // Reminder settings
+  const { data: reminderSettings } = useQuery({
+    queryKey: ['reminder-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('app_settings').select('key, value')
+        .in('key', ['reminder_email_enabled', 'reminder_sms_enabled', 'reminder_1st_hours', 'reminder_2nd_hours']);
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      data?.forEach(r => { map[r.key] = r.value; });
+      return map;
+    },
+  });
+
   useEffect(() => {
+    if (reminderSettings) {
+      setReminderEmailEnabled(reminderSettings['reminder_email_enabled'] === 'true');
+      setReminderSmsEnabled(reminderSettings['reminder_sms_enabled'] === 'true');
+      setReminder1stHours(reminderSettings['reminder_1st_hours'] || '24');
+      setReminder2ndHours(reminderSettings['reminder_2nd_hours'] || '1');
+    }
+  }, [reminderSettings]);
+
+  const saveReminderSettings = useMutation({
+    mutationFn: async () => {
+      const rows = [
+        { key: 'reminder_email_enabled', value: String(reminderEmailEnabled) },
+        { key: 'reminder_sms_enabled', value: String(reminderSmsEnabled) },
+        { key: 'reminder_1st_hours', value: reminder1stHours },
+        { key: 'reminder_2nd_hours', value: reminder2ndHours },
+      ];
+      for (const row of rows) {
+        const { error } = await supabase.from('app_settings').upsert(row);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['reminder-settings'] }); toast({ title: t('Đã lưu cài đặt nhắc lịch') }); },
+    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+  });
+
+
     if (currencySettings) {
       setExchangeUSD(currencySettings['exchange_rate_usd'] || '0.000039');
       setExchangeEUR(currencySettings['exchange_rate_eur'] || '0.000036');
