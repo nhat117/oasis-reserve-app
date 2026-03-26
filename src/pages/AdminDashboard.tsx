@@ -47,6 +47,8 @@ const AdminDashboard = () => {
   const [therapistEndHour, setTherapistEndHour] = useState('18');
   const [unavailDate, setUnavailDate] = useState<Date | undefined>();
   const [unavailTherapist, setUnavailTherapist] = useState('');
+  const [holidayDate, setHolidayDate] = useState<Date | undefined>();
+  const [holidayReason, setHolidayReason] = useState('');
 
   const { data: bookings } = useQuery({
     queryKey: ['admin-bookings', filterTherapist],
