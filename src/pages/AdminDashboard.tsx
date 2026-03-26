@@ -77,6 +77,7 @@ const AdminDashboard = () => {
   const [saleAmount, setSaleAmount] = useState('');
   const [salePaymentMethod, setSalePaymentMethod] = useState<'cash' | 'card'>('cash');
   const [saleNotes, setSaleNotes] = useState('');
+  const [saleAddOns, setSaleAddOns] = useState<string[]>([]);
 
   // Currency settings state
   const [exchangeUSD, setExchangeUSD] = useState('');
