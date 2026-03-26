@@ -803,7 +803,7 @@ const AdminDashboard = () => {
                     <DialogTrigger asChild>
                       <Button size="sm" className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-1" /> {t('Tạo lịch')}</Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-md">
+                    <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[90vh] overflow-y-auto">
                       <DialogHeader>
                         <DialogTitle>{t('Tạo lịch hẹn mới')}</DialogTitle>
                         <DialogDescription>{t('Điền thông tin để tạo lịch hẹn cho khách hàng')}</DialogDescription>
