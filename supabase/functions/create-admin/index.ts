@@ -83,6 +83,24 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Send welcome email
+    try {
+      await adminClient.functions.invoke('send-transactional-email', {
+        body: {
+          templateName: 'admin-welcome',
+          recipientEmail: email,
+          idempotencyKey: `admin-welcome-${newUser.user.id}`,
+          templateData: {
+            email,
+            loginUrl: `${req.headers.get('origin') || ''}/admin/login`,
+          },
+        },
+      });
+    } catch (emailErr) {
+      console.error('Failed to send welcome email:', emailErr);
+      // Don't fail the whole request if email fails
+    }
+
     return new Response(
       JSON.stringify({ success: true, user_id: newUser.user.id }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
