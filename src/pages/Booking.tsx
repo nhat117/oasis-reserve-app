@@ -367,9 +367,14 @@ const Booking = () => {
                       onSelect={(d) => { setSelectedDate(d); setSelectedTime(''); }}
                       disabled={(date) => {
                         if (isBefore(startOfDay(date), startOfDay(new Date()))) return true;
-                        if (date.getDay() === 0) return true;
                         const holiday = shopHolidays?.find((h: any) => h.holiday_date === format(date, 'yyyy-MM-dd'));
                         if (holiday && !holiday.early_close_hour) return true;
+                        // Disable dates where no therapists work
+                        if (therapists) {
+                          const dayOfWeek = date.getDay() === 0 ? 7 : date.getDay();
+                          const hasWorkingTherapist = therapists.some(th => th.working_days.includes(dayOfWeek));
+                          if (!hasWorkingTherapist) return true;
+                        }
                         return false;
                       }}
                       className="p-3 pointer-events-auto"

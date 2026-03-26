@@ -70,7 +70,10 @@ const AdminDashboard = () => {
 
   // Sales form state
   const [saleDialog, setSaleDialog] = useState(false);
+  const [saleType, setSaleType] = useState<'booking' | 'walkin'>('booking');
   const [saleBookingId, setSaleBookingId] = useState('');
+  const [saleServiceId, setSaleServiceId] = useState('');
+  const [saleCustomerName, setSaleCustomerName] = useState('');
   const [saleAmount, setSaleAmount] = useState('');
   const [salePaymentMethod, setSalePaymentMethod] = useState<'cash' | 'card'>('cash');
   const [saleNotes, setSaleNotes] = useState('');
@@ -88,6 +91,9 @@ const AdminDashboard = () => {
   // Resend email state
   const [resendApiKey, setResendApiKey] = useState('');
   const [resendFromEmail, setResendFromEmail] = useState('');
+
+  // Card surcharge state
+  const [cardSurchargePercent, setCardSurchargePercent] = useState('0');
 
   const { data: bookings } = useQuery({
     queryKey: ['admin-bookings', filterTherapist],
@@ -133,13 +139,16 @@ const AdminDashboard = () => {
 
   const createSale = useMutation({
     mutationFn: async () => {
+      const baseAmount = parseFloat(saleAmount);
+      const surcharge = salePaymentMethod === 'card' ? baseAmount * (parseFloat(cardSurchargeSetting || '0') / 100) : 0;
+      const totalAmount = baseAmount + surcharge;
       const payload: any = {
-        amount: parseFloat(saleAmount),
+        amount: totalAmount,
         payment_method: salePaymentMethod,
         notes: saleNotes || null,
         sale_date: format(new Date(), 'yyyy-MM-dd'),
       };
-      if (saleBookingId && saleBookingId !== 'none') payload.booking_id = saleBookingId;
+      if (saleType === 'booking' && saleBookingId && saleBookingId !== 'none') payload.booking_id = saleBookingId;
       const { error } = await supabase.from('sales').insert(payload);
       if (error) throw error;
     },
@@ -147,7 +156,10 @@ const AdminDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ['admin-sales'] });
       queryClient.invalidateQueries({ queryKey: ['stats-bookings'] });
       setSaleDialog(false);
+      setSaleType('booking');
       setSaleBookingId('');
+      setSaleServiceId('');
+      setSaleCustomerName('');
       setSaleAmount('');
       setSalePaymentMethod('cash');
       setSaleNotes('');
@@ -305,6 +317,28 @@ const AdminDashboard = () => {
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['resend-settings'] }); toast({ title: t('Đã lưu cài đặt Resend') }); },
     onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+  });
+
+  // Card surcharge setting
+  const { data: cardSurchargeSetting } = useQuery({
+    queryKey: ['card-surcharge-setting'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'card_surcharge_percent').single();
+      if (error) return '0';
+      return data.value;
+    },
+  });
+
+  useEffect(() => {
+    if (cardSurchargeSetting) setCardSurchargePercent(cardSurchargeSetting);
+  }, [cardSurchargeSetting]);
+
+  const saveCardSurcharge = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from('app_settings').upsert({ key: 'card_surcharge_percent', value: cardSurchargePercent });
+      if (error) throw error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['card-surcharge-setting'] }); toast({ title: t('Đã lưu phụ phí thẻ') }); },
   });
 
   useEffect(() => {
@@ -677,7 +711,7 @@ const AdminDashboard = () => {
             <Card>
               <CardHeader className="flex-row items-center justify-between space-y-0">
                 <CardTitle>{t('Thanh toán')}</CardTitle>
-                <Dialog open={saleDialog} onOpenChange={(open) => { setSaleDialog(open); if (!open) { setSaleBookingId(''); setSaleAmount(''); setSalePaymentMethod('cash'); setSaleNotes(''); } }}>
+                <Dialog open={saleDialog} onOpenChange={(open) => { setSaleDialog(open); if (!open) { setSaleType('booking'); setSaleBookingId(''); setSaleServiceId(''); setSaleCustomerName(''); setSaleAmount(''); setSalePaymentMethod('cash'); setSaleNotes(''); } }}>
                   <DialogTrigger asChild>
                     <Button size="sm"><Plus className="h-4 w-4 mr-1" /> {t('Tạo thanh toán')}</Button>
                   </DialogTrigger>
@@ -687,28 +721,64 @@ const AdminDashboard = () => {
                       <DialogDescription>{t('Ghi nhận thanh toán cho dịch vụ')}</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
+                      {/* Sale type toggle */}
                       <div>
-                        <Label>{t('Liên kết lịch hẹn (tuỳ chọn)')}</Label>
-                        <Select value={saleBookingId} onValueChange={(v) => {
-                          setSaleBookingId(v);
-                          if (v) {
-                            const booking = bookings?.find(b => b.id === v);
-                            if (booking) {
-                              setSaleAmount(String((booking as any).services?.price || 0));
-                            }
-                          }
-                        }}>
-                          <SelectTrigger className="mt-1"><SelectValue placeholder={t('Chọn lịch hẹn')} /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">{t('Không liên kết')}</SelectItem>
-                            {bookings?.filter(b => b.status === 'confirmed').slice(0, 20).map(b => (
-                              <SelectItem key={b.id} value={b.id}>
-                                {b.booking_date} {b.start_time?.slice(0, 5)} — {b.customer_name} ({(b as any).services?.name})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Label>{t('Loại')}</Label>
+                        <div className="flex gap-2 mt-1">
+                          <Button type="button" variant={saleType === 'booking' ? 'default' : 'outline'} className="flex-1" onClick={() => { setSaleType('booking'); setSaleServiceId(''); setSaleCustomerName(''); }}>
+                            📅 {t('Lịch hẹn')}
+                          </Button>
+                          <Button type="button" variant={saleType === 'walkin' ? 'default' : 'outline'} className="flex-1" onClick={() => { setSaleType('walkin'); setSaleBookingId(''); }}>
+                            🚶 {t('Khách vãng lai')}
+                          </Button>
+                        </div>
                       </div>
+
+                      {saleType === 'booking' ? (
+                        <div>
+                          <Label>{t('Chọn lịch hẹn')}</Label>
+                          <Select value={saleBookingId} onValueChange={(v) => {
+                            setSaleBookingId(v);
+                            if (v && v !== 'none') {
+                              const booking = bookings?.find(b => b.id === v);
+                              if (booking) setSaleAmount(String((booking as any).services?.price || 0));
+                            }
+                          }}>
+                            <SelectTrigger className="mt-1"><SelectValue placeholder={t('Chọn lịch hẹn')} /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">{t('Không liên kết')}</SelectItem>
+                              {bookings?.filter(b => b.status === 'confirmed').slice(0, 20).map(b => (
+                                <SelectItem key={b.id} value={b.id}>
+                                  {b.booking_date} {b.start_time?.slice(0, 5)} — {b.customer_name} ({(b as any).services?.name})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ) : (
+                        <>
+                          <div>
+                            <Label>{t('Dịch vụ')}</Label>
+                            <Select value={saleServiceId} onValueChange={(v) => {
+                              setSaleServiceId(v);
+                              const svc = services?.find(s => s.id === v);
+                              if (svc) setSaleAmount(String(svc.price));
+                            }}>
+                              <SelectTrigger className="mt-1"><SelectValue placeholder={t('Chọn dịch vụ')} /></SelectTrigger>
+                              <SelectContent>
+                                {services?.filter(s => s.is_active).map(s => (
+                                  <SelectItem key={s.id} value={s.id}>{s.name} — {formatPrice(s.price)}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>{t('Tên khách hàng')}</Label>
+                            <Input value={saleCustomerName} onChange={e => setSaleCustomerName(e.target.value)} className="mt-1" placeholder={t('Nhập tên khách')} />
+                          </div>
+                        </>
+                      )}
+
                       <div>
                         <Label>{t('Số tiền (AUD)')}</Label>
                         <Input type="number" value={saleAmount} onChange={e => setSaleAmount(e.target.value)} className="mt-1" placeholder="0" />
@@ -716,23 +786,19 @@ const AdminDashboard = () => {
                       <div>
                         <Label>{t('Phương thức thanh toán')}</Label>
                         <div className="flex gap-2 mt-1">
-                          <Button
-                            type="button"
-                            variant={salePaymentMethod === 'cash' ? 'default' : 'outline'}
-                            className="flex-1"
-                            onClick={() => setSalePaymentMethod('cash')}
-                          >
+                          <Button type="button" variant={salePaymentMethod === 'cash' ? 'default' : 'outline'} className="flex-1" onClick={() => setSalePaymentMethod('cash')}>
                             💵 {t('Tiền mặt')}
                           </Button>
-                          <Button
-                            type="button"
-                            variant={salePaymentMethod === 'card' ? 'default' : 'outline'}
-                            className="flex-1"
-                            onClick={() => setSalePaymentMethod('card')}
-                          >
+                          <Button type="button" variant={salePaymentMethod === 'card' ? 'default' : 'outline'} className="flex-1" onClick={() => setSalePaymentMethod('card')}>
                             💳 {t('Thẻ')}
                           </Button>
                         </div>
+                        {salePaymentMethod === 'card' && parseFloat(cardSurchargeSetting || '0') > 0 && saleAmount && (
+                          <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-950/30 rounded text-sm text-amber-700 dark:text-amber-400">
+                            ⚠️ {t('Phụ phí thẻ')}: {cardSurchargeSetting}% = <strong>A$ {(parseFloat(saleAmount) * parseFloat(cardSurchargeSetting) / 100).toFixed(2)}</strong>
+                            <br />{t('Tổng')}: <strong>A$ {(parseFloat(saleAmount) * (1 + parseFloat(cardSurchargeSetting) / 100)).toFixed(2)}</strong>
+                          </div>
+                        )}
                       </div>
                       <div>
                         <Label>{t('Ghi chú')}</Label>
@@ -1166,6 +1232,30 @@ const AdminDashboard = () => {
                     <p className="text-muted-foreground">{t('Email gửi từ')}: <strong>{resendSettings['resend_from_email'] || 'onboarding@resend.dev'}</strong></p>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Card Surcharge Settings */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">💳 {t('Phụ phí thẻ tín dụng')}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <Label>{t('Phần trăm phụ phí (%)')}</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="20"
+                    step="0.1"
+                    value={cardSurchargePercent}
+                    onChange={e => setCardSurchargePercent(e.target.value)}
+                    className="mt-1 w-[120px]"
+                    placeholder="0"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">{t('Phụ phí sẽ được tự động cộng thêm khi khách thanh toán bằng thẻ')}</p>
+                </div>
+                <Button size="sm" onClick={() => saveCardSurcharge.mutate()}>{t('Lưu')}</Button>
               </CardContent>
             </Card>
           </TabsContent>
