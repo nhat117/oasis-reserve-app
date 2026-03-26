@@ -474,22 +474,22 @@ const Booking = () => {
         {/* Step 4: Confirm */}
         {step === 4 && (
           <Card>
-            <CardHeader><CardTitle>4. Xác nhận đặt lịch</CardTitle></CardHeader>
+            <CardHeader><CardTitle>{t('4. Xác nhận đặt lịch')}</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="bg-muted rounded-lg p-4 space-y-2 text-sm">
-                <p><strong>Dịch vụ:</strong> {currentService?.name}</p>
-                <p><strong>Ngày:</strong> {selectedDate && format(selectedDate, 'dd/MM/yyyy')}</p>
-                <p><strong>Giờ:</strong> {selectedTime}</p>
-                <p><strong>Thợ:</strong> {selectedTherapistName}</p>
-                <p><strong>Khách:</strong> {customerName}</p>
-                <p><strong>SĐT:</strong> {customerPhone}</p>
+                <p><strong>{t('Dịch vụ')}:</strong> {currentService?.name}</p>
+                <p><strong>{t('Ngày')}:</strong> {selectedDate && format(selectedDate, 'dd/MM/yyyy')}</p>
+                <p><strong>{t('Giờ')}:</strong> {selectedTime}</p>
+                <p><strong>{t('Thợ')}:</strong> {selectedTherapistName}</p>
+                <p><strong>{t('Khách')}:</strong> {customerName}</p>
+                <p><strong>{t('SĐT')}:</strong> {customerPhone}</p>
                 {customerEmail && <p><strong>Email:</strong> {customerEmail}</p>}
-                <p><strong>Giá:</strong> {currentService && formatPrice(currentService.price)}</p>
+                <p><strong>{t('Giá')}:</strong> {currentService && formatPrice(currentService.price)}</p>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setStep(3)}>Quay lại</Button>
+                <Button variant="outline" onClick={() => setStep(3)}>{t('Quay lại')}</Button>
                 <Button className="flex-1" onClick={handleSubmit} disabled={isSubmitting}>
-                  {isSubmitting ? 'Đang xử lý...' : 'Xác nhận đặt lịch'}
+                  {isSubmitting ? t('Đang xử lý...') : t('Xác nhận đặt lịch')}
                 </Button>
               </div>
             </CardContent>
