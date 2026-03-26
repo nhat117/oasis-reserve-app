@@ -173,7 +173,6 @@ export function BookingCalendar({ bookings, onCancel, onReschedule }: BookingCal
 
   const handleDragStart = (e: React.DragEvent, booking: Booking) => {
     if (booking.status !== 'confirmed') return;
-    setDragBooking(booking);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', booking.id);
     // Create a custom drag ghost
@@ -194,6 +193,10 @@ export function BookingCalendar({ bookings, onCancel, onReschedule }: BookingCal
     setTimeout(() => {
       if (document.body.contains(ghost)) document.body.removeChild(ghost);
     }, 100);
+    // Defer state update to avoid interrupting the native drag
+    requestAnimationFrame(() => {
+      setDragBooking(booking);
+    });
   };
 
   const handleDragOver = (e: React.DragEvent, slotKey: string) => {
