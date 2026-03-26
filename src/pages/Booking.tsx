@@ -353,6 +353,10 @@ const Booking = () => {
                 <Label htmlFor="phone">Số điện thoại</Label>
                 <Input id="phone" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="0901234567" className="mt-1" />
               </div>
+              <div>
+                <Label htmlFor="email">Email (không bắt buộc)</Label>
+                <Input id="email" type="email" value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} placeholder="email@example.com" className="mt-1" />
+              </div>
               <div className="flex gap-2 pt-4">
                 <Button variant="outline" onClick={() => setStep(2)}>Quay lại</Button>
                 <Button
