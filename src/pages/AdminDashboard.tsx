@@ -173,12 +173,18 @@ const AdminDashboard = () => {
       </header>
 
       <div className="container mx-auto px-4 py-6">
-        <Tabs defaultValue="bookings">
+        <Tabs defaultValue="stats">
           <TabsList className="mb-6">
+            <TabsTrigger value="stats">Thống kê</TabsTrigger>
             <TabsTrigger value="bookings">Lịch hẹn</TabsTrigger>
             <TabsTrigger value="services">Dịch vụ</TabsTrigger>
             <TabsTrigger value="therapists">Thợ</TabsTrigger>
           </TabsList>
+
+          {/* Stats Tab */}
+          <TabsContent value="stats">
+            <BookingStats />
+          </TabsContent>
 
           {/* Bookings Tab */}
           <TabsContent value="bookings">
