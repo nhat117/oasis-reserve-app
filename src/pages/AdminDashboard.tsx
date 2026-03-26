@@ -135,7 +135,7 @@ const AdminDashboard = () => {
         notes: saleNotes || null,
         sale_date: format(new Date(), 'yyyy-MM-dd'),
       };
-      if (saleBookingId) payload.booking_id = saleBookingId;
+      if (saleBookingId && saleBookingId !== 'none') payload.booking_id = saleBookingId;
       const { error } = await supabase.from('sales').insert(payload);
       if (error) throw error;
     },
