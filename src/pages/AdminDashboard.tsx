@@ -139,13 +139,16 @@ const AdminDashboard = () => {
 
   const createSale = useMutation({
     mutationFn: async () => {
+      const baseAmount = parseFloat(saleAmount);
+      const surcharge = salePaymentMethod === 'card' ? baseAmount * (parseFloat(cardSurchargeSetting || '0') / 100) : 0;
+      const totalAmount = baseAmount + surcharge;
       const payload: any = {
-        amount: parseFloat(saleAmount),
+        amount: totalAmount,
         payment_method: salePaymentMethod,
         notes: saleNotes || null,
         sale_date: format(new Date(), 'yyyy-MM-dd'),
       };
-      if (saleBookingId && saleBookingId !== 'none') payload.booking_id = saleBookingId;
+      if (saleType === 'booking' && saleBookingId && saleBookingId !== 'none') payload.booking_id = saleBookingId;
       const { error } = await supabase.from('sales').insert(payload);
       if (error) throw error;
     },
@@ -153,7 +156,10 @@ const AdminDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ['admin-sales'] });
       queryClient.invalidateQueries({ queryKey: ['stats-bookings'] });
       setSaleDialog(false);
+      setSaleType('booking');
       setSaleBookingId('');
+      setSaleServiceId('');
+      setSaleCustomerName('');
       setSaleAmount('');
       setSalePaymentMethod('cash');
       setSaleNotes('');
