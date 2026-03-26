@@ -85,6 +85,12 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
   const [lang, setLangState] = useState<Lang>(() => {
     return (localStorage.getItem('app-lang') as Lang) || 'en';
   });
+  const [currency, setCurrencyState] = useState<Currency>(() => {
+    const saved = localStorage.getItem('app-currency') as Currency;
+    if (saved) return saved;
+    const savedLang = (localStorage.getItem('app-lang') as Lang) || 'en';
+    return CURRENCY_MAP[savedLang];
+  });
   const [translations, setTranslations] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [pendingKeys, setPendingKeys] = useState<Set<string>>(new Set());
@@ -95,7 +101,24 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.setItem('app-lang', l);
     setTranslations({});
     requestedRef.current = new Set();
+    // Auto-switch currency
+    const newCurrency = CURRENCY_MAP[l];
+    setCurrencyState(newCurrency);
+    localStorage.setItem('app-currency', newCurrency);
   }, []);
+
+  const setCurrency = useCallback((c: Currency) => {
+    setCurrencyState(c);
+    localStorage.setItem('app-currency', c);
+  }, []);
+
+  const formatPrice = useCallback((vndAmount: number): string => {
+    if (currency === 'VND') {
+      return new Intl.NumberFormat('vi-VN').format(vndAmount) + 'đ';
+    }
+    const converted = vndAmount * EXCHANGE_RATES[currency];
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(converted);
+  }, [currency]);
 
   // Load cached translations from DB on lang change
   useEffect(() => {
