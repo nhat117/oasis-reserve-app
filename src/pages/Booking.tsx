@@ -196,7 +196,7 @@ const Booking = () => {
     setIsSubmitting(true);
 
     const startTime = selectedTime + ':00';
-    const endDate = addMinutes(new Date(`2000-01-01T${selectedTime}`), currentService.duration_minutes);
+    const endDate = addMinutes(new Date(`2000-01-01T${selectedTime}`), totalDuration);
     const endTime = format(endDate, 'HH:mm') + ':00';
 
     // Determine therapist
