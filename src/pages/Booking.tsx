@@ -303,11 +303,11 @@ const Booking = () => {
 
       <div className="container mx-auto px-4 py-8 max-w-xl">
         <Link to="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-6">
-          <ArrowLeft className="h-4 w-4" /> Trang chủ
+          <ArrowLeft className="h-4 w-4" /> {t('Trang chủ')}
         </Link>
 
-        <h1 className="text-3xl font-bold mb-2">Đặt lịch hẹn</h1>
-        <p className="text-muted-foreground mb-6">Hoàn thành các bước bên dưới</p>
+        <h1 className="text-3xl font-bold mb-2">{t('Đặt lịch hẹn')}</h1>
+        <p className="text-muted-foreground mb-6">{t('Hoàn thành các bước bên dưới')}</p>
 
         {/* Progress */}
         <div className="flex items-center gap-2 mb-8">
