@@ -351,7 +351,7 @@ const AdminDashboard = () => {
     queryKey: ['openai-settings'],
     queryFn: async () => {
       const { data, error } = await supabase.from('app_settings').select('key, value')
-        .in('key', ['openai_api_key', 'openai_base_url']);
+        .in('key', ['openai_api_key', 'openai_base_url', 'openai_model']);
       if (error) throw error;
       const map: Record<string, string> = {};
       data?.forEach(r => { map[r.key] = r.value; });
@@ -363,6 +363,7 @@ const AdminDashboard = () => {
     if (openaiSettings) {
       setOpenaiApiKey(openaiSettings['openai_api_key'] || '');
       setOpenaiBaseUrl(openaiSettings['openai_base_url'] || '');
+      setOpenaiModel(openaiSettings['openai_model'] || 'gpt-4o-mini');
     }
   }, [openaiSettings]);
 
