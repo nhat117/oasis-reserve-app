@@ -1,4 +1,6 @@
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { LanguageSwitcher, useI18n } from '@/hooks/useI18n';
 import { Button } from '@/components/ui/button';
 import { Clock, Phone, MapPin } from 'lucide-react';
@@ -9,6 +11,19 @@ import interiorImg from '@/assets/spa-interior.jpg';
 
 const Index = () => {
   const { t } = useI18n();
+
+  const { data: shopSettings } = useQuery({
+    queryKey: ['shop-settings-public'],
+    queryFn: async () => {
+      const { data } = await supabase.from('app_settings').select('key, value').in('key', ['shop_phone', 'shop_address']);
+      const map: Record<string, string> = {};
+      data?.forEach(r => { map[r.key] = r.value; });
+      return map;
+    },
+  });
+
+  const shopPhone = shopSettings?.shop_phone || '';
+  const shopAddress = shopSettings?.shop_address || '';
   return (
     <div className="min-h-screen">
       {/* Header */}
