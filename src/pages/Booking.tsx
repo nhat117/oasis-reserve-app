@@ -381,6 +381,7 @@ const Booking = () => {
                           </div>
                           <div className="flex-1">
                             <div className="font-medium text-sm">{service.name}</div>
+                            {service.description && <div className="text-xs text-muted-foreground">{service.description}</div>}
                             <div className="text-xs text-muted-foreground">{service.duration_minutes} {t('phút')} · {formatPrice(service.price)}</div>
                           </div>
                         </button>
