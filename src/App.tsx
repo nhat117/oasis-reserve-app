@@ -10,6 +10,7 @@ import Services from "./pages/Services";
 import Booking from "./pages/Booking";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminResetPassword from "./pages/AdminResetPassword";
 import NotFound from "./pages/NotFound";
 import Unsubscribe from "./pages/Unsubscribe";
 
