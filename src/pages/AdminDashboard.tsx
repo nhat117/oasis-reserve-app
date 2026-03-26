@@ -390,12 +390,12 @@ const AdminDashboard = () => {
               </CardContent>
             </Card>
 
-            {/* SMS Notification Settings */}
+            {/* SMS & WhatsApp Notification Settings */}
             <Card>
               <CardContent className="p-4 space-y-3">
                 <div>
-                  <p className="font-medium text-sm">📱 Nhắc lịch qua SMS (Twilio)</p>
-                  <p className="text-xs text-muted-foreground">Gửi SMS nhắc khách hàng 1 tiếng trước lịch hẹn</p>
+                  <p className="font-medium text-sm">📱 Nhắc lịch qua SMS & WhatsApp</p>
+                  <p className="text-xs text-muted-foreground">Gửi SMS/WhatsApp nhắc khách hàng 1 tiếng trước lịch hẹn</p>
                 </div>
                 <div className="flex gap-2">
                   <Input
@@ -411,6 +411,13 @@ const AdminDashboard = () => {
                 {twilioNumber && (
                   <p className="text-xs text-muted-foreground">Số hiện tại: <strong>{twilioNumber}</strong></p>
                 )}
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <div>
+                    <p className="font-medium text-sm">💬 WhatsApp</p>
+                    <p className="text-xs text-muted-foreground">Gửi thêm nhắc nhở qua WhatsApp</p>
+                  </div>
+                  <Switch checked={whatsappEnabled === true} onCheckedChange={(v) => toggleWhatsapp.mutate(v)} />
+                </div>
               </CardContent>
             </Card>
 
