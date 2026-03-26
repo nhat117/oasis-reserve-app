@@ -1348,6 +1348,7 @@ const AdminDashboard = () => {
                     {openaiSettings['openai_base_url'] && (
                       <p className="text-muted-foreground">Base URL: <strong>{openaiSettings['openai_base_url']}</strong></p>
                     )}
+                    <p className="text-muted-foreground">Model: <strong>{openaiSettings['openai_model'] || 'gpt-4o-mini'}</strong></p>
                   </div>
                 )}
               </CardContent>
