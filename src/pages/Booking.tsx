@@ -19,6 +19,7 @@ import { LanguageSwitcher, useI18n } from '@/hooks/useI18n';
 const Booking = () => {
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  const { formatPrice } = useI18n();
 
   const [step, setStep] = useState(1);
   const [selectedService, setSelectedService] = useState(searchParams.get('service') || '');
