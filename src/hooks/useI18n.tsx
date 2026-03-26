@@ -92,16 +92,41 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
     return CURRENCY_MAP[savedLang];
   });
   const [translations, setTranslations] = useState<Record<string, string>>({});
+  const [exchangeRates, setExchangeRates] = useState<Record<Currency, number>>(DEFAULT_RATES);
   const [loading, setLoading] = useState(false);
   const [pendingKeys, setPendingKeys] = useState<Set<string>>(new Set());
   const requestedRef = React.useRef<Set<string>>(new Set());
+
+  // Load exchange rates from DB
+  useEffect(() => {
+    const loadRates = async () => {
+      const { data } = await supabase.from('app_settings').select('key, value')
+        .in('key', ['exchange_rate_usd', 'exchange_rate_eur', 'exchange_rate_aud', 'default_currency']);
+      if (data && data.length > 0) {
+        const map: Record<string, string> = {};
+        data.forEach((r: any) => { map[r.key] = r.value; });
+        setExchangeRates({
+          VND: 1,
+          USD: parseFloat(map['exchange_rate_usd']) || DEFAULT_RATES.USD,
+          EUR: parseFloat(map['exchange_rate_eur']) || DEFAULT_RATES.EUR,
+          AUD: parseFloat(map['exchange_rate_aud']) || DEFAULT_RATES.AUD,
+        });
+        // Set default currency for English if not manually chosen
+        if (map['default_currency'] && !localStorage.getItem('app-currency')) {
+          const dc = map['default_currency'] as Currency;
+          CURRENCY_MAP.en = dc;
+          if (lang === 'en') setCurrencyState(dc);
+        }
+      }
+    };
+    loadRates();
+  }, []);
 
   const setLang = useCallback((l: Lang) => {
     setLangState(l);
     localStorage.setItem('app-lang', l);
     setTranslations({});
     requestedRef.current = new Set();
-    // Auto-switch currency
     const newCurrency = CURRENCY_MAP[l];
     setCurrencyState(newCurrency);
     localStorage.setItem('app-currency', newCurrency);
@@ -116,9 +141,9 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
     if (currency === 'VND') {
       return new Intl.NumberFormat('vi-VN').format(vndAmount) + 'đ';
     }
-    const converted = vndAmount * EXCHANGE_RATES[currency];
+    const converted = vndAmount * exchangeRates[currency];
     return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(converted);
-  }, [currency]);
+  }, [currency, exchangeRates]);
 
   // Load cached translations from DB on lang change
   useEffect(() => {
