@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type Lang = 'vi' | 'en';
 
@@ -119,15 +120,34 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
 
 export const useI18n = () => useContext(I18nContext);
 
-// Language switcher component (no currency picker)
+const LANGUAGES = [
+  { code: 'vi' as Lang, flag: '🇻🇳', label: 'Tiếng Việt' },
+  { code: 'en' as Lang, flag: '🇬🇧', label: 'English' },
+];
+
+// Language switcher component with dropdown
 export const LanguageSwitcher = ({ className }: { className?: string }) => {
   const { lang, setLang } = useI18n();
+  const current = LANGUAGES.find(l => l.code === lang) || LANGUAGES[0];
+
   return (
-    <button
-      onClick={() => setLang(lang === 'en' ? 'vi' : 'en')}
-      className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium border border-border bg-card hover:bg-accent transition-colors ${className || ''}`}
-    >
-      {lang === 'vi' ? '🇬🇧 EN' : '🇻🇳 VI'}
-    </button>
+    <Select value={lang} onValueChange={(v) => setLang(v as Lang)}>
+      <SelectTrigger className={`w-auto min-w-[120px] h-8 text-xs font-medium ${className || ''}`}>
+        <SelectValue>
+          <span className="flex items-center gap-1.5">
+            {current.flag} {current.label}
+          </span>
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {LANGUAGES.map(l => (
+          <SelectItem key={l.code} value={l.code}>
+            <span className="flex items-center gap-1.5">
+              {l.flag} {l.label}
+            </span>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 };

@@ -19,7 +19,7 @@ import { LanguageSwitcher, useI18n } from '@/hooks/useI18n';
 const Booking = () => {
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
-  const { formatPrice } = useI18n();
+  const { formatPrice, t } = useI18n();
 
   const [step, setStep] = useState(1);
   const [selectedService, setSelectedService] = useState(searchParams.get('service') || '');
@@ -101,6 +101,9 @@ const Booking = () => {
 
   const currentService = services?.find(s => s.id === selectedService);
 
+  // Buffer time between services (in minutes)
+  const BUFFER_MINUTES = 15;
+
   // Find available therapists for a given time slot
   const getAvailableTherapists = (timeStr: string, duration: number) => {
     if (!therapists || !selectedDate) return [];
@@ -128,11 +131,18 @@ const Booking = () => {
         // Slot overlaps with break if it starts before break ends and ends after break starts
         if (slotStartMin < breakEnd && slotEndMin > breakStart) return false;
       }
-      // Check if already booked
-      const isBooked = existingBookings?.some(b =>
-        b.therapist_id === t.id &&
-        b.start_time < endStr + ':00' && b.end_time > timeStr + ':00'
-      );
+      // Check if already booked (with buffer time between services)
+      const slotStartMin = parseInt(timeStr.split(':')[0]) * 60 + parseInt(timeStr.split(':')[1]);
+      const slotEndMin = parseInt(endStr.split(':')[0]) * 60 + parseInt(endStr.split(':')[1]);
+      const isBooked = existingBookings?.some(b => {
+        if (b.therapist_id !== t.id) return false;
+        const bStartParts = b.start_time.split(':');
+        const bEndParts = b.end_time.split(':');
+        const bStartMin = parseInt(bStartParts[0]) * 60 + parseInt(bStartParts[1]);
+        const bEndMin = parseInt(bEndParts[0]) * 60 + parseInt(bEndParts[1]);
+        // Add buffer: new slot must not overlap with [bStart - buffer, bEnd + buffer]
+        return slotStartMin < (bEndMin + BUFFER_MINUTES) && slotEndMin > (bStartMin - BUFFER_MINUTES);
+      });
       return !isBooked;
     });
   };
@@ -189,7 +199,7 @@ const Booking = () => {
     if (selectedTherapist === 'any') {
       const available = getAvailableTherapists(selectedTime, currentService.duration_minutes);
       if (available.length === 0) {
-        toast({ title: 'Lỗi', description: 'Không còn thợ trống. Vui lòng chọn giờ khác.', variant: 'destructive' });
+        toast({ title: t('Lỗi'), description: t('Không còn thợ trống. Vui lòng chọn giờ khác.'), variant: 'destructive' });
         setIsSubmitting(false);
         return;
       }
@@ -221,7 +231,7 @@ const Booking = () => {
 
     setIsSubmitting(false);
     if (error) {
-      toast({ title: 'Lỗi', description: 'Không thể đặt lịch. Vui lòng thử lại.', variant: 'destructive' });
+      toast({ title: t('Lỗi'), description: t('Không thể đặt lịch. Vui lòng thử lại.'), variant: 'destructive' });
     } else {
       setBookingComplete(true);
       // Send confirmation email if customer provided email
@@ -246,7 +256,7 @@ const Booking = () => {
   };
 
   const selectedTherapistName = selectedTherapist === 'any'
-    ? (assignedTherapistName || 'Tự động chọn')
+    ? (assignedTherapistName || t('Tự động chọn'))
     : therapists?.find(t => t.id === selectedTherapist)?.name || '';
 
   if (bookingComplete) {
@@ -257,21 +267,21 @@ const Booking = () => {
             <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
               <Check className="h-8 w-8 text-primary" />
             </div>
-            <CardTitle className="text-2xl">Đặt lịch thành công!</CardTitle>
+            <CardTitle className="text-2xl">{t('Đặt lịch thành công!')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="text-left bg-muted rounded-lg p-4 space-y-2 text-sm">
-              <p><strong>Dịch vụ:</strong> {currentService?.name}</p>
-              <p><strong>Ngày:</strong> {selectedDate && format(selectedDate, 'dd/MM/yyyy')}</p>
-              <p><strong>Giờ:</strong> {selectedTime}</p>
-              <p><strong>Thợ:</strong> {assignedTherapistName || selectedTherapistName}</p>
-              <p><strong>Khách:</strong> {customerName}</p>
-              <p><strong>SĐT:</strong> {customerPhone}</p>
+              <p><strong>{t('Dịch vụ')}:</strong> {currentService?.name}</p>
+              <p><strong>{t('Ngày')}:</strong> {selectedDate && format(selectedDate, 'dd/MM/yyyy')}</p>
+              <p><strong>{t('Giờ')}:</strong> {selectedTime}</p>
+              <p><strong>{t('Thợ')}:</strong> {assignedTherapistName || selectedTherapistName}</p>
+              <p><strong>{t('Khách')}:</strong> {customerName}</p>
+              <p><strong>{t('SĐT')}:</strong> {customerPhone}</p>
               {customerEmail && <p><strong>Email:</strong> {customerEmail}</p>}
             </div>
-            <p className="text-muted-foreground text-sm">Cảm ơn bạn đã đặt lịch. Chúng tôi sẽ liên hệ xác nhận.</p>
+            <p className="text-muted-foreground text-sm">{t('Cảm ơn bạn đã đặt lịch. Chúng tôi sẽ liên hệ xác nhận.')}</p>
             <Link to="/">
-              <Button className="w-full">Về trang chủ</Button>
+              <Button className="w-full">{t('Về trang chủ')}</Button>
             </Link>
           </CardContent>
         </Card>
@@ -293,11 +303,11 @@ const Booking = () => {
 
       <div className="container mx-auto px-4 py-8 max-w-xl">
         <Link to="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-6">
-          <ArrowLeft className="h-4 w-4" /> Trang chủ
+          <ArrowLeft className="h-4 w-4" /> {t('Trang chủ')}
         </Link>
 
-        <h1 className="text-3xl font-bold mb-2">Đặt lịch hẹn</h1>
-        <p className="text-muted-foreground mb-6">Hoàn thành các bước bên dưới</p>
+        <h1 className="text-3xl font-bold mb-2">{t('Đặt lịch hẹn')}</h1>
+        <p className="text-muted-foreground mb-6">{t('Hoàn thành các bước bên dưới')}</p>
 
         {/* Progress */}
         <div className="flex items-center gap-2 mb-8">
@@ -312,7 +322,7 @@ const Booking = () => {
         {/* Step 1: Service */}
         {step === 1 && (
           <Card>
-            <CardHeader><CardTitle>1. Chọn dịch vụ</CardTitle></CardHeader>
+            <CardHeader><CardTitle>{t('1. Chọn dịch vụ')}</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               {services?.map(service => (
                 <button
@@ -323,8 +333,8 @@ const Booking = () => {
                     selectedService === service.id ? "border-primary bg-primary/5" : "hover:border-primary/50"
                   )}
                 >
-                  <div className="font-medium">{service.name}</div>
-                  <div className="text-sm text-muted-foreground mt-1">{service.duration_minutes} phút · {formatPrice(service.price)}</div>
+                   <div className="font-medium">{service.name}</div>
+                   <div className="text-sm text-muted-foreground mt-1">{service.duration_minutes} {t('phút')} · {formatPrice(service.price)}</div>
                 </button>
               ))}
             </CardContent>
@@ -334,15 +344,15 @@ const Booking = () => {
         {/* Step 2: Date & Time */}
         {step === 2 && (
           <Card>
-            <CardHeader><CardTitle>2. Chọn ngày & giờ</CardTitle></CardHeader>
+            <CardHeader><CardTitle>{t('2. Chọn ngày & giờ')}</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label>Ngày</Label>
+                <Label>{t('Ngày')}</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button variant="outline" className={cn("w-full justify-start text-left font-normal mt-1", !selectedDate && "text-muted-foreground")}>
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {selectedDate ? format(selectedDate, 'dd/MM/yyyy') : 'Chọn ngày'}
+                      {selectedDate ? format(selectedDate, 'dd/MM/yyyy') : t('Chọn ngày')}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -362,21 +372,21 @@ const Booking = () => {
                   </PopoverContent>
                 </Popover>
                 {isShopHoliday && (
-                  <p className="text-sm text-destructive mt-2">🏖️ Tiệm nghỉ ngày này. Vui lòng chọn ngày khác.</p>
+                  <p className="text-sm text-destructive mt-2">🏖️ {t('Tiệm nghỉ ngày này. Vui lòng chọn ngày khác.')}</p>
                 )}
                 {earlyCloseHour && !isShopHoliday && (
-                  <p className="text-sm text-amber-600 mt-2">⏰ Tiệm đóng cửa sớm lúc {earlyCloseHour}:00 ngày này.</p>
+                  <p className="text-sm text-amber-600 mt-2">⏰ {t('Tiệm đóng cửa sớm lúc')} {earlyCloseHour}:00 {t('ngày này.')}</p>
                 )}
               </div>
 
               {selectedDate && (
                 <div>
-                  <Label>Thợ phục vụ</Label>
+                  <Label>{t('Thợ phục vụ')}</Label>
                   <Select value={selectedTherapist} onValueChange={(v) => { setSelectedTherapist(v); setSelectedTime(''); }}>
-                    <SelectTrigger className="mt-1"><SelectValue placeholder="Chọn thợ" /></SelectTrigger>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder={t('Chọn thợ')} /></SelectTrigger>
                     <SelectContent>
                       {randomEnabled !== false && (
-                        <SelectItem value="any">🎲 Tự động chọn (bất kỳ thợ trống)</SelectItem>
+                        <SelectItem value="any">🎲 {t('Tự động chọn (bất kỳ thợ trống)')}</SelectItem>
                       )}
                       {therapists?.filter(t => !unavailability?.includes(t.id)).map(t => (
                         <SelectItem key={t.id} value={t.id}>
@@ -390,9 +400,9 @@ const Booking = () => {
 
               {selectedDate && (
                 <div>
-                  <Label>Giờ</Label>
+                  <Label>{t('Giờ')}</Label>
                   {availableSlots.length === 0 ? (
-                    <p className="text-sm text-muted-foreground mt-2">Không có khung giờ trống. Vui lòng chọn ngày hoặc thợ khác.</p>
+                    <p className="text-sm text-muted-foreground mt-2">{t('Không có khung giờ trống. Vui lòng chọn ngày hoặc thợ khác.')}</p>
                   ) : (
                     <div className="grid grid-cols-4 gap-2 mt-2">
                       {availableSlots.map(slot => (
@@ -417,13 +427,13 @@ const Booking = () => {
               )}
 
               <div className="flex gap-2 pt-4">
-                <Button variant="outline" onClick={() => setStep(1)}>Quay lại</Button>
+                <Button variant="outline" onClick={() => setStep(1)}>{t('Quay lại')}</Button>
                 <Button
                   className="flex-1"
                   disabled={!selectedDate || !selectedTime}
                   onClick={() => setStep(3)}
                 >
-                  Tiếp tục
+                  {t('Tiếp tục')}
                 </Button>
               </div>
             </CardContent>
@@ -433,28 +443,28 @@ const Booking = () => {
         {/* Step 3: Customer Info */}
         {step === 3 && (
           <Card>
-            <CardHeader><CardTitle>3. Thông tin của bạn</CardTitle></CardHeader>
+            <CardHeader><CardTitle>{t('3. Thông tin của bạn')}</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="name">Họ và tên</Label>
-                <Input id="name" value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Nhập họ tên" className="mt-1" />
+                <Label htmlFor="name">{t('Họ và tên')}</Label>
+                <Input id="name" value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder={t('Nhập họ tên')} className="mt-1" />
               </div>
               <div>
-                <Label htmlFor="phone">Số điện thoại</Label>
+                <Label htmlFor="phone">{t('Số điện thoại')}</Label>
                 <Input id="phone" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="0901234567" className="mt-1" />
               </div>
               <div>
-                <Label htmlFor="email">Email (không bắt buộc)</Label>
+                <Label htmlFor="email">{t('Email (không bắt buộc)')}</Label>
                 <Input id="email" type="email" value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} placeholder="email@example.com" className="mt-1" />
               </div>
               <div className="flex gap-2 pt-4">
-                <Button variant="outline" onClick={() => setStep(2)}>Quay lại</Button>
+                <Button variant="outline" onClick={() => setStep(2)}>{t('Quay lại')}</Button>
                 <Button
                   className="flex-1"
                   disabled={!customerName.trim() || !customerPhone.trim()}
                   onClick={() => setStep(4)}
                 >
-                  Tiếp tục
+                  {t('Tiếp tục')}
                 </Button>
               </div>
             </CardContent>
@@ -464,22 +474,22 @@ const Booking = () => {
         {/* Step 4: Confirm */}
         {step === 4 && (
           <Card>
-            <CardHeader><CardTitle>4. Xác nhận đặt lịch</CardTitle></CardHeader>
+            <CardHeader><CardTitle>{t('4. Xác nhận đặt lịch')}</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="bg-muted rounded-lg p-4 space-y-2 text-sm">
-                <p><strong>Dịch vụ:</strong> {currentService?.name}</p>
-                <p><strong>Ngày:</strong> {selectedDate && format(selectedDate, 'dd/MM/yyyy')}</p>
-                <p><strong>Giờ:</strong> {selectedTime}</p>
-                <p><strong>Thợ:</strong> {selectedTherapistName}</p>
-                <p><strong>Khách:</strong> {customerName}</p>
-                <p><strong>SĐT:</strong> {customerPhone}</p>
+                <p><strong>{t('Dịch vụ')}:</strong> {currentService?.name}</p>
+                <p><strong>{t('Ngày')}:</strong> {selectedDate && format(selectedDate, 'dd/MM/yyyy')}</p>
+                <p><strong>{t('Giờ')}:</strong> {selectedTime}</p>
+                <p><strong>{t('Thợ')}:</strong> {selectedTherapistName}</p>
+                <p><strong>{t('Khách')}:</strong> {customerName}</p>
+                <p><strong>{t('SĐT')}:</strong> {customerPhone}</p>
                 {customerEmail && <p><strong>Email:</strong> {customerEmail}</p>}
-                <p><strong>Giá:</strong> {currentService && formatPrice(currentService.price)}</p>
+                <p><strong>{t('Giá')}:</strong> {currentService && formatPrice(currentService.price)}</p>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setStep(3)}>Quay lại</Button>
+                <Button variant="outline" onClick={() => setStep(3)}>{t('Quay lại')}</Button>
                 <Button className="flex-1" onClick={handleSubmit} disabled={isSubmitting}>
-                  {isSubmitting ? 'Đang xử lý...' : 'Xác nhận đặt lịch'}
+                  {isSubmitting ? t('Đang xử lý...') : t('Xác nhận đặt lịch')}
                 </Button>
               </div>
             </CardContent>
