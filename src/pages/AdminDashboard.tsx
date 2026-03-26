@@ -79,6 +79,11 @@ const AdminDashboard = () => {
   const [saleNotes, setSaleNotes] = useState('');
   const [saleAddOns, setSaleAddOns] = useState<string[]>([]);
 
+  // Create admin state
+  const [newAdminEmail, setNewAdminEmail] = useState('');
+  const [newAdminPassword, setNewAdminPassword] = useState('');
+  const [creatingAdmin, setCreatingAdmin] = useState(false);
+
   // Currency settings state
   const [exchangeUSD, setExchangeUSD] = useState('');
   const [exchangeEUR, setExchangeEUR] = useState('');
