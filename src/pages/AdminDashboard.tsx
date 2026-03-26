@@ -372,6 +372,7 @@ const AdminDashboard = () => {
       const rows = [
         { key: 'openai_api_key', value: openaiApiKey },
         { key: 'openai_base_url', value: openaiBaseUrl || 'https://api.openai.com/v1' },
+        { key: 'openai_model', value: openaiModel || 'gpt-4o-mini' },
       ];
       for (const row of rows) {
         if (row.value) {
