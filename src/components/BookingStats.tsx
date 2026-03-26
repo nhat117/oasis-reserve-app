@@ -157,7 +157,7 @@ export function BookingStats({ className }: StatsProps) {
     return {
       rangeRevenue,
       rangeCount: rangeBookings.length,
-      rangeValue: rangeRevenue,
+      rangeValue: rangeBookingValue,
       chartData,
       upcomingBookings,
       recentActivity,
@@ -165,7 +165,7 @@ export function BookingStats({ className }: StatsProps) {
       topServices,
       topTeam,
     };
-  }, [bookings, dateRange]);
+  }, [bookings, sales, dateRange]);
 
   if (!stats) return null;
 
