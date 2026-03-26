@@ -789,11 +789,11 @@ const AdminDashboard = () => {
           {/* Bookings Tab */}
           <TabsContent value="bookings">
             <Card>
-              <CardHeader className="flex-row items-center justify-between space-y-0">
+              <CardHeader className="space-y-2 sm:space-y-0 sm:flex-row sm:items-center sm:justify-between">
                 <CardTitle>{t('Lịch hẹn')}</CardTitle>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                   <Select value={filterTherapist} onValueChange={setFilterTherapist}>
-                    <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-full sm:w-[150px]"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">{t('Tất cả thợ')}</SelectItem>
                       {therapists?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
@@ -801,9 +801,9 @@ const AdminDashboard = () => {
                   </Select>
                   <Dialog open={bookingDialog} onOpenChange={(open) => { setBookingDialog(open); if (!open) resetBookingForm(); }}>
                     <DialogTrigger asChild>
-                      <Button size="sm"><Plus className="h-4 w-4 mr-1" /> {t('Tạo lịch')}</Button>
+                      <Button size="sm" className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-1" /> {t('Tạo lịch')}</Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-md">
+                    <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[90vh] overflow-y-auto">
                       <DialogHeader>
                         <DialogTitle>{t('Tạo lịch hẹn mới')}</DialogTitle>
                         <DialogDescription>{t('Điền thông tin để tạo lịch hẹn cho khách hàng')}</DialogDescription>
@@ -926,13 +926,13 @@ const AdminDashboard = () => {
           {/* Sales Tab */}
           <TabsContent value="sales">
             <Card>
-              <CardHeader className="flex-row items-center justify-between space-y-0">
+              <CardHeader className="space-y-2 sm:space-y-0 sm:flex-row sm:items-center sm:justify-between">
                 <CardTitle>{t('Thanh toán')}</CardTitle>
                 <Dialog open={saleDialog} onOpenChange={(open) => { setSaleDialog(open); if (!open) { setSaleType('booking'); setSaleBookingId(''); setSaleServiceId(''); setSaleCustomerName(''); setSaleAmount(''); setSalePaymentMethod('cash'); setSaleNotes(''); setSaleAddOns([]); } }}>
                   <DialogTrigger asChild>
-                    <Button size="sm"><Plus className="h-4 w-4 mr-1" /> {t('Tạo thanh toán')}</Button>
+                    <Button size="sm" className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-1" /> {t('Tạo thanh toán')}</Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-md">
+                  <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                       <DialogTitle>{t('Ghi nhận thanh toán')}</DialogTitle>
                       <DialogDescription>{t('Ghi nhận thanh toán cho dịch vụ')}</DialogDescription>
@@ -1067,24 +1067,28 @@ const AdminDashboard = () => {
               </CardHeader>
               <CardContent>
                 {/* Sales filters */}
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <Input placeholder={t('Tìm khách hàng...')} value={salesFilterSearch} onChange={e => setSalesFilterSearch(e.target.value)} className="w-40 h-8 text-sm" />
-                  <Input type="date" value={salesFilterDateFrom} onChange={e => setSalesFilterDateFrom(e.target.value)} className="w-36 h-8 text-sm" />
-                  <span className="self-center text-xs text-muted-foreground">—</span>
-                  <Input type="date" value={salesFilterDateTo} onChange={e => setSalesFilterDateTo(e.target.value)} className="w-36 h-8 text-sm" />
-                  <Select value={salesFilterMethod} onValueChange={setSalesFilterMethod}>
-                    <SelectTrigger className="w-28 h-8 text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{t('Tất cả')}</SelectItem>
-                      <SelectItem value="cash">{t('Tiền mặt')}</SelectItem>
-                      <SelectItem value="card">{t('Thẻ')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {(salesFilterSearch || salesFilterDateFrom || salesFilterDateTo || salesFilterMethod !== 'all') && (
-                    <Button variant="ghost" size="sm" className="h-8" onClick={() => { setSalesFilterSearch(''); setSalesFilterDateFrom(''); setSalesFilterDateTo(''); setSalesFilterMethod('all'); }}>
-                      <X className="h-3 w-3 mr-1" />{t('Xóa lọc')}
-                    </Button>
-                  )}
+                <div className="flex flex-col sm:flex-row flex-wrap gap-2 mb-4">
+                  <Input placeholder={t('Tìm khách hàng...')} value={salesFilterSearch} onChange={e => setSalesFilterSearch(e.target.value)} className="w-full sm:w-40 h-8 text-sm" />
+                  <div className="flex gap-2 items-center">
+                    <Input type="date" value={salesFilterDateFrom} onChange={e => setSalesFilterDateFrom(e.target.value)} className="flex-1 sm:w-36 h-8 text-sm" />
+                    <span className="text-xs text-muted-foreground">—</span>
+                    <Input type="date" value={salesFilterDateTo} onChange={e => setSalesFilterDateTo(e.target.value)} className="flex-1 sm:w-36 h-8 text-sm" />
+                  </div>
+                  <div className="flex gap-2">
+                    <Select value={salesFilterMethod} onValueChange={setSalesFilterMethod}>
+                      <SelectTrigger className="flex-1 sm:w-28 h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{t('Tất cả')}</SelectItem>
+                        <SelectItem value="cash">{t('Tiền mặt')}</SelectItem>
+                        <SelectItem value="card">{t('Thẻ')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {(salesFilterSearch || salesFilterDateFrom || salesFilterDateTo || salesFilterMethod !== 'all') && (
+                      <Button variant="ghost" size="sm" className="h-8" onClick={() => { setSalesFilterSearch(''); setSalesFilterDateFrom(''); setSalesFilterDateTo(''); setSalesFilterMethod('all'); }}>
+                        <X className="h-3 w-3 mr-1" />{t('Xóa lọc')}
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 {(() => {
                   const filtered = (sales || []).filter((s: any) => {
@@ -1106,40 +1110,68 @@ const AdminDashboard = () => {
                     </div>
                   );
                   return (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>{t('Ngày')}</TableHead>
-                        <TableHead>{t('Khách hàng')}</TableHead>
-                        <TableHead>{t('Dịch vụ')}</TableHead>
-                        <TableHead>{t('Số tiền')}</TableHead>
-                        <TableHead>{t('Phương thức')}</TableHead>
-                        <TableHead>{t('Ghi chú')}</TableHead>
-                        <TableHead></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filtered.map((s: any) => (
-                        <TableRow key={s.id}>
-                          <TableCell className="text-sm">{s.sale_date}</TableCell>
-                          <TableCell className="text-sm">{s.bookings?.customer_name || '—'}</TableCell>
-                          <TableCell className="text-sm">{s.bookings?.services?.name || '—'}</TableCell>
-                          <TableCell className="font-semibold">A$ {Number(s.amount).toLocaleString()}</TableCell>
-                          <TableCell>
-                            <Badge variant={s.payment_method === 'card' ? 'default' : 'secondary'}>
-                              {s.payment_method === 'card' ? t('Thẻ') : t('Tiền mặt')}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground max-w-[150px] truncate">{s.notes || '—'}</TableCell>
-                          <TableCell>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteSale.mutate(s.id)}>
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                   </Table>
+                    <>
+                      {/* Mobile card layout */}
+                      <div className="space-y-3 sm:hidden">
+                        {filtered.map((s: any) => (
+                          <div key={s.id} className="border rounded-lg p-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-semibold">{formatPrice(Number(s.amount))}</span>
+                              <div className="flex items-center gap-2">
+                                <Badge variant={s.payment_method === 'card' ? 'default' : 'secondary'} className="text-xs">
+                                  {s.payment_method === 'card' ? t('Thẻ') : t('Tiền mặt')}
+                                </Badge>
+                                <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => deleteSale.mutate(s.id)}>
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="text-xs text-muted-foreground space-y-0.5">
+                              <p>{s.sale_date} · {s.bookings?.customer_name || '—'}</p>
+                              <p>{s.bookings?.services?.name || '—'}</p>
+                              {s.notes && <p className="truncate">{s.notes}</p>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {/* Desktop table layout */}
+                      <div className="hidden sm:block">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>{t('Ngày')}</TableHead>
+                              <TableHead>{t('Khách hàng')}</TableHead>
+                              <TableHead>{t('Dịch vụ')}</TableHead>
+                              <TableHead>{t('Số tiền')}</TableHead>
+                              <TableHead>{t('Phương thức')}</TableHead>
+                              <TableHead>{t('Ghi chú')}</TableHead>
+                              <TableHead></TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {filtered.map((s: any) => (
+                              <TableRow key={s.id}>
+                                <TableCell className="text-sm">{s.sale_date}</TableCell>
+                                <TableCell className="text-sm">{s.bookings?.customer_name || '—'}</TableCell>
+                                <TableCell className="text-sm">{s.bookings?.services?.name || '—'}</TableCell>
+                                <TableCell className="font-semibold">{formatPrice(Number(s.amount))}</TableCell>
+                                <TableCell>
+                                  <Badge variant={s.payment_method === 'card' ? 'default' : 'secondary'}>
+                                    {s.payment_method === 'card' ? t('Thẻ') : t('Tiền mặt')}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-xs text-muted-foreground max-w-[150px] truncate">{s.notes || '—'}</TableCell>
+                                <TableCell>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteSale.mutate(s.id)}>
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </>
                   );
                 })()}
               </CardContent>
