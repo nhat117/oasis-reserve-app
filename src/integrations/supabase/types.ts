@@ -297,6 +297,8 @@ export type Database = {
       }
       therapists: {
         Row: {
+          break_end: number | null
+          break_start: number | null
           created_at: string
           end_hour: number
           id: string
@@ -308,6 +310,8 @@ export type Database = {
           working_days: number[]
         }
         Insert: {
+          break_end?: number | null
+          break_start?: number | null
           created_at?: string
           end_hour?: number
           id?: string
@@ -319,6 +323,8 @@ export type Database = {
           working_days?: number[]
         }
         Update: {
+          break_end?: number | null
+          break_start?: number | null
           created_at?: string
           end_hour?: number
           id?: string
