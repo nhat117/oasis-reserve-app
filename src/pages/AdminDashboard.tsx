@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { BookingCalendar } from '@/components/BookingCalendar';
 import { Textarea } from '@/components/ui/textarea';
 import { BookingStats } from '@/components/BookingStats';
-import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings } from 'lucide-react';
+import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -68,6 +68,13 @@ const AdminDashboard = () => {
   const [bookingCustomerEmail, setBookingCustomerEmail] = useState('');
   const [bookingNotes, setBookingNotes] = useState('');
 
+  // Sales form state
+  const [saleDialog, setSaleDialog] = useState(false);
+  const [saleBookingId, setSaleBookingId] = useState('');
+  const [saleAmount, setSaleAmount] = useState('');
+  const [salePaymentMethod, setSalePaymentMethod] = useState<'cash' | 'card'>('cash');
+  const [saleNotes, setSaleNotes] = useState('');
+
   // Currency settings state
   const [exchangeUSD, setExchangeUSD] = useState('');
   const [exchangeEUR, setExchangeEUR] = useState('');
@@ -105,6 +112,54 @@ const AdminDashboard = () => {
       const { data, error } = await supabase.from('therapists').select('*').order('created_at');
       if (error) throw error;
       return data;
+    },
+  });
+
+  // Sales
+  const { data: sales } = useQuery({
+    queryKey: ['admin-sales'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('sales')
+        .select('*, bookings(customer_name, customer_phone, booking_date, start_time, services(name))')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const createSale = useMutation({
+    mutationFn: async () => {
+      const payload: any = {
+        amount: parseFloat(saleAmount),
+        payment_method: salePaymentMethod,
+        notes: saleNotes || null,
+        sale_date: format(new Date(), 'yyyy-MM-dd'),
+      };
+      if (saleBookingId && saleBookingId !== 'none') payload.booking_id = saleBookingId;
+      const { error } = await supabase.from('sales').insert(payload);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-sales'] });
+      queryClient.invalidateQueries({ queryKey: ['stats-bookings'] });
+      setSaleDialog(false);
+      setSaleBookingId('');
+      setSaleAmount('');
+      setSalePaymentMethod('cash');
+      setSaleNotes('');
+      toast({ title: t('Đã ghi nhận thanh toán') });
+    },
+    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+  });
+
+  const deleteSale = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('sales').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-sales'] });
+      toast({ title: t('Đã xoá thanh toán') });
     },
   });
 
@@ -459,6 +514,7 @@ const AdminDashboard = () => {
           <TabsList className="mb-6">
             <TabsTrigger value="stats">{t('Thống kê')}</TabsTrigger>
             <TabsTrigger value="bookings">{t('Lịch hẹn')}</TabsTrigger>
+            <TabsTrigger value="sales"><DollarSign className="h-4 w-4 mr-1" /> {t('Thanh toán')}</TabsTrigger>
             <TabsTrigger value="services">{t('Dịch vụ')}</TabsTrigger>
             <TabsTrigger value="therapists">{t('Thợ')}</TabsTrigger>
             <TabsTrigger value="settings"><Settings className="h-4 w-4 mr-1" /> {t('Cài đặt')}</TabsTrigger>
@@ -571,6 +627,127 @@ const AdminDashboard = () => {
                     rescheduleBooking.mutate({ id, newDate, newStartTime, newEndTime })
                   }
                 />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Sales Tab */}
+          <TabsContent value="sales">
+            <Card>
+              <CardHeader className="flex-row items-center justify-between space-y-0">
+                <CardTitle>{t('Thanh toán')}</CardTitle>
+                <Dialog open={saleDialog} onOpenChange={(open) => { setSaleDialog(open); if (!open) { setSaleBookingId(''); setSaleAmount(''); setSalePaymentMethod('cash'); setSaleNotes(''); } }}>
+                  <DialogTrigger asChild>
+                    <Button size="sm"><Plus className="h-4 w-4 mr-1" /> {t('Tạo thanh toán')}</Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>{t('Ghi nhận thanh toán')}</DialogTitle>
+                      <DialogDescription>{t('Ghi nhận thanh toán cho dịch vụ')}</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label>{t('Liên kết lịch hẹn (tuỳ chọn)')}</Label>
+                        <Select value={saleBookingId} onValueChange={(v) => {
+                          setSaleBookingId(v);
+                          if (v) {
+                            const booking = bookings?.find(b => b.id === v);
+                            if (booking) {
+                              setSaleAmount(String((booking as any).services?.price || 0));
+                            }
+                          }
+                        }}>
+                          <SelectTrigger className="mt-1"><SelectValue placeholder={t('Chọn lịch hẹn')} /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">{t('Không liên kết')}</SelectItem>
+                            {bookings?.filter(b => b.status === 'confirmed').slice(0, 20).map(b => (
+                              <SelectItem key={b.id} value={b.id}>
+                                {b.booking_date} {b.start_time?.slice(0, 5)} — {b.customer_name} ({(b as any).services?.name})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>{t('Số tiền (AUD)')}</Label>
+                        <Input type="number" value={saleAmount} onChange={e => setSaleAmount(e.target.value)} className="mt-1" placeholder="0" />
+                      </div>
+                      <div>
+                        <Label>{t('Phương thức thanh toán')}</Label>
+                        <div className="flex gap-2 mt-1">
+                          <Button
+                            type="button"
+                            variant={salePaymentMethod === 'cash' ? 'default' : 'outline'}
+                            className="flex-1"
+                            onClick={() => setSalePaymentMethod('cash')}
+                          >
+                            💵 {t('Tiền mặt')}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={salePaymentMethod === 'card' ? 'default' : 'outline'}
+                            className="flex-1"
+                            onClick={() => setSalePaymentMethod('card')}
+                          >
+                            💳 {t('Thẻ')}
+                          </Button>
+                        </div>
+                      </div>
+                      <div>
+                        <Label>{t('Ghi chú')}</Label>
+                        <Textarea value={saleNotes} onChange={e => setSaleNotes(e.target.value)} className="mt-1" placeholder={t('Ghi chú thêm...')} />
+                      </div>
+                      <Button className="w-full" onClick={() => createSale.mutate()}
+                        disabled={!saleAmount || parseFloat(saleAmount) <= 0}>
+                        {t('Ghi nhận thanh toán')}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </CardHeader>
+              <CardContent>
+                {(!sales || sales.length === 0) ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <DollarSign className="h-10 w-10 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm font-medium">{t('Chưa có thanh toán')}</p>
+                    <p className="text-xs mt-1">{t('Tạo thanh toán để dữ liệu xuất hiện')}</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{t('Ngày')}</TableHead>
+                        <TableHead>{t('Khách hàng')}</TableHead>
+                        <TableHead>{t('Dịch vụ')}</TableHead>
+                        <TableHead>{t('Số tiền')}</TableHead>
+                        <TableHead>{t('Phương thức')}</TableHead>
+                        <TableHead>{t('Ghi chú')}</TableHead>
+                        <TableHead></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sales.map((s: any) => (
+                        <TableRow key={s.id}>
+                          <TableCell className="text-sm">{s.sale_date}</TableCell>
+                          <TableCell className="text-sm">{s.bookings?.customer_name || '—'}</TableCell>
+                          <TableCell className="text-sm">{s.bookings?.services?.name || '—'}</TableCell>
+                          <TableCell className="font-semibold">A$ {Number(s.amount).toLocaleString()}</TableCell>
+                          <TableCell>
+                            <Badge variant={s.payment_method === 'card' ? 'default' : 'secondary'}>
+                              {s.payment_method === 'card' ? '💳 ' + t('Thẻ') : '💵 ' + t('Tiền mặt')}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground max-w-[150px] truncate">{s.notes || '—'}</TableCell>
+                          <TableCell>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteSale.mutate(s.id)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

@@ -179,7 +179,8 @@ export function BookingCalendar({ bookings, onCancel, onReschedule }: BookingCal
     // Create a custom drag ghost
     const ghost = e.currentTarget.cloneNode(true) as HTMLElement;
     ghost.style.position = 'absolute';
-    ghost.style.top = '-1000px';
+    ghost.style.top = '-9999px';
+    ghost.style.left = '-9999px';
     ghost.style.opacity = '0.85';
     ghost.style.transform = 'rotate(2deg) scale(1.05)';
     ghost.style.boxShadow = '0 8px 25px rgba(0,0,0,0.25)';
@@ -189,9 +190,10 @@ export function BookingCalendar({ bookings, onCancel, onReschedule }: BookingCal
     ghost.style.maxWidth = '200px';
     document.body.appendChild(ghost);
     e.dataTransfer.setDragImage(ghost, 20, 20);
-    requestAnimationFrame(() => {
-      setTimeout(() => document.body.removeChild(ghost), 0);
-    });
+    // Remove ghost after browser has captured it
+    setTimeout(() => {
+      if (document.body.contains(ghost)) document.body.removeChild(ghost);
+    }, 100);
   };
 
   const handleDragOver = (e: React.DragEvent, slotKey: string) => {
