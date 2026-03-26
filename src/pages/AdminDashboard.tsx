@@ -792,19 +792,19 @@ const AdminDashboard = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {therapists?.map(t => (
-                      <TableRow key={t.id}>
-                        <TableCell className="font-medium">{t.name}</TableCell>
-                        <TableCell>{t.phone || '—'}</TableCell>
+                    {therapists?.map(th => (
+                      <TableRow key={th.id}>
+                        <TableCell className="font-medium">{th.name}</TableCell>
+                        <TableCell>{th.phone || '—'}</TableCell>
                         <TableCell className="text-sm">
-                          {t.start_hour}:00 – {t.end_hour}:00
-                          {(t as any).break_start != null && (t as any).break_end != null && (
-                            <span className="text-muted-foreground ml-1">({(t as any).break_start}:00–{(t as any).break_end}:00)</span>
+                          {th.start_hour}:00 – {th.end_hour}:00
+                          {th.break_start != null && th.break_end != null && (
+                            <span className="text-muted-foreground ml-1">({th.break_start}:00–{th.break_end}:00)</span>
                           )}
                         </TableCell>
-                        <TableCell><Badge variant={t.is_active ? 'default' : 'secondary'}>{t.is_active ? t('Hoạt động') : t('Tắt')}</Badge></TableCell>
+                        <TableCell><Badge variant={th.is_active ? 'default' : 'secondary'}>{th.is_active ? t('Hoạt động') : t('Tắt')}</Badge></TableCell>
                         <TableCell>
-                          <Button variant="ghost" size="sm" onClick={() => openTherapistEdit(t)}><Pencil className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="sm" onClick={() => openTherapistEdit(th)}><Pencil className="h-4 w-4" /></Button>
                         </TableCell>
                       </TableRow>
                     ))}
