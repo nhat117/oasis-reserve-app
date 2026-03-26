@@ -352,7 +352,7 @@ const Booking = () => {
                   <PopoverTrigger asChild>
                     <Button variant="outline" className={cn("w-full justify-start text-left font-normal mt-1", !selectedDate && "text-muted-foreground")}>
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {selectedDate ? format(selectedDate, 'dd/MM/yyyy') : 'Chọn ngày'}
+                      {selectedDate ? format(selectedDate, 'dd/MM/yyyy') : t('Chọn ngày')}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
