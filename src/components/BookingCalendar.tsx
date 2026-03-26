@@ -176,24 +176,52 @@ export function BookingCalendar({ bookings, onCancel, onReschedule }: BookingCal
     setDragBooking(booking);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', booking.id);
+    // Create a custom drag ghost
+    const ghost = e.currentTarget.cloneNode(true) as HTMLElement;
+    ghost.style.position = 'absolute';
+    ghost.style.top = '-1000px';
+    ghost.style.opacity = '0.85';
+    ghost.style.transform = 'rotate(2deg) scale(1.05)';
+    ghost.style.boxShadow = '0 8px 25px rgba(0,0,0,0.25)';
+    ghost.style.borderRadius = '8px';
+    ghost.style.zIndex = '9999';
+    ghost.style.pointerEvents = 'none';
+    ghost.style.maxWidth = '200px';
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, 20, 20);
+    requestAnimationFrame(() => {
+      setTimeout(() => document.body.removeChild(ghost), 0);
+    });
   };
 
   const handleDragOver = (e: React.DragEvent, slotKey: string) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    setDragOverSlot(slotKey);
+    if (dragOverSlot !== slotKey) setDragOverSlot(slotKey);
   };
 
-  const handleDragLeave = () => { setDragOverSlot(null); };
+  const handleDragLeave = (e: React.DragEvent) => {
+    // Only clear if leaving the actual element (not entering a child)
+    const relatedTarget = e.relatedTarget as Node | null;
+    if (relatedTarget && e.currentTarget.contains(relatedTarget)) return;
+    setDragOverSlot(null);
+  };
 
   const handleDrop = (e: React.DragEvent, date: string, hour?: number) => {
     e.preventDefault();
     setDragOverSlot(null);
     if (!dragBooking || dragBooking.status !== 'confirmed') return;
     const duration = timeToMinutes(dragBooking.end_time) - timeToMinutes(dragBooking.start_time);
-    const newStartMins = hour !== undefined ? hour * 60 : timeToMinutes(dragBooking.start_time);
+    // Snap to 15-min increments for better precision
+    const rawMins = hour !== undefined ? hour * 60 : timeToMinutes(dragBooking.start_time);
+    const newStartMins = Math.round(rawMins / 15) * 15;
     const newEndMins = newStartMins + duration;
     if (newEndMins > 18 * 60) return;
+    // Don't reschedule if nothing changed
+    if (date === dragBooking.booking_date && minutesToTime(newStartMins) === dragBooking.start_time) {
+      setDragBooking(null);
+      return;
+    }
     onReschedule(dragBooking.id, date, minutesToTime(newStartMins), minutesToTime(newEndMins));
     setDragBooking(null);
   };
