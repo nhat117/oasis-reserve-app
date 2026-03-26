@@ -428,7 +428,8 @@ export function BookingCalendar({ bookings, onCancel, onReschedule }: BookingCal
                   onDragStart={(e) => handleDragStart(e, b)} onDragEnd={handleDragEnd}
                   onClick={() => openBookingDetail(b)}
                   className={cn("absolute rounded-lg px-3 py-2 cursor-grab active:cursor-grabbing overflow-hidden border border-background/20",
-                    getBookingStyle(b), dragBooking?.id === b.id && "opacity-50")}
+                    getBookingStyle(b), dragBooking?.id === b.id && "opacity-50",
+                    dragBooking && dragBooking.id !== b.id && "pointer-events-none")}
                   style={{ top: `${topPx}px`, height: `${heightPx}px`, left: `calc(${leftPct}% + 2px)`, width: `calc(${widthPct}% - 4px)`, zIndex: 10 }}>
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-sm">{b.start_time?.slice(0, 5)} – {b.end_time?.slice(0, 5)}</span>
