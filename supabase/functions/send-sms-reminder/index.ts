@@ -23,14 +23,22 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    // Get the Twilio phone number from app_settings
+    // Get settings
     const { data: phoneSetting } = await supabase
       .from("app_settings")
       .select("value")
       .eq("key", "twilio_from_number")
       .single();
 
+    const { data: whatsappSetting } = await supabase
+      .from("app_settings")
+      .select("value")
+      .eq("key", "whatsapp_enabled")
+      .single();
+
     const fromNumber = phoneSetting?.value;
+    const whatsappEnabled = whatsappSetting?.value === "true";
+
     if (!fromNumber) {
       return new Response(
         JSON.stringify({ error: "Twilio phone number not configured. Set 'twilio_from_number' in app settings." }),
