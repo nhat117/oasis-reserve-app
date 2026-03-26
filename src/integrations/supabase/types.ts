@@ -215,6 +215,27 @@ export type Database = {
         }
         Relationships: []
       }
+      shop_holidays: {
+        Row: {
+          created_at: string
+          holiday_date: string
+          id: string
+          reason: string | null
+        }
+        Insert: {
+          created_at?: string
+          holiday_date: string
+          id?: string
+          reason?: string | null
+        }
+        Update: {
+          created_at?: string
+          holiday_date?: string
+          id?: string
+          reason?: string | null
+        }
+        Relationships: []
+      }
       suppressed_emails: {
         Row: {
           created_at: string
@@ -304,6 +325,30 @@ export type Database = {
           start_hour?: number
           updated_at?: string
           working_days?: number[]
+        }
+        Relationships: []
+      }
+      translations: {
+        Row: {
+          created_at: string
+          id: string
+          key: string
+          lang: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          key: string
+          lang: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          key?: string
+          lang?: string
+          value?: string
         }
         Relationships: []
       }
