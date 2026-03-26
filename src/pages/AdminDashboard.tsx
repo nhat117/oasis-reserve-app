@@ -573,7 +573,12 @@ const AdminDashboard = () => {
                       <TableRow key={t.id}>
                         <TableCell className="font-medium">{t.name}</TableCell>
                         <TableCell>{t.phone || '—'}</TableCell>
-                        <TableCell className="text-sm">{t.start_hour}:00 – {t.end_hour}:00</TableCell>
+                        <TableCell className="text-sm">
+                          {t.start_hour}:00 – {t.end_hour}:00
+                          {(t as any).break_start != null && (t as any).break_end != null && (
+                            <span className="text-muted-foreground ml-1">(nghỉ {(t as any).break_start}:00–{(t as any).break_end}:00)</span>
+                          )}
+                        </TableCell>
                         <TableCell><Badge variant={t.is_active ? 'default' : 'secondary'}>{t.is_active ? 'Hoạt động' : 'Tắt'}</Badge></TableCell>
                         <TableCell>
                           <Button variant="ghost" size="sm" onClick={() => openTherapistEdit(t)}><Pencil className="h-4 w-4" /></Button>

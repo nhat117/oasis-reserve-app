@@ -21,6 +21,9 @@ interface I18nContextType {
   setLang: (l: Lang) => void;
   t: (key: string) => string;
   loading: boolean;
+  currency: Currency;
+  setCurrency: (c: Currency) => void;
+  formatPrice: (vndAmount: number) => string;
 }
 
 const I18nContext = createContext<I18nContextType>({
