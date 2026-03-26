@@ -95,6 +95,10 @@ const AdminDashboard = () => {
   // Card surcharge state
   const [cardSurchargePercent, setCardSurchargePercent] = useState('0');
 
+  // OpenAI settings state
+  const [openaiApiKey, setOpenaiApiKey] = useState('');
+  const [openaiBaseUrl, setOpenaiBaseUrl] = useState('');
+
   const { data: bookings } = useQuery({
     queryKey: ['admin-bookings', filterTherapist],
     queryFn: async () => {
@@ -339,6 +343,43 @@ const AdminDashboard = () => {
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['card-surcharge-setting'] }); toast({ title: t('Đã lưu phụ phí thẻ') }); },
+  });
+
+  // OpenAI settings
+  const { data: openaiSettings } = useQuery({
+    queryKey: ['openai-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('app_settings').select('key, value')
+        .in('key', ['openai_api_key', 'openai_base_url']);
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      data?.forEach(r => { map[r.key] = r.value; });
+      return map;
+    },
+  });
+
+  useEffect(() => {
+    if (openaiSettings) {
+      setOpenaiApiKey(openaiSettings['openai_api_key'] || '');
+      setOpenaiBaseUrl(openaiSettings['openai_base_url'] || '');
+    }
+  }, [openaiSettings]);
+
+  const saveOpenaiSettings = useMutation({
+    mutationFn: async () => {
+      const rows = [
+        { key: 'openai_api_key', value: openaiApiKey },
+        { key: 'openai_base_url', value: openaiBaseUrl || 'https://api.openai.com/v1' },
+      ];
+      for (const row of rows) {
+        if (row.value) {
+          const { error } = await supabase.from('app_settings').upsert(row);
+          if (error) throw error;
+        }
+      }
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['openai-settings'] }); toast({ title: t('Đã lưu cài đặt OpenAI') }); },
+    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
 
   useEffect(() => {
@@ -1256,6 +1297,46 @@ const AdminDashboard = () => {
                   <p className="text-xs text-muted-foreground mt-1">{t('Phụ phí sẽ được tự động cộng thêm khi khách thanh toán bằng thẻ')}</p>
                 </div>
                 <Button size="sm" onClick={() => saveCardSurcharge.mutate()}>{t('Lưu')}</Button>
+              </CardContent>
+            </Card>
+
+            {/* OpenAI Translation Settings */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">{t('Cài đặt dịch thuật')} (OpenAI)</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label>{t('OpenAI API Key')}</Label>
+                  <Input
+                    type="password"
+                    value={openaiApiKey}
+                    onChange={e => setOpenaiApiKey(e.target.value)}
+                    placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx"
+                    className="mt-1 font-mono text-sm"
+                  />
+                </div>
+                <div>
+                  <Label>{t('Base URL')}</Label>
+                  <Input
+                    value={openaiBaseUrl}
+                    onChange={e => setOpenaiBaseUrl(e.target.value)}
+                    placeholder="https://api.openai.com/v1"
+                    className="mt-1 font-mono text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">{t('Để trống nếu dùng OpenAI mặc định')}</p>
+                </div>
+                <Button size="sm" onClick={() => saveOpenaiSettings.mutate()} disabled={!openaiApiKey.trim()}>
+                  {t('Lưu cài đặt dịch thuật')}
+                </Button>
+                {openaiSettings?.['openai_api_key'] && (
+                  <div className="bg-muted rounded-lg p-3 text-sm">
+                    <p className="text-muted-foreground">{t('API key đã được cấu hình')}</p>
+                    {openaiSettings['openai_base_url'] && (
+                      <p className="text-muted-foreground">Base URL: <strong>{openaiSettings['openai_base_url']}</strong></p>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

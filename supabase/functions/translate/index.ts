@@ -39,21 +39,35 @@ serve(async (req) => {
       });
     }
 
-    // Use AI to translate missing keys
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    // Get OpenAI settings from app_settings
+    const { data: settings } = await supabase
+      .from("app_settings")
+      .select("key, value")
+      .in("key", ["openai_api_key", "openai_base_url"]);
+
+    const settingsMap: Record<string, string> = {};
+    (settings || []).forEach((r: any) => { settingsMap[r.key] = r.value; });
+
+    const apiKey = settingsMap["openai_api_key"];
+    const baseUrl = settingsMap["openai_base_url"] || "https://api.openai.com/v1";
+
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: "OpenAI API key not configured. Set it in Admin Settings." }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const langName = lang === "en" ? "English" : lang === "vi" ? "Vietnamese" : lang;
     const prompt = `Translate the following Vietnamese UI text strings to ${langName}. Return a JSON object mapping each original Vietnamese string to its ${langName} translation. Keep it natural and concise for a spa booking app UI. Strings to translate:\n${JSON.stringify(missing)}`;
 
-    const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const aiResp = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "gpt-4o-mini",
         messages: [
           { role: "system", content: "You are a translator. Return ONLY a valid JSON object mapping each input string to its translation. No markdown, no explanation." },
           { role: "user", content: prompt },
@@ -67,7 +81,9 @@ serve(async (req) => {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      throw new Error(`AI error: ${aiResp.status}`);
+      const errText = await aiResp.text();
+      console.error("OpenAI error:", aiResp.status, errText);
+      throw new Error(`OpenAI error: ${aiResp.status}`);
     }
 
     const aiData = await aiResp.json();

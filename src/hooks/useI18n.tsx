@@ -121,8 +121,8 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
 export const useI18n = () => useContext(I18nContext);
 
 const LANGUAGES = [
-  { code: 'vi' as Lang, flag: '🇻🇳', label: 'Tiếng Việt' },
-  { code: 'en' as Lang, flag: '🇬🇧', label: 'English' },
+  { code: 'vi' as Lang, label: 'Tiếng Việt' },
+  { code: 'en' as Lang, label: 'English' },
 ];
 
 // Language switcher component with dropdown
@@ -132,20 +132,12 @@ export const LanguageSwitcher = ({ className }: { className?: string }) => {
 
   return (
     <Select value={lang} onValueChange={(v) => setLang(v as Lang)}>
-      <SelectTrigger className={`w-auto min-w-[120px] h-8 text-xs font-medium ${className || ''}`}>
-        <SelectValue>
-          <span className="flex items-center gap-1.5">
-            {current.flag} {current.label}
-          </span>
-        </SelectValue>
+      <SelectTrigger className={`w-auto min-w-[100px] h-8 text-xs font-medium ${className || ''}`}>
+        <SelectValue>{current.label}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         {LANGUAGES.map(l => (
-          <SelectItem key={l.code} value={l.code}>
-            <span className="flex items-center gap-1.5">
-              {l.flag} {l.label}
-            </span>
-          </SelectItem>
+          <SelectItem key={l.code} value={l.code}>{l.label}</SelectItem>
         ))}
       </SelectContent>
     </Select>
