@@ -240,7 +240,7 @@ const Booking = () => {
       if (customerEmail.trim()) {
         const emailHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h1 style="color: #1a1a1a; font-size: 22px;">Booking Confirmed! ✅</h1>
+            <h1 style="color: #1a1a1a; font-size: 22px;">Booking Confirmed!</h1>
             <p style="color: #555; font-size: 14px; line-height: 1.6;">Hi <strong>${customerName.trim()}</strong>, your booking has been confirmed.</p>
             <div style="background: #f5f5f5; border-radius: 8px; padding: 16px; margin: 20px 0;">
               <p style="margin: 4px 0;"><strong>Service:</strong> ${currentService?.name || ''}</p>
