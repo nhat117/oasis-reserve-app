@@ -474,6 +474,21 @@ const AdminDashboard = () => {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-bookings'] }); toast({ title: t('Đã huỷ lịch hẹn') }); },
   });
 
+  const deleteBooking = useMutation({
+    mutationFn: async (id: string) => {
+      // Delete associated sales first
+      await supabase.from('sales').delete().eq('booking_id', id);
+      const { error } = await supabase.from('bookings').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-sales'] });
+      toast({ title: t('Đã xoá lịch hẹn') });
+    },
+    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+  });
+
   const rescheduleBooking = useMutation({
     mutationFn: async ({ id, newDate, newStartTime, newEndTime }: { id: string; newDate: string; newStartTime: string; newEndTime: string }) => {
       const { error } = await supabase.from('bookings').update({
@@ -742,6 +757,7 @@ const AdminDashboard = () => {
                 <BookingCalendar
                   bookings={(bookings as any) || []}
                   onCancel={(id) => cancelBooking.mutate(id)}
+                  onDelete={(id) => deleteBooking.mutate(id)}
                   onReschedule={(id, newDate, newStartTime, newEndTime) =>
                     rescheduleBooking.mutate({ id, newDate, newStartTime, newEndTime })
                   }

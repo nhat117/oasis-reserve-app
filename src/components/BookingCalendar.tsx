@@ -31,6 +31,7 @@ type ViewMode = 'month' | 'week' | 'day';
 interface BookingCalendarProps {
   bookings: Booking[];
   onCancel: (id: string) => void;
+  onDelete: (id: string) => void;
   onReschedule: (id: string, newDate: string, newStartTime: string, newEndTime: string) => void;
 }
 
@@ -118,7 +119,7 @@ function layoutOverlappingBookings(bookings: Booking[]): LayoutedBooking[] {
   return result;
 }
 
-export function BookingCalendar({ bookings, onCancel, onReschedule }: BookingCalendarProps) {
+export function BookingCalendar({ bookings, onCancel, onDelete, onReschedule }: BookingCalendarProps) {
   const { t, lang } = useI18n();
   const locale = lang === 'vi' ? vi : enAU;
   const weekdays = lang === 'vi' ? WEEKDAYS_VI : WEEKDAYS_EN;
@@ -212,12 +213,25 @@ export function BookingCalendar({ bookings, onCancel, onReschedule }: BookingCal
     setDragOverSlot(null);
   };
 
-  const handleDrop = (e: React.DragEvent, date: string, hour?: number) => {
+  const handleDrop = (e: React.DragEvent, date: string, hour?: number, containerEl?: HTMLElement) => {
     e.preventDefault();
     setDragOverSlot(null);
     if (!dragBooking || dragBooking.status !== 'confirmed') return;
     const duration = timeToMinutes(dragBooking.end_time) - timeToMinutes(dragBooking.start_time);
-    const rawMins = hour !== undefined ? hour * 60 : timeToMinutes(dragBooking.start_time);
+    
+    let rawMins: number;
+    if (hour !== undefined && containerEl) {
+      // Calculate precise minute based on mouse Y position within the hour slot
+      const rect = containerEl.getBoundingClientRect();
+      const relY = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
+      const fraction = relY / rect.height;
+      rawMins = hour * 60 + fraction * 60;
+    } else if (hour !== undefined) {
+      rawMins = hour * 60;
+    } else {
+      rawMins = timeToMinutes(dragBooking.start_time);
+    }
+    
     const newStartMins = Math.round(rawMins / 15) * 15;
     const newEndMins = newStartMins + duration;
     if (newEndMins > 18 * 60) return;
@@ -376,7 +390,7 @@ export function BookingCalendar({ bookings, onCancel, onReschedule }: BookingCal
                       <div key={hour} className={cn("border-b absolute w-full", dragOverSlot === slotKey && "bg-primary/10")}
                         style={{ top: `${hi * HOUR_HEIGHT_WEEK}px`, height: `${HOUR_HEIGHT_WEEK}px`, zIndex: dragBooking ? 20 : 0 }}
                         onDragOver={(e) => handleDragOver(e, slotKey)} onDragLeave={handleDragLeave}
-                        onDrop={(e) => handleDrop(e, dateStr, hour)} />
+                        onDrop={(e) => handleDrop(e, dateStr, hour, e.currentTarget as HTMLElement)} />
                     );
                   })}
                   {layouted.map(b => {
@@ -437,7 +451,7 @@ export function BookingCalendar({ bookings, onCancel, onReschedule }: BookingCal
                 <div key={hour} className={cn("border-b absolute w-full", dragOverSlot === slotKey && "bg-primary/10")}
                   style={{ top: `${hi * HOUR_HEIGHT_DAY}px`, height: `${HOUR_HEIGHT_DAY}px`, zIndex: dragBooking ? 20 : 0 }}
                   onDragOver={(e) => handleDragOver(e, slotKey)} onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, dateStr, hour)} />
+                  onDrop={(e) => handleDrop(e, dateStr, hour, e.currentTarget as HTMLElement)} />
               );
             })}
             {layouted.map(b => {
@@ -527,9 +541,21 @@ export function BookingCalendar({ bookings, onCancel, onReschedule }: BookingCal
                 <p><span className="text-muted-foreground">{t('Dịch vụ')}:</span> {selectedBooking.services?.name}</p>
               </div>
               {selectedBooking.status === 'confirmed' && (
-                <Button variant="outline" size="sm" className="w-full text-destructive hover:text-destructive"
-                  onClick={() => { onCancel(selectedBooking.id); setDialogOpen(false); }}>
-                  {t('Huỷ lịch hẹn')}
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="flex-1 text-destructive hover:text-destructive"
+                    onClick={() => { onCancel(selectedBooking.id); setDialogOpen(false); }}>
+                    {t('Huỷ lịch hẹn')}
+                  </Button>
+                  <Button variant="destructive" size="sm" className="flex-1"
+                    onClick={() => { onDelete(selectedBooking.id); setDialogOpen(false); }}>
+                    {t('Xoá')}
+                  </Button>
+                </div>
+              )}
+              {selectedBooking.status === 'cancelled' && (
+                <Button variant="destructive" size="sm" className="w-full"
+                  onClick={() => { onDelete(selectedBooking.id); setDialogOpen(false); }}>
+                  {t('Xoá lịch hẹn')}
                 </Button>
               )}
             </div>
