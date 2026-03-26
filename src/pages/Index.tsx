@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { LanguageSwitcher } from '@/hooks/useI18n';
+import { LanguageSwitcher, useI18n } from '@/hooks/useI18n';
 import { Button } from '@/components/ui/button';
 import { Clock, Phone, MapPin } from 'lucide-react';
 import logoImg from '@/assets/logo.png';
