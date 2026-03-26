@@ -189,7 +189,7 @@ const Booking = () => {
       }
     }
     return slots;
-  }, [currentService, selectedDate, existingBookings, selectedTherapist, therapists, unavailability, earlyCloseHour, isShopHoliday]);
+  }, [currentService, selectedDate, existingBookings, selectedTherapist, therapists, unavailability, earlyCloseHour, isShopHoliday, totalDuration]);
 
   const handleSubmit = async () => {
     if (!currentService || !selectedDate || !selectedTime) return;
