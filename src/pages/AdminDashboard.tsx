@@ -789,11 +789,11 @@ const AdminDashboard = () => {
           {/* Bookings Tab */}
           <TabsContent value="bookings">
             <Card>
-              <CardHeader className="flex-row items-center justify-between space-y-0">
+              <CardHeader className="space-y-2 sm:space-y-0 sm:flex-row sm:items-center sm:justify-between">
                 <CardTitle>{t('Lịch hẹn')}</CardTitle>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                   <Select value={filterTherapist} onValueChange={setFilterTherapist}>
-                    <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-full sm:w-[150px]"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">{t('Tất cả thợ')}</SelectItem>
                       {therapists?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
@@ -801,7 +801,7 @@ const AdminDashboard = () => {
                   </Select>
                   <Dialog open={bookingDialog} onOpenChange={(open) => { setBookingDialog(open); if (!open) resetBookingForm(); }}>
                     <DialogTrigger asChild>
-                      <Button size="sm"><Plus className="h-4 w-4 mr-1" /> {t('Tạo lịch')}</Button>
+                      <Button size="sm" className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-1" /> {t('Tạo lịch')}</Button>
                     </DialogTrigger>
                     <DialogContent className="max-w-md">
                       <DialogHeader>
