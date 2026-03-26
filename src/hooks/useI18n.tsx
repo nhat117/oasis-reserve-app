@@ -51,10 +51,9 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
     requestedRef.current = new Set();
   }, []);
 
-  const formatPrice = useCallback((vndAmount: number): string => {
-    const converted = vndAmount * audRate;
-    return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(converted);
-  }, [audRate]);
+  const formatPrice = useCallback((amount: number): string => {
+    return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(amount);
+  }, []);
 
   // Load cached translations from DB on lang change
   useEffect(() => {
