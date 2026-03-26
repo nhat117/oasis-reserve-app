@@ -99,6 +99,26 @@ const AdminDashboard = () => {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['random-therapist-setting'] }); toast({ title: 'Đã cập nhật cài đặt' }); },
   });
 
+  // Twilio SMS setting
+  const { data: twilioNumber } = useQuery({
+    queryKey: ['twilio-number-setting'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'twilio_from_number').single();
+      if (error) return '';
+      return data.value;
+    },
+  });
+
+  const [smsNumber, setSmsNumber] = useState('');
+
+  const saveSmsNumber = useMutation({
+    mutationFn: async (num: string) => {
+      const { error } = await supabase.from('app_settings').upsert({ key: 'twilio_from_number', value: num });
+      if (error) throw error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['twilio-number-setting'] }); toast({ title: 'Đã lưu số SMS' }); },
+  });
+
   // Therapist unavailability
   const { data: unavailabilities } = useQuery({
     queryKey: ['admin-unavailability'],
@@ -356,6 +376,30 @@ const AdminDashboard = () => {
                   <p className="text-xs text-muted-foreground">Cho phép khách chọn "bất kỳ thợ trống" khi đặt lịch</p>
                 </div>
                 <Switch checked={randomEnabled !== false} onCheckedChange={(v) => toggleRandom.mutate(v)} />
+              </CardContent>
+            </Card>
+
+            {/* SMS Notification Settings */}
+            <Card>
+              <CardContent className="p-4 space-y-3">
+                <div>
+                  <p className="font-medium text-sm">📱 Nhắc lịch qua SMS (Twilio)</p>
+                  <p className="text-xs text-muted-foreground">Gửi SMS nhắc khách hàng 1 tiếng trước lịch hẹn</p>
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder={twilioNumber || "Số Twilio (vd: +84123456789)"}
+                    value={smsNumber}
+                    onChange={e => setSmsNumber(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button size="sm" disabled={!smsNumber.trim()} onClick={() => { saveSmsNumber.mutate(smsNumber.trim()); setSmsNumber(''); }}>
+                    Lưu
+                  </Button>
+                </div>
+                {twilioNumber && (
+                  <p className="text-xs text-muted-foreground">Số hiện tại: <strong>{twilioNumber}</strong></p>
+                )}
               </CardContent>
             </Card>
 
