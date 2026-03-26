@@ -3,7 +3,7 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { EventClickArg, EventDropArg } from '@fullcalendar/core';
+import { EventClickArg, EventDropArg, DateSelectArg } from '@fullcalendar/core';
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,7 @@ interface BookingCalendarProps {
   onCancel: (id: string) => void;
   onDelete: (id: string) => void;
   onReschedule: (id: string, newDate: string, newStartTime: string, newEndTime: string) => void;
+  onDateSelect?: (date: string, startTime?: string) => void;
 }
 
 const THERAPIST_COLORS = [
@@ -37,7 +38,7 @@ const THERAPIST_COLORS = [
   '#8b5cf6', '#06b6d4', '#ec4899', '#f97316',
 ];
 
-export function BookingCalendar({ bookings, onCancel, onDelete, onReschedule }: BookingCalendarProps) {
+export function BookingCalendar({ bookings, onCancel, onDelete, onReschedule, onDateSelect }: BookingCalendarProps) {
   const { t, lang } = useI18n();
   const calendarRef = useRef<FullCalendar>(null);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
@@ -101,6 +102,21 @@ export function BookingCalendar({ bookings, onCancel, onDelete, onReschedule }: 
     setDialogOpen(true);
   };
 
+  // Handle date/time selection (click on empty slot)
+  const handleDateSelect = (info: DateSelectArg) => {
+    if (!onDateSelect) return;
+    const dateStr = format(info.start, 'yyyy-MM-dd');
+    // If in time grid, also pass the start time
+    if (info.view.type.includes('timeGrid')) {
+      const timeStr = format(info.start, 'HH:mm');
+      onDateSelect(dateStr, timeStr);
+    } else {
+      onDateSelect(dateStr);
+    }
+    const calApi = calendarRef.current?.getApi();
+    calApi?.unselect();
+  };
+
   // Legend
   const uniqueTherapists = useMemo(() => {
     return [...new Map(
@@ -136,6 +152,9 @@ export function BookingCalendar({ bookings, onCancel, onDelete, onReschedule }: 
           locale={lang === 'vi' ? 'vi' : 'en-au'}
           events={events}
           editable={true}
+          selectable={true}
+          selectMirror={true}
+          select={handleDateSelect}
           droppable={true}
           eventDrop={handleEventDrop}
           eventClick={handleEventClick}
