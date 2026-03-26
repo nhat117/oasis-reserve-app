@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { BookingCalendar } from '@/components/BookingCalendar';
 import { Textarea } from '@/components/ui/textarea';
 import { BookingStats } from '@/components/BookingStats';
@@ -22,6 +22,7 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Navigate, Link } from 'react-router-dom';
+import { useI18n, LanguageSwitcher } from '@/hooks/useI18n';
 
 const CURRENCIES = ['VND', 'USD', 'EUR', 'AUD'] as const;
 
@@ -29,6 +30,7 @@ const AdminDashboard = () => {
   const { user, isAdmin, loading, signOut } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { t } = useI18n();
 
   const [filterTherapist, setFilterTherapist] = useState('all');
 
@@ -117,7 +119,7 @@ const AdminDashboard = () => {
       const { error } = await supabase.from('app_settings').upsert({ key: 'random_therapist_enabled', value: String(enabled) });
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['random-therapist-setting'] }); toast({ title: 'Đã cập nhật cài đặt' }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['random-therapist-setting'] }); toast({ title: t('Đã cập nhật cài đặt') }); },
   });
 
   // Twilio SMS setting
@@ -137,7 +139,7 @@ const AdminDashboard = () => {
       const { error } = await supabase.from('app_settings').upsert({ key: 'twilio_from_number', value: num });
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['twilio-number-setting'] }); toast({ title: 'Đã lưu số SMS' }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['twilio-number-setting'] }); toast({ title: t('Đã lưu số SMS') }); },
   });
 
   // WhatsApp setting
@@ -155,7 +157,7 @@ const AdminDashboard = () => {
       const { error } = await supabase.from('app_settings').upsert({ key: 'whatsapp_enabled', value: String(enabled) });
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['whatsapp-setting'] }); toast({ title: 'Đã cập nhật WhatsApp' }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['whatsapp-setting'] }); toast({ title: t('Đã cập nhật WhatsApp') }); },
   });
 
   // Currency settings
@@ -193,7 +195,7 @@ const AdminDashboard = () => {
         if (error) throw error;
       }
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['currency-settings'] }); toast({ title: 'Đã lưu cài đặt tiền tệ' }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['currency-settings'] }); toast({ title: t('Đã lưu cài đặt tiền tệ') }); },
   });
 
   // Therapist unavailability
@@ -211,7 +213,7 @@ const AdminDashboard = () => {
       const { error } = await supabase.from('therapist_unavailability').insert({ therapist_id: therapistId, unavailable_date: date, reason });
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-unavailability'] }); toast({ title: 'Đã thêm ngày nghỉ' }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-unavailability'] }); toast({ title: t('Đã thêm ngày nghỉ') }); },
   });
 
   const removeUnavailability = useMutation({
@@ -219,7 +221,7 @@ const AdminDashboard = () => {
       const { error } = await supabase.from('therapist_unavailability').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-unavailability'] }); toast({ title: 'Đã xoá ngày nghỉ' }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-unavailability'] }); toast({ title: t('Đã xoá ngày nghỉ') }); },
   });
 
   // Shop holidays
@@ -241,7 +243,7 @@ const AdminDashboard = () => {
       } as any);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['shop-holidays'] }); toast({ title: 'Đã thêm ngày nghỉ tiệm' }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['shop-holidays'] }); toast({ title: t('Đã thêm ngày nghỉ tiệm') }); },
   });
 
   const removeHoliday = useMutation({
@@ -249,7 +251,7 @@ const AdminDashboard = () => {
       const { error } = await supabase.from('shop_holidays').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['shop-holidays'] }); toast({ title: 'Đã xoá ngày nghỉ tiệm' }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['shop-holidays'] }); toast({ title: t('Đã xoá ngày nghỉ tiệm') }); },
   });
 
   const cancelBooking = useMutation({
@@ -257,7 +259,7 @@ const AdminDashboard = () => {
       const { error } = await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-bookings'] }); toast({ title: 'Đã huỷ lịch hẹn' }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-bookings'] }); toast({ title: t('Đã huỷ lịch hẹn') }); },
   });
 
   const rescheduleBooking = useMutation({
@@ -269,7 +271,7 @@ const AdminDashboard = () => {
       }).eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-bookings'] }); toast({ title: 'Đã dời lịch hẹn' }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-bookings'] }); toast({ title: t('Đã dời lịch hẹn') }); },
   });
 
   // Create booking from admin
@@ -298,9 +300,9 @@ const AdminDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ['admin-bookings'] });
       setBookingDialog(false);
       resetBookingForm();
-      toast({ title: 'Đã tạo lịch hẹn' });
+      toast({ title: t('Đã tạo lịch hẹn') });
     },
-    onError: (e) => { toast({ title: 'Lỗi', description: e.message, variant: 'destructive' }); },
+    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
 
   const resetBookingForm = () => {
@@ -328,7 +330,7 @@ const AdminDashboard = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-services'] });
       setServiceDialog(false);
-      toast({ title: editingService ? 'Đã cập nhật dịch vụ' : 'Đã thêm dịch vụ' });
+      toast({ title: editingService ? t('Đã cập nhật dịch vụ') : t('Đã thêm dịch vụ') });
     },
   });
 
@@ -353,7 +355,7 @@ const AdminDashboard = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-therapists'] });
       setTherapistDialog(false);
-      toast({ title: editingTherapist ? 'Đã cập nhật thợ' : 'Đã thêm thợ' });
+      toast({ title: editingTherapist ? t('Đã cập nhật thợ') : t('Đã thêm thợ') });
     },
   });
 
@@ -378,7 +380,7 @@ const AdminDashboard = () => {
   };
 
   const statusBadge = (status: string) => {
-    const map: Record<string, string> = { confirmed: 'Đã xác nhận', cancelled: 'Đã huỷ', completed: 'Hoàn thành' };
+    const map: Record<string, string> = { confirmed: t('Đã xác nhận'), cancelled: t('Đã huỷ'), completed: t('Hoàn thành') };
     const variant = status === 'confirmed' ? 'default' : status === 'cancelled' ? 'destructive' : 'secondary';
     return <Badge variant={variant as any}>{map[status] || status}</Badge>;
   };
@@ -395,9 +397,9 @@ const AdminDashboard = () => {
     return slots;
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><p>Đang tải...</p></div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center"><p>{t('Đang tải...')}</p></div>;
   if (!user) return <Navigate to="/admin/login" />;
-  if (!isAdmin) return <div className="min-h-screen flex items-center justify-center"><p className="text-destructive">Bạn không có quyền truy cập.</p></div>;
+  if (!isAdmin) return <div className="min-h-screen flex items-center justify-center"><p className="text-destructive">{t('Bạn không có quyền truy cập.')}</p></div>;
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -405,20 +407,23 @@ const AdminDashboard = () => {
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
             <Leaf className="h-5 w-5 text-primary" />
-            <span className="font-semibold font-serif text-primary">Quản trị Spa</span>
+            <span className="font-semibold font-serif text-primary">{t('Quản trị Spa')}</span>
           </Link>
-          <Button variant="ghost" size="sm" onClick={signOut}><LogOut className="h-4 w-4 mr-1" /> Đăng xuất</Button>
+          <div className="flex items-center gap-2">
+            <LanguageSwitcher />
+            <Button variant="ghost" size="sm" onClick={signOut}><LogOut className="h-4 w-4 mr-1" /> {t('Đăng xuất')}</Button>
+          </div>
         </div>
       </header>
 
       <div className="container mx-auto px-4 py-6">
         <Tabs defaultValue="stats">
           <TabsList className="mb-6">
-            <TabsTrigger value="stats">Thống kê</TabsTrigger>
-            <TabsTrigger value="bookings">Lịch hẹn</TabsTrigger>
-            <TabsTrigger value="services">Dịch vụ</TabsTrigger>
-            <TabsTrigger value="therapists">Thợ</TabsTrigger>
-            <TabsTrigger value="settings"><Settings className="h-4 w-4 mr-1" /> Cài đặt</TabsTrigger>
+            <TabsTrigger value="stats">{t('Thống kê')}</TabsTrigger>
+            <TabsTrigger value="bookings">{t('Lịch hẹn')}</TabsTrigger>
+            <TabsTrigger value="services">{t('Dịch vụ')}</TabsTrigger>
+            <TabsTrigger value="therapists">{t('Thợ')}</TabsTrigger>
+            <TabsTrigger value="settings"><Settings className="h-4 w-4 mr-1" /> {t('Cài đặt')}</TabsTrigger>
           </TabsList>
 
           {/* Stats Tab */}
@@ -430,37 +435,40 @@ const AdminDashboard = () => {
           <TabsContent value="bookings">
             <Card>
               <CardHeader className="flex-row items-center justify-between space-y-0">
-                <CardTitle>Lịch hẹn</CardTitle>
+                <CardTitle>{t('Lịch hẹn')}</CardTitle>
                 <div className="flex items-center gap-2">
                   <Select value={filterTherapist} onValueChange={setFilterTherapist}>
                     <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Tất cả thợ</SelectItem>
+                      <SelectItem value="all">{t('Tất cả thợ')}</SelectItem>
                       {therapists?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <Dialog open={bookingDialog} onOpenChange={(open) => { setBookingDialog(open); if (!open) resetBookingForm(); }}>
                     <DialogTrigger asChild>
-                      <Button size="sm"><Plus className="h-4 w-4 mr-1" /> Tạo lịch</Button>
+                      <Button size="sm"><Plus className="h-4 w-4 mr-1" /> {t('Tạo lịch')}</Button>
                     </DialogTrigger>
                     <DialogContent className="max-w-md">
-                      <DialogHeader><DialogTitle>Tạo lịch hẹn mới</DialogTitle></DialogHeader>
+                      <DialogHeader>
+                        <DialogTitle>{t('Tạo lịch hẹn mới')}</DialogTitle>
+                        <DialogDescription>{t('Điền thông tin để tạo lịch hẹn cho khách hàng')}</DialogDescription>
+                      </DialogHeader>
                       <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
                         <div>
-                          <Label>Dịch vụ</Label>
+                          <Label>{t('Dịch vụ')}</Label>
                           <Select value={bookingServiceId} onValueChange={setBookingServiceId}>
-                            <SelectTrigger className="mt-1"><SelectValue placeholder="Chọn dịch vụ" /></SelectTrigger>
+                            <SelectTrigger className="mt-1"><SelectValue placeholder={t('Chọn dịch vụ')} /></SelectTrigger>
                             <SelectContent>
                               {services?.filter(s => s.is_active).map(s => (
-                                <SelectItem key={s.id} value={s.id}>{s.name} ({s.duration_minutes} phút — {formatPrice(s.price)})</SelectItem>
+                                <SelectItem key={s.id} value={s.id}>{s.name} ({s.duration_minutes} {t('phút')} — {formatPrice(s.price)})</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         </div>
                         <div>
-                          <Label>Thợ</Label>
+                          <Label>{t('Thợ')}</Label>
                           <Select value={bookingTherapistId} onValueChange={setBookingTherapistId}>
-                            <SelectTrigger className="mt-1"><SelectValue placeholder="Chọn thợ" /></SelectTrigger>
+                            <SelectTrigger className="mt-1"><SelectValue placeholder={t('Chọn thợ')} /></SelectTrigger>
                             <SelectContent>
                               {therapists?.filter(t => t.is_active).map(t => (
                                 <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
@@ -469,11 +477,11 @@ const AdminDashboard = () => {
                           </Select>
                         </div>
                         <div>
-                          <Label>Ngày</Label>
+                          <Label>{t('Ngày')}</Label>
                           <Popover>
                             <PopoverTrigger asChild>
                               <Button variant="outline" className={cn("w-full mt-1 justify-start", !bookingDate && "text-muted-foreground")}>
-                                {bookingDate ? format(bookingDate, 'dd/MM/yyyy') : 'Chọn ngày'}
+                                {bookingDate ? format(bookingDate, 'dd/MM/yyyy') : t('Chọn ngày')}
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0" align="start">
@@ -482,9 +490,9 @@ const AdminDashboard = () => {
                           </Popover>
                         </div>
                         <div>
-                          <Label>Giờ</Label>
+                          <Label>{t('Giờ')}</Label>
                           <Select value={bookingTime} onValueChange={setBookingTime}>
-                            <SelectTrigger className="mt-1"><SelectValue placeholder="Chọn giờ" /></SelectTrigger>
+                            <SelectTrigger className="mt-1"><SelectValue placeholder={t('Chọn giờ')} /></SelectTrigger>
                             <SelectContent>
                               {getTimeSlots().map(t => (
                                 <SelectItem key={t} value={t}>{t}</SelectItem>
@@ -493,24 +501,24 @@ const AdminDashboard = () => {
                           </Select>
                         </div>
                         <div>
-                          <Label>Tên khách hàng</Label>
-                          <Input value={bookingCustomerName} onChange={e => setBookingCustomerName(e.target.value)} className="mt-1" placeholder="Họ và tên" />
+                          <Label>{t('Tên khách hàng')}</Label>
+                          <Input value={bookingCustomerName} onChange={e => setBookingCustomerName(e.target.value)} className="mt-1" placeholder={t('Họ và tên')} />
                         </div>
                         <div>
-                          <Label>Số điện thoại</Label>
+                          <Label>{t('Số điện thoại')}</Label>
                           <Input value={bookingCustomerPhone} onChange={e => setBookingCustomerPhone(e.target.value)} className="mt-1" placeholder="0912345678" />
                         </div>
                         <div>
-                          <Label>Email (tuỳ chọn)</Label>
+                          <Label>{t('Email (tuỳ chọn)')}</Label>
                           <Input value={bookingCustomerEmail} onChange={e => setBookingCustomerEmail(e.target.value)} className="mt-1" placeholder="email@example.com" />
                         </div>
                         <div>
-                          <Label>Ghi chú</Label>
-                          <Textarea value={bookingNotes} onChange={e => setBookingNotes(e.target.value)} className="mt-1" placeholder="Ghi chú thêm..." />
+                          <Label>{t('Ghi chú')}</Label>
+                          <Textarea value={bookingNotes} onChange={e => setBookingNotes(e.target.value)} className="mt-1" placeholder={t('Ghi chú thêm...')} />
                         </div>
                         <Button className="w-full" onClick={() => createBooking.mutate()}
                           disabled={!bookingServiceId || !bookingTherapistId || !bookingDate || !bookingTime || !bookingCustomerName.trim() || !bookingCustomerPhone.trim()}>
-                          Tạo lịch hẹn
+                          {t('Tạo lịch hẹn')}
                         </Button>
                       </div>
                     </DialogContent>
@@ -533,22 +541,25 @@ const AdminDashboard = () => {
           <TabsContent value="services">
             <Card>
               <CardHeader className="flex-row items-center justify-between space-y-0">
-                <CardTitle>Quản lý dịch vụ</CardTitle>
+                <CardTitle>{t('Quản lý dịch vụ')}</CardTitle>
                 <Dialog open={serviceDialog} onOpenChange={setServiceDialog}>
                   <DialogTrigger asChild>
-                    <Button size="sm" onClick={() => openServiceEdit()}><Plus className="h-4 w-4 mr-1" /> Thêm</Button>
+                    <Button size="sm" onClick={() => openServiceEdit()}><Plus className="h-4 w-4 mr-1" /> {t('Thêm')}</Button>
                   </DialogTrigger>
                   <DialogContent>
-                    <DialogHeader><DialogTitle>{editingService ? 'Sửa dịch vụ' : 'Thêm dịch vụ'}</DialogTitle></DialogHeader>
+                    <DialogHeader>
+                      <DialogTitle>{editingService ? t('Sửa dịch vụ') : t('Thêm dịch vụ')}</DialogTitle>
+                      <DialogDescription>{editingService ? t('Chỉnh sửa thông tin dịch vụ') : t('Thêm dịch vụ mới vào hệ thống')}</DialogDescription>
+                    </DialogHeader>
                     <div className="space-y-4">
-                      <div><Label>Tên</Label><Input value={serviceName} onChange={e => setServiceName(e.target.value)} className="mt-1" /></div>
-                      <div><Label>Mô tả</Label><Textarea value={serviceDesc} onChange={e => setServiceDesc(e.target.value)} className="mt-1" /></div>
+                      <div><Label>{t('Tên')}</Label><Input value={serviceName} onChange={e => setServiceName(e.target.value)} className="mt-1" /></div>
+                      <div><Label>{t('Mô tả')}</Label><Textarea value={serviceDesc} onChange={e => setServiceDesc(e.target.value)} className="mt-1" /></div>
                       <div className="grid grid-cols-2 gap-4">
-                        <div><Label>Thời gian (phút)</Label><Input type="number" value={serviceDuration} onChange={e => setServiceDuration(e.target.value)} className="mt-1" /></div>
-                        <div><Label>Giá (VNĐ)</Label><Input type="number" value={servicePrice} onChange={e => setServicePrice(e.target.value)} className="mt-1" /></div>
+                        <div><Label>{t('Thời gian (phút)')}</Label><Input type="number" value={serviceDuration} onChange={e => setServiceDuration(e.target.value)} className="mt-1" /></div>
+                        <div><Label>{t('Giá (VNĐ)')}</Label><Input type="number" value={servicePrice} onChange={e => setServicePrice(e.target.value)} className="mt-1" /></div>
                       </div>
                       <Button className="w-full" onClick={() => saveService.mutate()} disabled={!serviceName.trim()}>
-                        {editingService ? 'Cập nhật' : 'Thêm mới'}
+                        {editingService ? t('Cập nhật') : t('Thêm mới')}
                       </Button>
                     </div>
                   </DialogContent>
@@ -558,10 +569,10 @@ const AdminDashboard = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Tên</TableHead>
-                      <TableHead>Thời gian</TableHead>
-                      <TableHead>Giá</TableHead>
-                      <TableHead>Trạng thái</TableHead>
+                      <TableHead>{t('Tên')}</TableHead>
+                      <TableHead>{t('Thời gian')}</TableHead>
+                      <TableHead>{t('Giá')}</TableHead>
+                      <TableHead>{t('Trạng thái')}</TableHead>
                       <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -569,9 +580,9 @@ const AdminDashboard = () => {
                     {services?.map(s => (
                       <TableRow key={s.id}>
                         <TableCell className="font-medium">{s.name}</TableCell>
-                        <TableCell>{s.duration_minutes} phút</TableCell>
+                        <TableCell>{s.duration_minutes} {t('phút')}</TableCell>
                         <TableCell>{formatPrice(s.price)}</TableCell>
-                        <TableCell><Badge variant={s.is_active ? 'default' : 'secondary'}>{s.is_active ? 'Hoạt động' : 'Tắt'}</Badge></TableCell>
+                        <TableCell><Badge variant={s.is_active ? 'default' : 'secondary'}>{s.is_active ? t('Hoạt động') : t('Tắt')}</Badge></TableCell>
                         <TableCell>
                           <Button variant="ghost" size="sm" onClick={() => openServiceEdit(s)}><Pencil className="h-4 w-4" /></Button>
                         </TableCell>
@@ -588,12 +599,12 @@ const AdminDashboard = () => {
             {/* Unavailability */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Ngày nghỉ / Không khả dụng</CardTitle>
+                <CardTitle className="text-base">{t('Ngày nghỉ / Không khả dụng')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex flex-wrap gap-2">
                   <Select value={unavailTherapist} onValueChange={setUnavailTherapist}>
-                    <SelectTrigger className="w-[160px]"><SelectValue placeholder="Chọn thợ" /></SelectTrigger>
+                    <SelectTrigger className="w-[160px]"><SelectValue placeholder={t('Chọn thợ')} /></SelectTrigger>
                     <SelectContent>
                       {therapists?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                     </SelectContent>
@@ -602,7 +613,7 @@ const AdminDashboard = () => {
                     <PopoverTrigger asChild>
                       <Button variant="outline" size="sm" className={cn(!unavailDate && "text-muted-foreground")}>
                         <CalendarOff className="h-4 w-4 mr-1" />
-                        {unavailDate ? format(unavailDate, 'dd/MM/yyyy') : 'Chọn ngày'}
+                        {unavailDate ? format(unavailDate, 'dd/MM/yyyy') : t('Chọn ngày')}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -616,7 +627,7 @@ const AdminDashboard = () => {
                         setUnavailDate(undefined);
                       }
                     }}>
-                    <Plus className="h-4 w-4 mr-1" /> Thêm ngày nghỉ
+                    <Plus className="h-4 w-4 mr-1" /> {t('Thêm ngày nghỉ')}
                   </Button>
                 </div>
                 {unavailabilities && unavailabilities.length > 0 && (
@@ -637,7 +648,7 @@ const AdminDashboard = () => {
             {/* Shop Holidays & Early Close */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Ngày nghỉ tiệm / Đóng cửa sớm</CardTitle>
+                <CardTitle className="text-base">{t('Ngày nghỉ tiệm / Đóng cửa sớm')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex flex-wrap gap-2 items-end">
@@ -645,7 +656,7 @@ const AdminDashboard = () => {
                     <PopoverTrigger asChild>
                       <Button variant="outline" size="sm" className={cn(!holidayDate && "text-muted-foreground")}>
                         <CalendarOff className="h-4 w-4 mr-1" />
-                        {holidayDate ? format(holidayDate, 'dd/MM/yyyy') : 'Chọn ngày'}
+                        {holidayDate ? format(holidayDate, 'dd/MM/yyyy') : t('Chọn ngày')}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -653,18 +664,18 @@ const AdminDashboard = () => {
                     </PopoverContent>
                   </Popover>
                   <div className="flex items-center gap-1">
-                    <Label className="text-xs whitespace-nowrap">Đóng cửa sớm lúc</Label>
+                    <Label className="text-xs whitespace-nowrap">{t('Đóng cửa sớm lúc')}</Label>
                     <Select value={earlyCloseHour} onValueChange={setEarlyCloseHour}>
-                      <SelectTrigger className="w-[90px] h-8"><SelectValue placeholder="Không" /></SelectTrigger>
+                      <SelectTrigger className="w-[90px] h-8"><SelectValue placeholder={t('Không')} /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">Nghỉ cả ngày</SelectItem>
+                        <SelectItem value="none">{t('Nghỉ cả ngày')}</SelectItem>
                         {Array.from({ length: 13 }, (_, i) => i + 10).map(h => (
                           <SelectItem key={h} value={String(h)}>{h}:00</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
-                  <Input placeholder="Lý do (tuỳ chọn)" value={holidayReason} onChange={e => setHolidayReason(e.target.value)} className="w-[180px]" />
+                  <Input placeholder={t('Lý do (tuỳ chọn)')} value={holidayReason} onChange={e => setHolidayReason(e.target.value)} className="w-[180px]" />
                   <Button size="sm" disabled={!holidayDate}
                     onClick={() => {
                       if (holidayDate) {
@@ -678,7 +689,7 @@ const AdminDashboard = () => {
                         setEarlyCloseHour('none');
                       }
                     }}>
-                    <Plus className="h-4 w-4 mr-1" /> Thêm
+                    <Plus className="h-4 w-4 mr-1" /> {t('Thêm')}
                   </Button>
                 </div>
                 {shopHolidays && shopHolidays.length > 0 && (
@@ -687,7 +698,7 @@ const AdminDashboard = () => {
                       <div key={h.id} className="flex items-center justify-between py-1.5 px-3 bg-destructive/10 rounded text-sm">
                         <span>
                           {h.early_close_hour ? '⏰' : '🏖️'} <strong>{h.holiday_date}</strong>
-                          {h.early_close_hour ? ` — Đóng cửa lúc ${h.early_close_hour}:00` : ' — Nghỉ cả ngày'}
+                          {h.early_close_hour ? ` — ${t('Đóng cửa lúc')} ${h.early_close_hour}:00` : ` — ${t('Nghỉ cả ngày')}`}
                           {h.reason ? ` (${h.reason})` : ''}
                         </span>
                         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeHoliday.mutate(h.id)}>
@@ -703,26 +714,29 @@ const AdminDashboard = () => {
             {/* Therapist list */}
             <Card>
               <CardHeader className="flex-row items-center justify-between space-y-0">
-                <CardTitle>Danh sách thợ</CardTitle>
+                <CardTitle>{t('Danh sách thợ')}</CardTitle>
                 <Dialog open={therapistDialog} onOpenChange={setTherapistDialog}>
                   <DialogTrigger asChild>
-                    <Button size="sm" onClick={() => openTherapistEdit()}><Plus className="h-4 w-4 mr-1" /> Thêm</Button>
+                    <Button size="sm" onClick={() => openTherapistEdit()}><Plus className="h-4 w-4 mr-1" /> {t('Thêm')}</Button>
                   </DialogTrigger>
                   <DialogContent>
-                    <DialogHeader><DialogTitle>{editingTherapist ? 'Sửa thông tin thợ' : 'Thêm thợ'}</DialogTitle></DialogHeader>
+                    <DialogHeader>
+                      <DialogTitle>{editingTherapist ? t('Sửa thông tin thợ') : t('Thêm thợ')}</DialogTitle>
+                      <DialogDescription>{editingTherapist ? t('Chỉnh sửa thông tin thợ') : t('Thêm thợ mới vào hệ thống')}</DialogDescription>
+                    </DialogHeader>
                     <div className="space-y-4">
-                      <div><Label>Tên</Label><Input value={therapistName} onChange={e => setTherapistName(e.target.value)} className="mt-1" /></div>
-                      <div><Label>SĐT</Label><Input value={therapistPhone} onChange={e => setTherapistPhone(e.target.value)} className="mt-1" /></div>
+                      <div><Label>{t('Tên')}</Label><Input value={therapistName} onChange={e => setTherapistName(e.target.value)} className="mt-1" /></div>
+                      <div><Label>{t('SĐT')}</Label><Input value={therapistPhone} onChange={e => setTherapistPhone(e.target.value)} className="mt-1" /></div>
                       <div className="grid grid-cols-2 gap-4">
-                        <div><Label>Giờ bắt đầu</Label><Input type="number" min="6" max="22" value={therapistStartHour} onChange={e => setTherapistStartHour(e.target.value)} className="mt-1" /></div>
-                        <div><Label>Giờ kết thúc</Label><Input type="number" min="6" max="22" value={therapistEndHour} onChange={e => setTherapistEndHour(e.target.value)} className="mt-1" /></div>
+                        <div><Label>{t('Giờ bắt đầu')}</Label><Input type="number" min="6" max="22" value={therapistStartHour} onChange={e => setTherapistStartHour(e.target.value)} className="mt-1" /></div>
+                        <div><Label>{t('Giờ kết thúc')}</Label><Input type="number" min="6" max="22" value={therapistEndHour} onChange={e => setTherapistEndHour(e.target.value)} className="mt-1" /></div>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
-                        <div><Label>Nghỉ trưa từ</Label><Input type="number" min="6" max="22" placeholder="VD: 12" value={therapistBreakStart} onChange={e => setTherapistBreakStart(e.target.value)} className="mt-1" /></div>
-                        <div><Label>Nghỉ trưa đến</Label><Input type="number" min="6" max="22" placeholder="VD: 13" value={therapistBreakEnd} onChange={e => setTherapistBreakEnd(e.target.value)} className="mt-1" /></div>
+                        <div><Label>{t('Nghỉ trưa từ')}</Label><Input type="number" min="6" max="22" placeholder="VD: 12" value={therapistBreakStart} onChange={e => setTherapistBreakStart(e.target.value)} className="mt-1" /></div>
+                        <div><Label>{t('Nghỉ trưa đến')}</Label><Input type="number" min="6" max="22" placeholder="VD: 13" value={therapistBreakEnd} onChange={e => setTherapistBreakEnd(e.target.value)} className="mt-1" /></div>
                       </div>
                       <Button className="w-full" onClick={() => saveTherapist.mutate()} disabled={!therapistName.trim()}>
-                        {editingTherapist ? 'Cập nhật' : 'Thêm mới'}
+                        {editingTherapist ? t('Cập nhật') : t('Thêm mới')}
                       </Button>
                     </div>
                   </DialogContent>
@@ -732,10 +746,10 @@ const AdminDashboard = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Tên</TableHead>
-                      <TableHead>SĐT</TableHead>
-                      <TableHead>Giờ làm việc</TableHead>
-                      <TableHead>Trạng thái</TableHead>
+                      <TableHead>{t('Tên')}</TableHead>
+                      <TableHead>{t('SĐT')}</TableHead>
+                      <TableHead>{t('Giờ làm việc')}</TableHead>
+                      <TableHead>{t('Trạng thái')}</TableHead>
                       <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -747,10 +761,10 @@ const AdminDashboard = () => {
                         <TableCell className="text-sm">
                           {t.start_hour}:00 – {t.end_hour}:00
                           {(t as any).break_start != null && (t as any).break_end != null && (
-                            <span className="text-muted-foreground ml-1">(nghỉ {(t as any).break_start}:00–{(t as any).break_end}:00)</span>
+                            <span className="text-muted-foreground ml-1">({(t as any).break_start}:00–{(t as any).break_end}:00)</span>
                           )}
                         </TableCell>
-                        <TableCell><Badge variant={t.is_active ? 'default' : 'secondary'}>{t.is_active ? 'Hoạt động' : 'Tắt'}</Badge></TableCell>
+                        <TableCell><Badge variant={t.is_active ? 'default' : 'secondary'}>{t.is_active ? 'Active' : 'Off'}</Badge></TableCell>
                         <TableCell>
                           <Button variant="ghost" size="sm" onClick={() => openTherapistEdit(t)}><Pencil className="h-4 w-4" /></Button>
                         </TableCell>
@@ -768,8 +782,8 @@ const AdminDashboard = () => {
             <Card>
               <CardContent className="p-4 flex items-center justify-between">
                 <div>
-                  <p className="font-medium text-sm">Tự động chọn thợ ngẫu nhiên</p>
-                  <p className="text-xs text-muted-foreground">Cho phép khách chọn "bất kỳ thợ trống" khi đặt lịch</p>
+                  <p className="font-medium text-sm">{t('Tự động chọn thợ ngẫu nhiên')}</p>
+                  <p className="text-xs text-muted-foreground">{t('Cho phép khách chọn "bất kỳ thợ trống" khi đặt lịch')}</p>
                 </div>
                 <Switch checked={randomEnabled !== false} onCheckedChange={(v) => toggleRandom.mutate(v)} />
               </CardContent>
@@ -778,11 +792,11 @@ const AdminDashboard = () => {
             {/* Currency Settings */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">💱 Cài đặt tiền tệ</CardTitle>
+                <CardTitle className="text-base">💱 {t('Cài đặt tiền tệ')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label>Đơn vị tiền mặc định (cho khách English)</Label>
+                  <Label>{t('Đơn vị tiền mặc định (cho khách English)')}</Label>
                   <Select value={defaultCurrency} onValueChange={setDefaultCurrency}>
                     <SelectTrigger className="mt-1 w-[120px]"><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -804,7 +818,7 @@ const AdminDashboard = () => {
                     <Input type="text" value={exchangeAUD} onChange={e => setExchangeAUD(e.target.value)} className="mt-1" />
                   </div>
                 </div>
-                <Button size="sm" onClick={() => saveCurrencySettings.mutate()}>Lưu cài đặt tiền tệ</Button>
+                <Button size="sm" onClick={() => saveCurrencySettings.mutate()}>{t('Lưu cài đặt tiền tệ')}</Button>
               </CardContent>
             </Card>
 
@@ -812,27 +826,27 @@ const AdminDashboard = () => {
             <Card>
               <CardContent className="p-4 space-y-3">
                 <div>
-                  <p className="font-medium text-sm">📱 Nhắc lịch qua SMS & WhatsApp</p>
-                  <p className="text-xs text-muted-foreground">Gửi SMS/WhatsApp nhắc khách hàng 1 tiếng trước lịch hẹn</p>
+                  <p className="font-medium text-sm">📱 {t('Nhắc lịch qua SMS & WhatsApp')}</p>
+                  <p className="text-xs text-muted-foreground">{t('Gửi SMS/WhatsApp nhắc khách hàng 1 tiếng trước lịch hẹn')}</p>
                 </div>
                 <div className="flex gap-2">
                   <Input
-                    placeholder={twilioNumber || "Số Twilio (vd: +84123456789)"}
+                    placeholder={twilioNumber || t("Số Twilio (vd: +84123456789)")}
                     value={smsNumber}
                     onChange={e => setSmsNumber(e.target.value)}
                     className="flex-1"
                   />
                   <Button size="sm" disabled={!smsNumber.trim()} onClick={() => { saveSmsNumber.mutate(smsNumber.trim()); setSmsNumber(''); }}>
-                    Lưu
+                    {t('Lưu')}
                   </Button>
                 </div>
                 {twilioNumber && (
-                  <p className="text-xs text-muted-foreground">Số hiện tại: <strong>{twilioNumber}</strong></p>
+                  <p className="text-xs text-muted-foreground">{t('Số hiện tại')}: <strong>{twilioNumber}</strong></p>
                 )}
                 <div className="flex items-center justify-between pt-2 border-t">
                   <div>
                     <p className="font-medium text-sm">💬 WhatsApp</p>
-                    <p className="text-xs text-muted-foreground">Gửi thêm nhắc nhở qua WhatsApp</p>
+                    <p className="text-xs text-muted-foreground">{t('Gửi thêm nhắc nhở qua WhatsApp')}</p>
                   </div>
                   <Switch checked={whatsappEnabled === true} onCheckedChange={(v) => toggleWhatsapp.mutate(v)} />
                 </div>
