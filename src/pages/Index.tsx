@@ -1,4 +1,6 @@
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { LanguageSwitcher, useI18n } from '@/hooks/useI18n';
 import { Button } from '@/components/ui/button';
 import { Clock, Phone, MapPin } from 'lucide-react';
@@ -9,6 +11,19 @@ import interiorImg from '@/assets/spa-interior.jpg';
 
 const Index = () => {
   const { t } = useI18n();
+
+  const { data: shopSettings } = useQuery({
+    queryKey: ['shop-settings-public'],
+    queryFn: async () => {
+      const { data } = await supabase.from('app_settings').select('key, value').in('key', ['shop_phone', 'shop_address']);
+      const map: Record<string, string> = {};
+      data?.forEach(r => { map[r.key] = r.value; });
+      return map;
+    },
+  });
+
+  const shopPhone = shopSettings?.shop_phone || '';
+  const shopAddress = shopSettings?.shop_address || '';
   return (
     <div className="min-h-screen">
       {/* Header */}
@@ -96,12 +111,15 @@ const Index = () => {
             <div className="bg-background rounded-xl p-8 border shadow-sm text-center space-y-3">
               <Phone className="h-8 w-8 text-primary mx-auto" />
               <h3 className="font-semibold text-lg">{t('Liên hệ')}</h3>
-              <p className="text-muted-foreground">{t('Gọi ngay để đặt lịch')}<br />{t('hoặc đặt online 24/7')}</p>
+              <p className="text-muted-foreground">
+                {shopPhone ? <a href={`tel:${shopPhone}`} className="hover:text-primary transition-colors">{shopPhone}</a> : t('Gọi ngay để đặt lịch')}
+                <br />{t('hoặc đặt online 24/7')}
+              </p>
             </div>
             <div className="bg-background rounded-xl p-8 border shadow-sm text-center space-y-3">
               <MapPin className="h-8 w-8 text-primary mx-auto" />
               <h3 className="font-semibold text-lg">{t('Địa chỉ')}</h3>
-              <p className="text-muted-foreground">{t('Liên hệ để biết')}<br />{t('địa chỉ chi tiết')}</p>
+              <p className="text-muted-foreground">{shopAddress || t('Liên hệ để biết địa chỉ chi tiết')}</p>
             </div>
           </div>
         </div>
