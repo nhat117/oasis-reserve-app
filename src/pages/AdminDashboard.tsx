@@ -1299,6 +1299,46 @@ const AdminDashboard = () => {
                 <Button size="sm" onClick={() => saveCardSurcharge.mutate()}>{t('Lưu')}</Button>
               </CardContent>
             </Card>
+
+            {/* OpenAI Translation Settings */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">{t('Cài đặt dịch thuật')} (OpenAI)</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label>{t('OpenAI API Key')}</Label>
+                  <Input
+                    type="password"
+                    value={openaiApiKey}
+                    onChange={e => setOpenaiApiKey(e.target.value)}
+                    placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx"
+                    className="mt-1 font-mono text-sm"
+                  />
+                </div>
+                <div>
+                  <Label>{t('Base URL')}</Label>
+                  <Input
+                    value={openaiBaseUrl}
+                    onChange={e => setOpenaiBaseUrl(e.target.value)}
+                    placeholder="https://api.openai.com/v1"
+                    className="mt-1 font-mono text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">{t('Để trống nếu dùng OpenAI mặc định')}</p>
+                </div>
+                <Button size="sm" onClick={() => saveOpenaiSettings.mutate()} disabled={!openaiApiKey.trim()}>
+                  {t('Lưu cài đặt dịch thuật')}
+                </Button>
+                {openaiSettings?.['openai_api_key'] && (
+                  <div className="bg-muted rounded-lg p-3 text-sm">
+                    <p className="text-muted-foreground">{t('API key đã được cấu hình')}</p>
+                    {openaiSettings['openai_base_url'] && (
+                      <p className="text-muted-foreground">Base URL: <strong>{openaiSettings['openai_base_url']}</strong></p>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
