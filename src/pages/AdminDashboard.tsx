@@ -143,6 +143,8 @@ const AdminDashboard = () => {
     setEditingTherapist(therapist || null);
     setTherapistName(therapist?.name || '');
     setTherapistPhone(therapist?.phone || '');
+    setTherapistStartHour(String(therapist?.start_hour || 9));
+    setTherapistEndHour(String(therapist?.end_hour || 18));
     setTherapistDialog(true);
   };
 
