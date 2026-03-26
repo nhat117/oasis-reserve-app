@@ -3,7 +3,7 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin, { EventDragStopArg } from '@fullcalendar/interaction';
-import { EventClickArg, EventDropArg, DateClickArg } from '@fullcalendar/core';
+import { EventClickArg, EventDropArg } from '@fullcalendar/core';
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
