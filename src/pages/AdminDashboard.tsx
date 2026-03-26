@@ -643,6 +643,11 @@ const AdminDashboard = () => {
       (unavailabilities || []).filter(u => u.unavailable_date === dateStr).map(u => u.therapist_id)
     );
 
+    // If specific therapist selected and they're unavailable, return empty
+    if (bookingTherapistId && bookingTherapistId !== 'random' && unavailableTherapistIds.has(bookingTherapistId)) {
+      return [];
+    }
+
     // Check shop holidays
     const holiday = (shopHolidays || []).find(h => h.holiday_date === dateStr);
     if (holiday && !holiday.early_close_hour) return []; // full day off
