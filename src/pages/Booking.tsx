@@ -113,8 +113,20 @@ const Booking = () => {
       if (!t.working_days.includes(dayOfWeek)) return false;
       // Check working hours
       const slotHour = parseInt(timeStr);
+      const slotMin = parseInt(timeStr.split(':')[1]);
       const endHour = parseInt(endStr);
+      const endMin = parseInt(endStr.split(':')[1]);
       if (slotHour < t.start_hour || endHour > t.end_hour) return false;
+      // Check break time
+      const tAny = t as any;
+      if (tAny.break_start != null && tAny.break_end != null) {
+        const breakStart = tAny.break_start * 60;
+        const breakEnd = tAny.break_end * 60;
+        const slotStartMin = slotHour * 60 + slotMin;
+        const slotEndMin = endHour * 60 + endMin;
+        // Slot overlaps with break if it starts before break ends and ends after break starts
+        if (slotStartMin < breakEnd && slotEndMin > breakStart) return false;
+      }
       // Check if already booked
       const isBooked = existingBookings?.some(b =>
         b.therapist_id === t.id &&
