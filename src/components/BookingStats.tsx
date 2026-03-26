@@ -107,13 +107,9 @@ export function BookingStats({ className }: StatsProps) {
     // ── Activity (recent bookings) ──
     const recentActivity = bookings.slice(0, 10);
 
-    // ── Today's next appointments ──
-    const nowMins = today.getHours() * 60 + today.getMinutes();
-    const todayNext = confirmed.filter(b => {
-      if (b.booking_date !== todayStr) return false;
-      const [h, m] = b.start_time.split(':').map(Number);
-      return h * 60 + m >= nowMins;
-    }).sort((a, b) => a.start_time.localeCompare(b.start_time));
+    // ── Today's appointments (all confirmed for today) ──
+    const todayNext = confirmed.filter(b => b.booking_date === todayStr)
+      .sort((a, b) => a.start_time.localeCompare(b.start_time));
 
     // ── Top services (this month vs last month) ──
     const monthStart = startOfMonth(today);
