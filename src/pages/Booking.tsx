@@ -14,6 +14,7 @@ import logoImg from '@/assets/logo.png';
 import { format, addMinutes, isBefore, isToday, startOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { LanguageSwitcher, useI18n } from '@/hooks/useI18n';
 
 const Booking = () => {
   const [searchParams] = useSearchParams();
