@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ArrowLeft, CalendarIcon, Check } from 'lucide-react';
 import logoImg from '@/assets/logo.png';
 import { format, addMinutes, isBefore, isToday, startOfDay } from 'date-fns';
+import { vi as viLocale, enAU } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { LanguageSwitcher, useI18n } from '@/hooks/useI18n';
@@ -19,7 +20,8 @@ import { LanguageSwitcher, useI18n } from '@/hooks/useI18n';
 const Booking = () => {
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
-  const { formatPrice, t } = useI18n();
+  const { formatPrice, t, lang } = useI18n();
+  const dateLocale = lang === 'vi' ? viLocale : enAU;
 
   const [step, setStep] = useState(1);
   const [selectedService, setSelectedService] = useState(searchParams.get('service') || '');
