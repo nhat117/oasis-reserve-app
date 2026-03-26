@@ -169,6 +169,7 @@ const AdminDashboard = () => {
       setSaleAmount('');
       setSalePaymentMethod('cash');
       setSaleNotes('');
+      setSaleAddOns([]);
       toast({ title: t('Đã ghi nhận thanh toán') });
     },
     onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
