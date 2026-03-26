@@ -279,6 +279,10 @@ const AdminDashboard = () => {
                     <div className="space-y-4">
                       <div><Label>Tên</Label><Input value={therapistName} onChange={e => setTherapistName(e.target.value)} className="mt-1" /></div>
                       <div><Label>SĐT</Label><Input value={therapistPhone} onChange={e => setTherapistPhone(e.target.value)} className="mt-1" /></div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div><Label>Giờ bắt đầu</Label><Input type="number" min="6" max="22" value={therapistStartHour} onChange={e => setTherapistStartHour(e.target.value)} className="mt-1" /></div>
+                        <div><Label>Giờ kết thúc</Label><Input type="number" min="6" max="22" value={therapistEndHour} onChange={e => setTherapistEndHour(e.target.value)} className="mt-1" /></div>
+                      </div>
                       <Button className="w-full" onClick={() => saveTherapist.mutate()} disabled={!therapistName.trim()}>
                         {editingTherapist ? 'Cập nhật' : 'Thêm mới'}
                       </Button>
