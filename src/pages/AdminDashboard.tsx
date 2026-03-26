@@ -256,6 +256,8 @@ const AdminDashboard = () => {
     setTherapistPhone(therapist?.phone || '');
     setTherapistStartHour(String(therapist?.start_hour || 9));
     setTherapistEndHour(String(therapist?.end_hour || 18));
+    setTherapistBreakStart(therapist?.break_start ? String(therapist.break_start) : '');
+    setTherapistBreakEnd(therapist?.break_end ? String(therapist.break_end) : '');
     setTherapistDialog(true);
   };
 
