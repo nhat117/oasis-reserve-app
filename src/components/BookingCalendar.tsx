@@ -31,6 +31,7 @@ type ViewMode = 'month' | 'week' | 'day';
 interface BookingCalendarProps {
   bookings: Booking[];
   onCancel: (id: string) => void;
+  onDelete: (id: string) => void;
   onReschedule: (id: string, newDate: string, newStartTime: string, newEndTime: string) => void;
 }
 
