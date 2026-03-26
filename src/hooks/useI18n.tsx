@@ -174,7 +174,7 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
   }, [lang, translations]);
 
   return (
-    <I18nContext.Provider value={{ lang, setLang, t, loading }}>
+    <I18nContext.Provider value={{ lang, setLang, t, loading, currency, setCurrency, formatPrice }}>
       {children}
     </I18nContext.Provider>
   );
