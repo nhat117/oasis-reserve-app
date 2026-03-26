@@ -6,9 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Clock, ArrowLeft } from 'lucide-react';
 import logoImg from '@/assets/logo.png';
 import { Skeleton } from '@/components/ui/skeleton';
-import { LanguageSwitcher } from '@/hooks/useI18n';
+import { LanguageSwitcher, useI18n } from '@/hooks/useI18n';
 
 const Services = () => {
+  const { formatPrice } = useI18n();
   const { data: services, isLoading } = useQuery({
     queryKey: ['services'],
     queryFn: async () => {
@@ -17,10 +18,6 @@ const Services = () => {
       return data;
     },
   });
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('vi-VN').format(price) + 'đ';
-  };
 
   return (
     <div className="min-h-screen">
