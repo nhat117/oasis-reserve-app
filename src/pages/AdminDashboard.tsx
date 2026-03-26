@@ -79,6 +79,18 @@ const AdminDashboard = () => {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-bookings'] }); toast({ title: 'Đã huỷ lịch hẹn' }); },
   });
 
+  const rescheduleBooking = useMutation({
+    mutationFn: async ({ id, newDate, newStartTime, newEndTime }: { id: string; newDate: string; newStartTime: string; newEndTime: string }) => {
+      const { error } = await supabase.from('bookings').update({
+        booking_date: newDate,
+        start_time: newStartTime,
+        end_time: newEndTime,
+      }).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-bookings'] }); toast({ title: 'Đã dời lịch hẹn' }); },
+  });
+
   const saveService = useMutation({
     mutationFn: async () => {
       const payload = { name: serviceName, description: serviceDesc || null, duration_minutes: parseInt(serviceDuration), price: parseInt(servicePrice) };
@@ -180,6 +192,9 @@ const AdminDashboard = () => {
                 <BookingCalendar
                   bookings={(bookings as any) || []}
                   onCancel={(id) => cancelBooking.mutate(id)}
+                  onReschedule={(id, newDate, newStartTime, newEndTime) =>
+                    rescheduleBooking.mutate({ id, newDate, newStartTime, newEndTime })
+                  }
                 />
               </CardContent>
             </Card>
