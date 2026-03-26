@@ -99,6 +99,26 @@ const AdminDashboard = () => {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['random-therapist-setting'] }); toast({ title: 'Đã cập nhật cài đặt' }); },
   });
 
+  // Twilio SMS setting
+  const { data: twilioNumber } = useQuery({
+    queryKey: ['twilio-number-setting'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'twilio_from_number').single();
+      if (error) return '';
+      return data.value;
+    },
+  });
+
+  const [smsNumber, setSmsNumber] = useState('');
+
+  const saveSmsNumber = useMutation({
+    mutationFn: async (num: string) => {
+      const { error } = await supabase.from('app_settings').upsert({ key: 'twilio_from_number', value: num });
+      if (error) throw error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['twilio-number-setting'] }); toast({ title: 'Đã lưu số SMS' }); },
+  });
+
   // Therapist unavailability
   const { data: unavailabilities } = useQuery({
     queryKey: ['admin-unavailability'],
