@@ -80,7 +80,11 @@ export function BookingStats({ className }: StatsProps) {
     const fromStr = format(dateRange.from, 'yyyy-MM-dd');
     const toStr = format(dateRange.to, 'yyyy-MM-dd');
     const rangeBookings = active.filter(b => b.booking_date >= fromStr && b.booking_date <= toStr);
-    const rangeRevenue = rangeBookings.reduce((s, b) => s + ((b as any).services?.price || 0), 0);
+
+    // ── Sales revenue (from actual sales table) ──
+    const rangeSales = (sales || []).filter(s => s.sale_date >= fromStr && s.sale_date <= toStr);
+    const rangeRevenue = rangeSales.reduce((s, sale) => s + Number(sale.amount), 0);
+    const rangeBookingValue = rangeBookings.reduce((s, b) => s + ((b as any).services?.price || 0), 0);
 
     // Chart data for range
     const allDays = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
@@ -88,8 +92,9 @@ export function BookingStats({ className }: StatsProps) {
       const dateStr = format(d, 'yyyy-MM-dd');
       const dayLabel = rangeDays <= 14 ? format(d, 'EEE d') : format(d, 'dd/MM');
       const dayBookings = active.filter(b => b.booking_date === dateStr);
-      const sales = dayBookings.reduce((s, b) => s + ((b as any).services?.price || 0), 0);
-      return { name: dayLabel, Sales: sales, Appointments: dayBookings.length };
+      const daySales = (sales || []).filter(s => s.sale_date === dateStr);
+      const salesAmount = daySales.reduce((s, sale) => s + Number(sale.amount), 0);
+      return { name: dayLabel, Sales: salesAmount, Appointments: dayBookings.length };
     });
 
     // ── Upcoming 7 days ──
