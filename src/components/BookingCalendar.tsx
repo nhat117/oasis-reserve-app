@@ -390,7 +390,7 @@ export function BookingCalendar({ bookings, onCancel, onDelete, onReschedule }: 
                       <div key={hour} className={cn("border-b absolute w-full", dragOverSlot === slotKey && "bg-primary/10")}
                         style={{ top: `${hi * HOUR_HEIGHT_WEEK}px`, height: `${HOUR_HEIGHT_WEEK}px`, zIndex: dragBooking ? 20 : 0 }}
                         onDragOver={(e) => handleDragOver(e, slotKey)} onDragLeave={handleDragLeave}
-                        onDrop={(e) => handleDrop(e, dateStr, hour)} />
+                        onDrop={(e) => handleDrop(e, dateStr, hour, e.currentTarget as HTMLElement)} />
                     );
                   })}
                   {layouted.map(b => {
