@@ -122,7 +122,7 @@ const Booking = () => {
   };
 
   const availableSlots = useMemo(() => {
-    if (!currentService || !selectedDate || !therapists) return [];
+    if (!currentService || !selectedDate || !therapists || isShopHoliday) return [];
     const duration = currentService.duration_minutes;
     const slots: { time: string; therapistCount: number }[] = [];
     const now = new Date();
