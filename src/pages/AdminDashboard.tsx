@@ -423,7 +423,7 @@ const AdminDashboard = () => {
     return <Badge variant={variant as any}>{map[status] || status}</Badge>;
   };
 
-  const formatPrice = (p: number) => new Intl.NumberFormat('vi-VN').format(p) + 'đ';
+  const formatPrice = (p: number) => `A$ ${p.toLocaleString()}`;
 
   // Generate time slots for booking
   const getTimeSlots = () => {
@@ -594,7 +594,7 @@ const AdminDashboard = () => {
                       <div><Label>{t('Mô tả')}</Label><Textarea value={serviceDesc} onChange={e => setServiceDesc(e.target.value)} className="mt-1" /></div>
                       <div className="grid grid-cols-2 gap-4">
                         <div><Label>{t('Thời gian (phút)')}</Label><Input type="number" value={serviceDuration} onChange={e => setServiceDuration(e.target.value)} className="mt-1" /></div>
-                        <div><Label>{t('Giá (VNĐ)')}</Label><Input type="number" value={servicePrice} onChange={e => setServicePrice(e.target.value)} className="mt-1" /></div>
+                        <div><Label>{t('Giá (AUD)')}</Label><Input type="number" value={servicePrice} onChange={e => setServicePrice(e.target.value)} className="mt-1" /></div>
                       </div>
                       <Button className="w-full" onClick={() => saveService.mutate()} disabled={!serviceName.trim()}>
                         {editingService ? t('Cập nhật') : t('Thêm mới')}
@@ -792,19 +792,19 @@ const AdminDashboard = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {therapists?.map(t => (
-                      <TableRow key={t.id}>
-                        <TableCell className="font-medium">{t.name}</TableCell>
-                        <TableCell>{t.phone || '—'}</TableCell>
+                    {therapists?.map(th => (
+                      <TableRow key={th.id}>
+                        <TableCell className="font-medium">{th.name}</TableCell>
+                        <TableCell>{th.phone || '—'}</TableCell>
                         <TableCell className="text-sm">
-                          {t.start_hour}:00 – {t.end_hour}:00
-                          {(t as any).break_start != null && (t as any).break_end != null && (
-                            <span className="text-muted-foreground ml-1">({(t as any).break_start}:00–{(t as any).break_end}:00)</span>
+                          {th.start_hour}:00 – {th.end_hour}:00
+                          {th.break_start != null && th.break_end != null && (
+                            <span className="text-muted-foreground ml-1">({th.break_start}:00–{th.break_end}:00)</span>
                           )}
                         </TableCell>
-                        <TableCell><Badge variant={t.is_active ? 'default' : 'secondary'}>{t.is_active ? 'Active' : 'Off'}</Badge></TableCell>
+                        <TableCell><Badge variant={th.is_active ? 'default' : 'secondary'}>{th.is_active ? t('Hoạt động') : t('Tắt')}</Badge></TableCell>
                         <TableCell>
-                          <Button variant="ghost" size="sm" onClick={() => openTherapistEdit(t)}><Pencil className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="sm" onClick={() => openTherapistEdit(th)}><Pencil className="h-4 w-4" /></Button>
                         </TableCell>
                       </TableRow>
                     ))}
