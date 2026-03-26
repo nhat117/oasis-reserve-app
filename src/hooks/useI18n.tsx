@@ -9,7 +9,7 @@ const CURRENCY_MAP: Record<Lang, Currency> = {
   en: 'AUD',
 };
 
-const EXCHANGE_RATES: Record<Currency, number> = {
+const DEFAULT_RATES: Record<Currency, number> = {
   VND: 1,
   USD: 0.000039,
   EUR: 0.000036,
