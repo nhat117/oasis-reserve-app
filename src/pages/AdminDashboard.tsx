@@ -345,6 +345,43 @@ const AdminDashboard = () => {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['card-surcharge-setting'] }); toast({ title: t('Đã lưu phụ phí thẻ') }); },
   });
 
+  // OpenAI settings
+  const { data: openaiSettings } = useQuery({
+    queryKey: ['openai-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('app_settings').select('key, value')
+        .in('key', ['openai_api_key', 'openai_base_url']);
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      data?.forEach(r => { map[r.key] = r.value; });
+      return map;
+    },
+  });
+
+  useEffect(() => {
+    if (openaiSettings) {
+      setOpenaiApiKey(openaiSettings['openai_api_key'] || '');
+      setOpenaiBaseUrl(openaiSettings['openai_base_url'] || '');
+    }
+  }, [openaiSettings]);
+
+  const saveOpenaiSettings = useMutation({
+    mutationFn: async () => {
+      const rows = [
+        { key: 'openai_api_key', value: openaiApiKey },
+        { key: 'openai_base_url', value: openaiBaseUrl || 'https://api.openai.com/v1' },
+      ];
+      for (const row of rows) {
+        if (row.value) {
+          const { error } = await supabase.from('app_settings').upsert(row);
+          if (error) throw error;
+        }
+      }
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['openai-settings'] }); toast({ title: t('Đã lưu cài đặt OpenAI') }); },
+    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+  });
+
   useEffect(() => {
     if (currencySettings) {
       setExchangeUSD(currencySettings['exchange_rate_usd'] || '0.000039');
