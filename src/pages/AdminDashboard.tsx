@@ -145,7 +145,11 @@ const AdminDashboard = () => {
 
   const createSale = useMutation({
     mutationFn: async () => {
-      const baseAmount = parseFloat(saleAmount);
+      const addOnTotal = saleAddOns.reduce((sum, id) => {
+        const svc = services?.find(s => s.id === id);
+        return sum + (svc?.price || 0);
+      }, 0);
+      const baseAmount = parseFloat(saleAmount) + addOnTotal;
       const surcharge = salePaymentMethod === 'card' ? baseAmount * (parseFloat(cardSurchargeSetting || '0') / 100) : 0;
       const totalAmount = baseAmount + surcharge;
       const payload: any = {
