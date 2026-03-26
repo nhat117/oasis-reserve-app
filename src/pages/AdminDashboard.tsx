@@ -14,7 +14,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { BookingCalendar } from '@/components/BookingCalendar';
 import { Textarea } from '@/components/ui/textarea';
 import { BookingStats } from '@/components/BookingStats';
-import { Leaf, LogOut, Plus, Pencil } from 'lucide-react';
+import { Leaf, LogOut, Plus, Pencil, CalendarOff, X } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
