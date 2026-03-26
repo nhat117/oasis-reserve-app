@@ -177,6 +177,40 @@ const AdminDashboard = () => {
     },
   });
 
+  // Shop info settings
+  const { data: shopInfoSettings } = useQuery({
+    queryKey: ['shop-info-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('app_settings').select('key, value')
+        .in('key', ['shop_phone', 'shop_address']);
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      data?.forEach(r => { map[r.key] = r.value; });
+      return map;
+    },
+  });
+
+  useEffect(() => {
+    if (shopInfoSettings) {
+      setShopPhone(shopInfoSettings['shop_phone'] || '');
+      setShopAddress(shopInfoSettings['shop_address'] || '');
+    }
+  }, [shopInfoSettings]);
+
+  const saveShopInfo = useMutation({
+    mutationFn: async () => {
+      const rows = [
+        { key: 'shop_phone', value: shopPhone },
+        { key: 'shop_address', value: shopAddress },
+      ];
+      for (const row of rows) {
+        const { error } = await supabase.from('app_settings').upsert(row);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['shop-info-settings'] }); toast({ title: t('Đã lưu thông tin tiệm') }); },
+  });
+
   useEffect(() => {
     if (currencySettings) {
       setExchangeUSD(currencySettings['exchange_rate_usd'] || '0.000039');
