@@ -121,6 +121,24 @@ const AdminDashboard = () => {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['twilio-number-setting'] }); toast({ title: 'Đã lưu số SMS' }); },
   });
 
+  // WhatsApp setting
+  const { data: whatsappEnabled } = useQuery({
+    queryKey: ['whatsapp-setting'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'whatsapp_enabled').single();
+      if (error) return false;
+      return data.value === 'true';
+    },
+  });
+
+  const toggleWhatsapp = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const { error } = await supabase.from('app_settings').upsert({ key: 'whatsapp_enabled', value: String(enabled) });
+      if (error) throw error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['whatsapp-setting'] }); toast({ title: 'Đã cập nhật WhatsApp' }); },
+  });
+
   // Therapist unavailability
   const { data: unavailabilities } = useQuery({
     queryKey: ['admin-unavailability'],
