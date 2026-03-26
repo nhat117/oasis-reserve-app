@@ -384,7 +384,7 @@ const Booking = () => {
                   </PopoverContent>
                 </Popover>
                 {isShopHoliday && (
-                  <p className="text-sm text-destructive mt-2">🏖️ {t('Tiệm nghỉ ngày này. Vui lòng chọn ngày khác.')}</p>
+                  <p className="text-sm text-destructive mt-2">{t('Tiệm nghỉ ngày này. Vui lòng chọn ngày khác.')}</p>
                 )}
                 {earlyCloseHour && !isShopHoliday && (
                   <p className="text-sm text-amber-600 mt-2">⏰ {t('Tiệm đóng cửa sớm lúc')} {earlyCloseHour}:00 {t('ngày này.')}</p>
