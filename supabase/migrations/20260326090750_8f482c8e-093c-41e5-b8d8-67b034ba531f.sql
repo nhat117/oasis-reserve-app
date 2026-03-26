@@ -1,0 +1,1 @@
+ALTER TABLE public.shop_holidays ADD COLUMN early_close_hour integer DEFAULT NULL;

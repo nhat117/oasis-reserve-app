@@ -74,13 +74,15 @@ const Booking = () => {
   const { data: shopHolidays } = useQuery({
     queryKey: ['shop-holidays-list'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('shop_holidays').select('holiday_date');
+      const { data, error } = await supabase.from('shop_holidays').select('*');
       if (error) throw error;
-      return data.map((h: any) => h.holiday_date as string);
+      return data as any[];
     },
   });
 
-  const isShopHoliday = selectedDate ? shopHolidays?.includes(format(selectedDate, 'yyyy-MM-dd')) : false;
+  const todayHoliday = selectedDate ? shopHolidays?.find((h: any) => h.holiday_date === format(selectedDate, 'yyyy-MM-dd')) : null;
+  const isShopHoliday = todayHoliday && !todayHoliday.early_close_hour;
+  const earlyCloseHour = todayHoliday?.early_close_hour as number | undefined;
 
   const { data: existingBookings } = useQuery({
     queryKey: ['bookings-availability', selectedDate?.toISOString()],
@@ -142,7 +144,8 @@ const Booking = () => {
         slotStart.setHours(h, m, 0, 0);
         const slotEnd = addMinutes(slotStart, duration);
 
-        if (slotEnd.getHours() > maxEnd || (slotEnd.getHours() === maxEnd && slotEnd.getMinutes() > 0)) continue;
+        const effectiveMaxEnd = earlyCloseHour ? Math.min(maxEnd, earlyCloseHour) : maxEnd;
+        if (slotEnd.getHours() > effectiveMaxEnd || (slotEnd.getHours() === effectiveMaxEnd && slotEnd.getMinutes() > 0)) continue;
         if (isToday(selectedDate) && isBefore(slotStart, now)) continue;
 
         const startStr = format(slotStart, 'HH:mm');
@@ -337,7 +340,8 @@ const Booking = () => {
                       disabled={(date) => {
                         if (isBefore(startOfDay(date), startOfDay(new Date()))) return true;
                         if (date.getDay() === 0) return true;
-                        if (shopHolidays?.includes(format(date, 'yyyy-MM-dd'))) return true;
+                        const holiday = shopHolidays?.find((h: any) => h.holiday_date === format(date, 'yyyy-MM-dd'));
+                        if (holiday && !holiday.early_close_hour) return true;
                         return false;
                       }}
                       className="p-3 pointer-events-auto"
@@ -346,6 +350,9 @@ const Booking = () => {
                 </Popover>
                 {isShopHoliday && (
                   <p className="text-sm text-destructive mt-2">🏖️ Tiệm nghỉ ngày này. Vui lòng chọn ngày khác.</p>
+                )}
+                {earlyCloseHour && !isShopHoliday && (
+                  <p className="text-sm text-amber-600 mt-2">⏰ Tiệm đóng cửa sớm lúc {earlyCloseHour}:00 ngày này.</p>
                 )}
               </div>
 

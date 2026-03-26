@@ -49,6 +49,7 @@ const AdminDashboard = () => {
   const [unavailTherapist, setUnavailTherapist] = useState('');
   const [holidayDate, setHolidayDate] = useState<Date | undefined>();
   const [holidayReason, setHolidayReason] = useState('');
+  const [earlyCloseHour, setEarlyCloseHour] = useState('none');
 
   const { data: bookings } = useQuery({
     queryKey: ['admin-bookings', filterTherapist],
@@ -135,8 +136,12 @@ const AdminDashboard = () => {
   });
 
   const addHoliday = useMutation({
-    mutationFn: async ({ date, reason }: { date: string; reason?: string }) => {
-      const { error } = await supabase.from('shop_holidays').insert({ holiday_date: date, reason });
+    mutationFn: async ({ date, reason, earlyCloseHour }: { date: string; reason?: string; earlyCloseHour?: number }) => {
+      const { error } = await supabase.from('shop_holidays').insert({
+        holiday_date: date,
+        reason,
+        early_close_hour: earlyCloseHour ?? null,
+      } as any);
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['shop-holidays'] }); toast({ title: 'Đã thêm ngày nghỉ tiệm' }); },
@@ -403,13 +408,13 @@ const AdminDashboard = () => {
               </CardContent>
             </Card>
 
-            {/* Shop Holidays */}
+            {/* Shop Holidays & Early Close */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Ngày nghỉ tiệm (cả tiệm đóng cửa)</CardTitle>
+                <CardTitle className="text-base">Ngày nghỉ tiệm / Đóng cửa sớm</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 items-end">
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button variant="outline" size="sm" className={cn(!holidayDate && "text-muted-foreground")}>
@@ -421,23 +426,44 @@ const AdminDashboard = () => {
                       <Calendar mode="single" selected={holidayDate} onSelect={setHolidayDate} className="p-3 pointer-events-auto" />
                     </PopoverContent>
                   </Popover>
+                  <div className="flex items-center gap-1">
+                    <Label className="text-xs whitespace-nowrap">Đóng cửa sớm lúc</Label>
+                    <Select value={earlyCloseHour} onValueChange={setEarlyCloseHour}>
+                      <SelectTrigger className="w-[90px] h-8"><SelectValue placeholder="Không" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nghỉ cả ngày</SelectItem>
+                        {Array.from({ length: 13 }, (_, i) => i + 10).map(h => (
+                          <SelectItem key={h} value={String(h)}>{h}:00</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <Input placeholder="Lý do (tuỳ chọn)" value={holidayReason} onChange={e => setHolidayReason(e.target.value)} className="w-[180px]" />
                   <Button size="sm" disabled={!holidayDate}
                     onClick={() => {
                       if (holidayDate) {
-                        addHoliday.mutate({ date: format(holidayDate, 'yyyy-MM-dd'), reason: holidayReason || undefined });
+                        addHoliday.mutate({
+                          date: format(holidayDate, 'yyyy-MM-dd'),
+                          reason: holidayReason || undefined,
+                          earlyCloseHour: earlyCloseHour !== 'none' ? parseInt(earlyCloseHour) : undefined,
+                        });
                         setHolidayDate(undefined);
                         setHolidayReason('');
+                        setEarlyCloseHour('none');
                       }
                     }}>
-                    <Plus className="h-4 w-4 mr-1" /> Thêm ngày nghỉ tiệm
+                    <Plus className="h-4 w-4 mr-1" /> Thêm
                   </Button>
                 </div>
                 {shopHolidays && shopHolidays.length > 0 && (
                   <div className="space-y-1">
                     {shopHolidays.filter((h: any) => h.holiday_date >= format(new Date(), 'yyyy-MM-dd')).map((h: any) => (
                       <div key={h.id} className="flex items-center justify-between py-1.5 px-3 bg-destructive/10 rounded text-sm">
-                        <span>🏖️ <strong>{h.holiday_date}</strong>{h.reason ? ` — ${h.reason}` : ''}</span>
+                        <span>
+                          {h.early_close_hour ? '⏰' : '🏖️'} <strong>{h.holiday_date}</strong>
+                          {h.early_close_hour ? ` — Đóng cửa lúc ${h.early_close_hour}:00` : ' — Nghỉ cả ngày'}
+                          {h.reason ? ` (${h.reason})` : ''}
+                        </span>
                         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeHoliday.mutate(h.id)}>
                           <X className="h-3 w-3" />
                         </Button>
