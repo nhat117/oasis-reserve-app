@@ -98,6 +98,7 @@ const AdminDashboard = () => {
   // OpenAI settings state
   const [openaiApiKey, setOpenaiApiKey] = useState('');
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState('');
+  const [openaiModel, setOpenaiModel] = useState('gpt-4o-mini');
 
   const { data: bookings } = useQuery({
     queryKey: ['admin-bookings', filterTherapist],
