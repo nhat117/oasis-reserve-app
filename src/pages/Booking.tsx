@@ -125,7 +125,9 @@ const Booking = () => {
       const slotMin = parseInt(timeStr.split(':')[1]);
       const endHour = parseInt(endStr);
       const endMin = parseInt(endStr.split(':')[1]);
-      if (slotHour < t.start_hour || endHour > t.end_hour) return false;
+      const endTotalMin = endHour * 60 + endMin;
+      const therapistEndMin = t.end_hour * 60;
+      if (slotHour < t.start_hour || endTotalMin > therapistEndMin) return false;
       // Check break time
       const tAny = t as any;
       if (tAny.break_start != null && tAny.break_end != null) {
@@ -351,6 +353,7 @@ const Booking = () => {
                       )}
                     >
                        <div className="font-medium">{service.name}</div>
+                       {service.description && <div className="text-sm text-muted-foreground mt-0.5">{service.description}</div>}
                        <div className="text-sm text-muted-foreground mt-1">{service.duration_minutes} {t('phút')} · {formatPrice(service.price)}</div>
                     </button>
                   ))}
@@ -380,6 +383,7 @@ const Booking = () => {
                           </div>
                           <div className="flex-1">
                             <div className="font-medium text-sm">{service.name}</div>
+                            {service.description && <div className="text-xs text-muted-foreground">{service.description}</div>}
                             <div className="text-xs text-muted-foreground">{service.duration_minutes} {t('phút')} · {formatPrice(service.price)}</div>
                           </div>
                         </button>
