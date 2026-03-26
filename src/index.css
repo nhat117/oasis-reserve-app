@@ -92,6 +92,11 @@
   }
 }
 
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+
 /* FullCalendar custom styles */
 .fc-custom .fc {
   --fc-border-color: hsl(var(--border));
