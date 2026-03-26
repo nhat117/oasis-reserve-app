@@ -337,20 +337,66 @@ const Booking = () => {
         {step === 1 && (
           <Card>
             <CardHeader><CardTitle>{t('1. Chọn dịch vụ')}</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              {services?.map(service => (
-                <button
-                  key={service.id}
-                  onClick={() => { setSelectedService(service.id); setStep(2); }}
-                  className={cn(
-                    "w-full text-left p-4 rounded-lg border transition-colors",
-                    selectedService === service.id ? "border-primary bg-primary/5" : "hover:border-primary/50"
-                  )}
-                >
-                   <div className="font-medium">{service.name}</div>
-                   <div className="text-sm text-muted-foreground mt-1">{service.duration_minutes} {t('phút')} · {formatPrice(service.price)}</div>
-                </button>
-              ))}
+            <CardContent className="space-y-4">
+              <div>
+                <Label className="text-base font-medium">{t('Dịch vụ chính')}</Label>
+                <div className="space-y-2 mt-2">
+                  {services?.map(service => (
+                    <button
+                      key={service.id}
+                      onClick={() => { setSelectedService(service.id); setSelectedAddOns(prev => prev.filter(id => id !== service.id)); }}
+                      className={cn(
+                        "w-full text-left p-4 rounded-lg border transition-colors",
+                        selectedService === service.id ? "border-primary bg-primary/5" : "hover:border-primary/50"
+                      )}
+                    >
+                       <div className="font-medium">{service.name}</div>
+                       <div className="text-sm text-muted-foreground mt-1">{service.duration_minutes} {t('phút')} · {formatPrice(service.price)}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {selectedService && services && services.filter(s => s.id !== selectedService).length > 0 && (
+                <div>
+                  <Label className="text-base font-medium">{t('Dịch vụ thêm (không bắt buộc)')}</Label>
+                  <div className="space-y-2 mt-2">
+                    {services.filter(s => s.id !== selectedService).map(service => {
+                      const isSelected = selectedAddOns.includes(service.id);
+                      return (
+                        <button
+                          key={service.id}
+                          onClick={() => setSelectedAddOns(prev => isSelected ? prev.filter(id => id !== service.id) : [...prev, service.id])}
+                          className={cn(
+                            "w-full text-left p-3 rounded-lg border transition-colors flex items-center gap-3",
+                            isSelected ? "border-primary bg-primary/5" : "hover:border-primary/50"
+                          )}
+                        >
+                          <div className={cn(
+                            "w-5 h-5 rounded border-2 flex items-center justify-center shrink-0",
+                            isSelected ? "border-primary bg-primary" : "border-muted-foreground/30"
+                          )}>
+                            {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-medium text-sm">{service.name}</div>
+                            <div className="text-xs text-muted-foreground">{service.duration_minutes} {t('phút')} · {formatPrice(service.price)}</div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {selectedService && (
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <div className="text-sm text-muted-foreground">
+                    {t('Tổng')}: {totalDuration} {t('phút')} · {formatPrice(totalPrice)}
+                  </div>
+                  <Button onClick={() => setStep(2)}>{t('Tiếp tục')}</Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
