@@ -11,28 +11,24 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowLeft, CalendarIcon, Check } from 'lucide-react';
 import logoImg from '@/assets/logo.png';
-import { format, addMinutes, isAfter, isBefore, isToday, startOfDay } from 'date-fns';
-import { vi } from 'date-fns/locale';
+import { format, addMinutes, isBefore, isToday, startOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
-const OPEN_HOUR = 9;
-const CLOSE_HOUR = 18;
-
 const Booking = () => {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const { toast } = useToast();
 
   const [step, setStep] = useState(1);
   const [selectedService, setSelectedService] = useState(searchParams.get('service') || '');
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [selectedTime, setSelectedTime] = useState('');
-  const [selectedTherapist, setSelectedTherapist] = useState('');
+  const [selectedTherapist, setSelectedTherapist] = useState('any');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookingComplete, setBookingComplete] = useState(false);
+  const [assignedTherapistName, setAssignedTherapistName] = useState('');
 
   const { data: services } = useQuery({
     queryKey: ['services'],
@@ -53,17 +49,13 @@ const Booking = () => {
   });
 
   const { data: existingBookings } = useQuery({
-    queryKey: ['bookings-availability', selectedDate?.toISOString(), selectedTherapist],
+    queryKey: ['bookings-availability', selectedDate?.toISOString()],
     queryFn: async () => {
       if (!selectedDate) return [];
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      let query = supabase.from('bookings').select('*')
+      const { data, error } = await supabase.from('bookings').select('*')
         .eq('booking_date', dateStr)
         .neq('status', 'cancelled');
-      if (selectedTherapist) {
-        query = query.eq('therapist_id', selectedTherapist);
-      }
-      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
@@ -72,51 +64,95 @@ const Booking = () => {
 
   const currentService = services?.find(s => s.id === selectedService);
 
-  const availableSlots = useMemo(() => {
-    if (!currentService || !selectedDate) return [];
-    const duration = currentService.duration_minutes;
-    const slots: string[] = [];
-    const now = new Date();
+  // Find available therapists for a given time slot
+  const getAvailableTherapists = (timeStr: string, duration: number) => {
+    if (!therapists || !selectedDate) return [];
+    const dayOfWeek = selectedDate.getDay() === 0 ? 7 : selectedDate.getDay();
+    const endStr = format(addMinutes(new Date(`2000-01-01T${timeStr}`), duration), 'HH:mm');
 
-    for (let h = OPEN_HOUR; h < CLOSE_HOUR; h++) {
+    return therapists.filter(t => {
+      // Check working days
+      if (!t.working_days.includes(dayOfWeek)) return false;
+      // Check working hours
+      const slotHour = parseInt(timeStr);
+      const endHour = parseInt(endStr);
+      if (slotHour < t.start_hour || endHour > t.end_hour) return false;
+      // Check if already booked
+      const isBooked = existingBookings?.some(b =>
+        b.therapist_id === t.id &&
+        b.start_time < endStr + ':00' && b.end_time > timeStr + ':00'
+      );
+      return !isBooked;
+    });
+  };
+
+  const availableSlots = useMemo(() => {
+    if (!currentService || !selectedDate || !therapists) return [];
+    const duration = currentService.duration_minutes;
+    const slots: { time: string; therapistCount: number }[] = [];
+    const now = new Date();
+    const dayOfWeek = selectedDate.getDay() === 0 ? 7 : selectedDate.getDay();
+
+    // Get the widest working hours range from all therapists working that day
+    const workingTherapists = therapists.filter(t => t.working_days.includes(dayOfWeek));
+    if (workingTherapists.length === 0) return [];
+
+    const minStart = Math.min(...workingTherapists.map(t => t.start_hour));
+    const maxEnd = Math.max(...workingTherapists.map(t => t.end_hour));
+
+    for (let h = minStart; h < maxEnd; h++) {
       for (let m = 0; m < 60; m += 30) {
         const slotStart = new Date(selectedDate);
         slotStart.setHours(h, m, 0, 0);
         const slotEnd = addMinutes(slotStart, duration);
 
-        if (slotEnd.getHours() > CLOSE_HOUR || (slotEnd.getHours() === CLOSE_HOUR && slotEnd.getMinutes() > 0)) continue;
+        if (slotEnd.getHours() > maxEnd || (slotEnd.getHours() === maxEnd && slotEnd.getMinutes() > 0)) continue;
         if (isToday(selectedDate) && isBefore(slotStart, now)) continue;
 
         const startStr = format(slotStart, 'HH:mm');
-        const endStr = format(slotEnd, 'HH:mm');
+        const available = getAvailableTherapists(startStr, duration);
 
-        const isBooked = existingBookings?.some(b => {
-          if (selectedTherapist && b.therapist_id !== selectedTherapist) return false;
-          return (b.start_time < endStr + ':00' && b.end_time > startStr + ':00');
-        });
-
-        if (!isBooked) {
-          slots.push(startStr);
+        // If specific therapist selected, check only that one
+        if (selectedTherapist !== 'any') {
+          const isAvail = available.some(t => t.id === selectedTherapist);
+          if (isAvail) slots.push({ time: startStr, therapistCount: 1 });
+        } else {
+          if (available.length > 0) slots.push({ time: startStr, therapistCount: available.length });
         }
       }
     }
     return slots;
-  }, [currentService, selectedDate, existingBookings, selectedTherapist]);
+  }, [currentService, selectedDate, existingBookings, selectedTherapist, therapists]);
 
   const handleSubmit = async () => {
-    if (!currentService || !selectedDate || !selectedTime || !selectedTherapist) return;
+    if (!currentService || !selectedDate || !selectedTime) return;
     setIsSubmitting(true);
 
     const startTime = selectedTime + ':00';
-    const endDate = addMinutes(
-      new Date(`2000-01-01T${selectedTime}`),
-      currentService.duration_minutes
-    );
+    const endDate = addMinutes(new Date(`2000-01-01T${selectedTime}`), currentService.duration_minutes);
     const endTime = format(endDate, 'HH:mm') + ':00';
+
+    // Determine therapist
+    let therapistId = selectedTherapist;
+    if (selectedTherapist === 'any') {
+      const available = getAvailableTherapists(selectedTime, currentService.duration_minutes);
+      if (available.length === 0) {
+        toast({ title: 'Lỗi', description: 'Không còn thợ trống. Vui lòng chọn giờ khác.', variant: 'destructive' });
+        setIsSubmitting(false);
+        return;
+      }
+      // Random pick
+      const picked = available[Math.floor(Math.random() * available.length)];
+      therapistId = picked.id;
+      setAssignedTherapistName(picked.name);
+    } else {
+      const t = therapists?.find(t => t.id === therapistId);
+      setAssignedTherapistName(t?.name || '');
+    }
 
     const { error } = await supabase.from('bookings').insert({
       service_id: selectedService,
-      therapist_id: selectedTherapist,
+      therapist_id: therapistId,
       customer_name: customerName.trim(),
       customer_phone: customerPhone.trim(),
       booking_date: format(selectedDate, 'yyyy-MM-dd'),
@@ -133,7 +169,9 @@ const Booking = () => {
     }
   };
 
-  const selectedTherapistName = therapists?.find(t => t.id === selectedTherapist)?.name;
+  const selectedTherapistName = selectedTherapist === 'any'
+    ? (assignedTherapistName || 'Tự động chọn')
+    : therapists?.find(t => t.id === selectedTherapist)?.name || '';
 
   if (bookingComplete) {
     return (
@@ -150,7 +188,7 @@ const Booking = () => {
               <p><strong>Dịch vụ:</strong> {currentService?.name}</p>
               <p><strong>Ngày:</strong> {selectedDate && format(selectedDate, 'dd/MM/yyyy')}</p>
               <p><strong>Giờ:</strong> {selectedTime}</p>
-              <p><strong>Thợ:</strong> {selectedTherapistName}</p>
+              <p><strong>Thợ:</strong> {assignedTherapistName || selectedTherapistName}</p>
               <p><strong>Khách:</strong> {customerName}</p>
               <p><strong>SĐT:</strong> {customerPhone}</p>
             </div>
@@ -247,29 +285,38 @@ const Booking = () => {
                   <Select value={selectedTherapist} onValueChange={(v) => { setSelectedTherapist(v); setSelectedTime(''); }}>
                     <SelectTrigger className="mt-1"><SelectValue placeholder="Chọn thợ" /></SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="any">🎲 Tự động chọn (bất kỳ thợ trống)</SelectItem>
                       {therapists?.map(t => (
-                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name} ({t.start_hour}:00–{t.end_hour}:00)
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
               )}
 
-              {selectedDate && selectedTherapist && (
+              {selectedDate && (
                 <div>
                   <Label>Giờ</Label>
                   {availableSlots.length === 0 ? (
-                    <p className="text-sm text-muted-foreground mt-2">Không có khung giờ trống. Vui lòng chọn ngày khác.</p>
+                    <p className="text-sm text-muted-foreground mt-2">Không có khung giờ trống. Vui lòng chọn ngày hoặc thợ khác.</p>
                   ) : (
                     <div className="grid grid-cols-4 gap-2 mt-2">
                       {availableSlots.map(slot => (
                         <Button
-                          key={slot}
-                          variant={selectedTime === slot ? 'default' : 'outline'}
+                          key={slot.time}
+                          variant={selectedTime === slot.time ? 'default' : 'outline'}
                           size="sm"
-                          onClick={() => setSelectedTime(slot)}
+                          onClick={() => setSelectedTime(slot.time)}
+                          className="relative"
                         >
-                          {slot}
+                          {slot.time}
+                          {selectedTherapist === 'any' && (
+                            <span className="absolute -top-1 -right-1 w-4 h-4 text-[9px] rounded-full bg-accent text-accent-foreground flex items-center justify-center">
+                              {slot.therapistCount}
+                            </span>
+                          )}
                         </Button>
                       ))}
                     </div>
@@ -281,7 +328,7 @@ const Booking = () => {
                 <Button variant="outline" onClick={() => setStep(1)}>Quay lại</Button>
                 <Button
                   className="flex-1"
-                  disabled={!selectedDate || !selectedTime || !selectedTherapist}
+                  disabled={!selectedDate || !selectedTime}
                   onClick={() => setStep(3)}
                 >
                   Tiếp tục

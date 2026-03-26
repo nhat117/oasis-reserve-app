@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { BookingCalendar } from '@/components/BookingCalendar';
 import { Textarea } from '@/components/ui/textarea';
+import { BookingStats } from '@/components/BookingStats';
 import { Leaf, LogOut, Plus, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -39,13 +40,14 @@ const AdminDashboard = () => {
   const [editingTherapist, setEditingTherapist] = useState<any>(null);
   const [therapistName, setTherapistName] = useState('');
   const [therapistPhone, setTherapistPhone] = useState('');
+  const [therapistStartHour, setTherapistStartHour] = useState('9');
+  const [therapistEndHour, setTherapistEndHour] = useState('18');
 
   const { data: bookings } = useQuery({
     queryKey: ['admin-bookings', filterTherapist],
     queryFn: async () => {
       let query = supabase.from('bookings').select('*, services(name), therapists(name)')
         .order('booking_date', { ascending: true }).order('start_time', { ascending: true });
-      if (filterTherapist !== 'all') query = query.eq('therapist_id', filterTherapist);
       if (filterTherapist !== 'all') query = query.eq('therapist_id', filterTherapist);
       const { data, error } = await query;
       if (error) throw error;
@@ -111,7 +113,7 @@ const AdminDashboard = () => {
 
   const saveTherapist = useMutation({
     mutationFn: async () => {
-      const payload = { name: therapistName, phone: therapistPhone || null };
+      const payload = { name: therapistName, phone: therapistPhone || null, start_hour: parseInt(therapistStartHour), end_hour: parseInt(therapistEndHour) };
       if (editingTherapist) {
         const { error } = await supabase.from('therapists').update(payload).eq('id', editingTherapist.id);
         if (error) throw error;
@@ -140,6 +142,8 @@ const AdminDashboard = () => {
     setEditingTherapist(therapist || null);
     setTherapistName(therapist?.name || '');
     setTherapistPhone(therapist?.phone || '');
+    setTherapistStartHour(String(therapist?.start_hour || 9));
+    setTherapistEndHour(String(therapist?.end_hour || 18));
     setTherapistDialog(true);
   };
 
@@ -168,12 +172,18 @@ const AdminDashboard = () => {
       </header>
 
       <div className="container mx-auto px-4 py-6">
-        <Tabs defaultValue="bookings">
+        <Tabs defaultValue="stats">
           <TabsList className="mb-6">
+            <TabsTrigger value="stats">Thống kê</TabsTrigger>
             <TabsTrigger value="bookings">Lịch hẹn</TabsTrigger>
             <TabsTrigger value="services">Dịch vụ</TabsTrigger>
             <TabsTrigger value="therapists">Thợ</TabsTrigger>
           </TabsList>
+
+          {/* Stats Tab */}
+          <TabsContent value="stats">
+            <BookingStats />
+          </TabsContent>
 
           {/* Bookings Tab */}
           <TabsContent value="bookings">
@@ -268,6 +278,10 @@ const AdminDashboard = () => {
                     <div className="space-y-4">
                       <div><Label>Tên</Label><Input value={therapistName} onChange={e => setTherapistName(e.target.value)} className="mt-1" /></div>
                       <div><Label>SĐT</Label><Input value={therapistPhone} onChange={e => setTherapistPhone(e.target.value)} className="mt-1" /></div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div><Label>Giờ bắt đầu</Label><Input type="number" min="6" max="22" value={therapistStartHour} onChange={e => setTherapistStartHour(e.target.value)} className="mt-1" /></div>
+                        <div><Label>Giờ kết thúc</Label><Input type="number" min="6" max="22" value={therapistEndHour} onChange={e => setTherapistEndHour(e.target.value)} className="mt-1" /></div>
+                      </div>
                       <Button className="w-full" onClick={() => saveTherapist.mutate()} disabled={!therapistName.trim()}>
                         {editingTherapist ? 'Cập nhật' : 'Thêm mới'}
                       </Button>
@@ -281,6 +295,7 @@ const AdminDashboard = () => {
                     <TableRow>
                       <TableHead>Tên</TableHead>
                       <TableHead>SĐT</TableHead>
+                      <TableHead>Giờ làm việc</TableHead>
                       <TableHead>Trạng thái</TableHead>
                       <TableHead></TableHead>
                     </TableRow>
@@ -290,6 +305,7 @@ const AdminDashboard = () => {
                       <TableRow key={t.id}>
                         <TableCell className="font-medium">{t.name}</TableCell>
                         <TableCell>{t.phone || '—'}</TableCell>
+                        <TableCell className="text-sm">{t.start_hour}:00 – {t.end_hour}:00</TableCell>
                         <TableCell><Badge variant={t.is_active ? 'default' : 'secondary'}>{t.is_active ? 'Hoạt động' : 'Tắt'}</Badge></TableCell>
                         <TableCell>
                           <Button variant="ghost" size="sm" onClick={() => openTherapistEdit(t)}><Pencil className="h-4 w-4" /></Button>
