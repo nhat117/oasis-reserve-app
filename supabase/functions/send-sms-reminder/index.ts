@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,109 +23,126 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
+    // Check if SMS reminders are enabled
+    const { data: enabledSetting } = await supabase
+      .from("app_settings").select("value").eq("key", "reminder_sms_enabled").single();
+    
+    if (enabledSetting?.value !== "true") {
+      return new Response(
+        JSON.stringify({ skipped: true, reason: "SMS reminders disabled" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Get settings
     const { data: phoneSetting } = await supabase
-      .from("app_settings")
-      .select("value")
-      .eq("key", "twilio_from_number")
-      .single();
-
+      .from("app_settings").select("value").eq("key", "twilio_from_number").single();
     const { data: whatsappSetting } = await supabase
-      .from("app_settings")
-      .select("value")
-      .eq("key", "whatsapp_enabled")
-      .single();
+      .from("app_settings").select("value").eq("key", "whatsapp_enabled").single();
 
     const fromNumber = phoneSetting?.value;
     const whatsappEnabled = whatsappSetting?.value === "true";
 
     if (!fromNumber) {
       return new Response(
-        JSON.stringify({ error: "Twilio phone number not configured. Set 'twilio_from_number' in app settings." }),
+        JSON.stringify({ error: "Twilio phone number not configured" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Find bookings happening in the next hour
+    // Get reminder intervals
+    const { data: interval1Setting } = await supabase
+      .from("app_settings").select("value").eq("key", "reminder_1st_hours").single();
+    const { data: interval2Setting } = await supabase
+      .from("app_settings").select("value").eq("key", "reminder_2nd_hours").single();
+
+    const reminder1Hours = parseInt(interval1Setting?.value || "24");
+    const reminder2Hours = parseInt(interval2Setting?.value || "1");
+
     const now = new Date();
-    const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
-    const today = now.toISOString().split("T")[0];
-
-    const currentTime = now.toTimeString().slice(0, 8);
-    const futureTime = oneHourLater.toTimeString().slice(0, 8);
-
-    const { data: bookings, error } = await supabase
-      .from("bookings")
-      .select("*, services(name), therapists(name)")
-      .eq("booking_date", today)
-      .eq("status", "confirmed")
-      .gte("start_time", currentTime)
-      .lte("start_time", futureTime);
-
-    if (error) throw error;
-
     const results: any[] = [];
 
-    for (const booking of bookings || []) {
-      if (!booking.customer_phone) continue;
+    for (const hoursAhead of [reminder1Hours, reminder2Hours]) {
+      if (hoursAhead <= 0) continue;
 
-      // Format phone number (add +84 for Vietnamese numbers)
-      let phone = booking.customer_phone.replace(/\s+/g, "");
-      if (phone.startsWith("0")) {
-        phone = "+84" + phone.slice(1);
-      } else if (!phone.startsWith("+")) {
-        phone = "+84" + phone;
+      const targetTime = new Date(now.getTime() + hoursAhead * 60 * 60 * 1000);
+      const targetDate = targetTime.toISOString().split("T")[0];
+      const targetHour = targetTime.getUTCHours().toString().padStart(2, "0");
+      const targetMinute = targetTime.getUTCMinutes().toString().padStart(2, "0");
+      
+      const windowStart = `${targetHour}:${targetMinute}:00`;
+      const windowEndTime = new Date(targetTime.getTime() + 30 * 60 * 1000);
+      const windowEndHour = windowEndTime.getUTCHours().toString().padStart(2, "0");
+      const windowEndMinute = windowEndTime.getUTCMinutes().toString().padStart(2, "0");
+      const windowEnd = `${windowEndHour}:${windowEndMinute}:00`;
+
+      const { data: bookings, error } = await supabase
+        .from("bookings")
+        .select("*, services(name), therapists(name)")
+        .eq("booking_date", targetDate)
+        .eq("status", "confirmed")
+        .gte("start_time", windowStart)
+        .lt("start_time", windowEnd);
+
+      if (error) {
+        console.error("Failed to fetch bookings", error);
+        continue;
       }
 
-      const serviceName = (booking as any).services?.name || "";
-      const therapistName = (booking as any).therapists?.name || "";
-      const message = `Royal Head Spa nhắc lịch: Bạn có lịch hẹn "${serviceName}" lúc ${booking.start_time.slice(0, 5)} hôm nay với ${therapistName}. Hẹn gặp bạn!`;
+      for (const booking of bookings || []) {
+        if (!booking.customer_phone) continue;
 
-      try {
-        // Send SMS
-        const smsResponse = await fetch(`${GATEWAY_URL}/Messages.json`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "X-Connection-Api-Key": TWILIO_API_KEY,
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            To: phone,
-            From: fromNumber,
-            Body: message,
-          }),
-        });
-
-        const smsData = await smsResponse.json();
-        const result: any = { booking_id: booking.id, phone, sms: smsResponse.ok ? smsData.sid : smsData };
-
-        // Send WhatsApp if enabled
-        if (whatsappEnabled) {
-          try {
-            const waResponse = await fetch(`${GATEWAY_URL}/Messages.json`, {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${LOVABLE_API_KEY}`,
-                "X-Connection-Api-Key": TWILIO_API_KEY,
-                "Content-Type": "application/x-www-form-urlencoded",
-              },
-              body: new URLSearchParams({
-                To: `whatsapp:${phone}`,
-                From: `whatsapp:${fromNumber}`,
-                Body: message,
-              }),
-            });
-            const waData = await waResponse.json();
-            result.whatsapp = waResponse.ok ? waData.sid : waData;
-          } catch (waErr) {
-            result.whatsapp_error = String(waErr);
-          }
+        let phone = booking.customer_phone.replace(/\s+/g, "");
+        if (phone.startsWith("0")) {
+          phone = "+84" + phone.slice(1);
+        } else if (!phone.startsWith("+")) {
+          phone = "+84" + phone;
         }
 
-        results.push(result);
-      } catch (err) {
-        results.push({ booking_id: booking.id, phone, error: String(err) });
+        const serviceName = (booking as any).services?.name || "";
+        const therapistName = (booking as any).therapists?.name || "";
+        const message = `Royal Head Spa nhắc lịch: Bạn có lịch hẹn "${serviceName}" lúc ${booking.start_time.slice(0, 5)} ngày ${booking.booking_date} với ${therapistName}. Hẹn gặp bạn!`;
+
+        try {
+          const smsResponse = await fetch(`${GATEWAY_URL}/Messages.json`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              "X-Connection-Api-Key": TWILIO_API_KEY,
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({ To: phone, From: fromNumber, Body: message }),
+          });
+
+          const smsData = await smsResponse.json();
+          const result: any = { booking_id: booking.id, phone, sms: smsResponse.ok ? smsData.sid : smsData };
+
+          if (whatsappEnabled) {
+            try {
+              const waResponse = await fetch(`${GATEWAY_URL}/Messages.json`, {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${LOVABLE_API_KEY}`,
+                  "X-Connection-Api-Key": TWILIO_API_KEY,
+                  "Content-Type": "application/x-www-form-urlencoded",
+                },
+                body: new URLSearchParams({
+                  To: `whatsapp:${phone}`,
+                  From: `whatsapp:${fromNumber}`,
+                  Body: message,
+                }),
+              });
+              const waData = await waResponse.json();
+              result.whatsapp = waResponse.ok ? waData.sid : waData;
+            } catch (waErr) {
+              result.whatsapp_error = String(waErr);
+            }
+          }
+
+          results.push(result);
+        } catch (err) {
+          results.push({ booking_id: booking.id, phone, error: String(err) });
+        }
       }
     }
 

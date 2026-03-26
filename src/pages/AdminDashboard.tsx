@@ -112,6 +112,12 @@ const AdminDashboard = () => {
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState('');
   const [openaiModel, setOpenaiModel] = useState('gpt-4o-mini');
 
+  // Reminder settings state
+  const [reminderEmailEnabled, setReminderEmailEnabled] = useState(false);
+  const [reminderSmsEnabled, setReminderSmsEnabled] = useState(false);
+  const [reminder1stHours, setReminder1stHours] = useState('24');
+  const [reminder2ndHours, setReminder2ndHours] = useState('1');
+
   const { data: bookings } = useQuery({
     queryKey: ['admin-bookings', filterTherapist],
     queryFn: async () => {
@@ -399,6 +405,45 @@ const AdminDashboard = () => {
       }
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['openai-settings'] }); toast({ title: t('Đã lưu cài đặt OpenAI') }); },
+    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+  });
+
+  // Reminder settings
+  const { data: reminderSettings } = useQuery({
+    queryKey: ['reminder-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('app_settings').select('key, value')
+        .in('key', ['reminder_email_enabled', 'reminder_sms_enabled', 'reminder_1st_hours', 'reminder_2nd_hours']);
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      data?.forEach(r => { map[r.key] = r.value; });
+      return map;
+    },
+  });
+
+  useEffect(() => {
+    if (reminderSettings) {
+      setReminderEmailEnabled(reminderSettings['reminder_email_enabled'] === 'true');
+      setReminderSmsEnabled(reminderSettings['reminder_sms_enabled'] === 'true');
+      setReminder1stHours(reminderSettings['reminder_1st_hours'] || '24');
+      setReminder2ndHours(reminderSettings['reminder_2nd_hours'] || '1');
+    }
+  }, [reminderSettings]);
+
+  const saveReminderSettings = useMutation({
+    mutationFn: async () => {
+      const rows = [
+        { key: 'reminder_email_enabled', value: String(reminderEmailEnabled) },
+        { key: 'reminder_sms_enabled', value: String(reminderSmsEnabled) },
+        { key: 'reminder_1st_hours', value: reminder1stHours },
+        { key: 'reminder_2nd_hours', value: reminder2ndHours },
+      ];
+      for (const row of rows) {
+        const { error } = await supabase.from('app_settings').upsert(row);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['reminder-settings'] }); toast({ title: t('Đã lưu cài đặt nhắc lịch') }); },
     onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
 
@@ -1516,6 +1561,63 @@ const AdminDashboard = () => {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Auto Reminder Settings */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">⏰ {t('Nhắc lịch tự động')}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-sm">📧 {t('Nhắc qua Email')}</p>
+                    <p className="text-xs text-muted-foreground">{t('Gửi email nhắc lịch tự động cho khách có email')}</p>
+                  </div>
+                  <Switch checked={reminderEmailEnabled} onCheckedChange={setReminderEmailEnabled} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-sm">📱 {t('Nhắc qua SMS')}</p>
+                    <p className="text-xs text-muted-foreground">{t('Gửi SMS nhắc lịch tự động (cần cấu hình Twilio)')}</p>
+                  </div>
+                  <Switch checked={reminderSmsEnabled} onCheckedChange={setReminderSmsEnabled} />
+                </div>
+                <div className="border-t pt-3 space-y-3">
+                  <p className="text-sm font-medium">{t('Thời gian nhắc')}</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-xs">{t('Lần 1 (giờ trước lịch hẹn)')}</Label>
+                      <Select value={reminder1stHours} onValueChange={setReminder1stHours}>
+                        <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="48">48h (2 {t('ngày')})</SelectItem>
+                          <SelectItem value="24">24h (1 {t('ngày')})</SelectItem>
+                          <SelectItem value="12">12h</SelectItem>
+                          <SelectItem value="6">6h</SelectItem>
+                          <SelectItem value="3">3h</SelectItem>
+                          <SelectItem value="2">2h</SelectItem>
+                          <SelectItem value="0">{t('Tắt')}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">{t('Lần 2 (giờ trước lịch hẹn)')}</Label>
+                      <Select value={reminder2ndHours} onValueChange={setReminder2ndHours}>
+                        <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="3">3h</SelectItem>
+                          <SelectItem value="2">2h</SelectItem>
+                          <SelectItem value="1">1h</SelectItem>
+                          <SelectItem value="0">{t('Tắt')}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+                <Button size="sm" onClick={() => saveReminderSettings.mutate()}>{t('Lưu cài đặt nhắc lịch')}</Button>
+              </CardContent>
+            </Card>
+
             {/* Resend Email Settings */}
             <Card>
               <CardHeader className="pb-3">
