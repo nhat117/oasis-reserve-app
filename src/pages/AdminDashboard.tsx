@@ -1110,40 +1110,68 @@ const AdminDashboard = () => {
                     </div>
                   );
                   return (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>{t('Ngày')}</TableHead>
-                        <TableHead>{t('Khách hàng')}</TableHead>
-                        <TableHead>{t('Dịch vụ')}</TableHead>
-                        <TableHead>{t('Số tiền')}</TableHead>
-                        <TableHead>{t('Phương thức')}</TableHead>
-                        <TableHead>{t('Ghi chú')}</TableHead>
-                        <TableHead></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filtered.map((s: any) => (
-                        <TableRow key={s.id}>
-                          <TableCell className="text-sm">{s.sale_date}</TableCell>
-                          <TableCell className="text-sm">{s.bookings?.customer_name || '—'}</TableCell>
-                          <TableCell className="text-sm">{s.bookings?.services?.name || '—'}</TableCell>
-                          <TableCell className="font-semibold">A$ {Number(s.amount).toLocaleString()}</TableCell>
-                          <TableCell>
-                            <Badge variant={s.payment_method === 'card' ? 'default' : 'secondary'}>
-                              {s.payment_method === 'card' ? t('Thẻ') : t('Tiền mặt')}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground max-w-[150px] truncate">{s.notes || '—'}</TableCell>
-                          <TableCell>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteSale.mutate(s.id)}>
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                   </Table>
+                    <>
+                      {/* Mobile card layout */}
+                      <div className="space-y-3 sm:hidden">
+                        {filtered.map((s: any) => (
+                          <div key={s.id} className="border rounded-lg p-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-semibold">{formatPrice(Number(s.amount))}</span>
+                              <div className="flex items-center gap-2">
+                                <Badge variant={s.payment_method === 'card' ? 'default' : 'secondary'} className="text-xs">
+                                  {s.payment_method === 'card' ? t('Thẻ') : t('Tiền mặt')}
+                                </Badge>
+                                <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => deleteSale.mutate(s.id)}>
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="text-xs text-muted-foreground space-y-0.5">
+                              <p>{s.sale_date} · {s.bookings?.customer_name || '—'}</p>
+                              <p>{s.bookings?.services?.name || '—'}</p>
+                              {s.notes && <p className="truncate">{s.notes}</p>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {/* Desktop table layout */}
+                      <div className="hidden sm:block">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>{t('Ngày')}</TableHead>
+                              <TableHead>{t('Khách hàng')}</TableHead>
+                              <TableHead>{t('Dịch vụ')}</TableHead>
+                              <TableHead>{t('Số tiền')}</TableHead>
+                              <TableHead>{t('Phương thức')}</TableHead>
+                              <TableHead>{t('Ghi chú')}</TableHead>
+                              <TableHead></TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {filtered.map((s: any) => (
+                              <TableRow key={s.id}>
+                                <TableCell className="text-sm">{s.sale_date}</TableCell>
+                                <TableCell className="text-sm">{s.bookings?.customer_name || '—'}</TableCell>
+                                <TableCell className="text-sm">{s.bookings?.services?.name || '—'}</TableCell>
+                                <TableCell className="font-semibold">{formatPrice(Number(s.amount))}</TableCell>
+                                <TableCell>
+                                  <Badge variant={s.payment_method === 'card' ? 'default' : 'secondary'}>
+                                    {s.payment_method === 'card' ? t('Thẻ') : t('Tiền mặt')}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-xs text-muted-foreground max-w-[150px] truncate">{s.notes || '—'}</TableCell>
+                                <TableCell>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteSale.mutate(s.id)}>
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </>
                   );
                 })()}
               </CardContent>
