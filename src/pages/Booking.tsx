@@ -311,8 +311,10 @@ const Booking = () => {
                   <Select value={selectedTherapist} onValueChange={(v) => { setSelectedTherapist(v); setSelectedTime(''); }}>
                     <SelectTrigger className="mt-1"><SelectValue placeholder="Chọn thợ" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="any">🎲 Tự động chọn (bất kỳ thợ trống)</SelectItem>
-                      {therapists?.map(t => (
+                      {randomEnabled !== false && (
+                        <SelectItem value="any">🎲 Tự động chọn (bất kỳ thợ trống)</SelectItem>
+                      )}
+                      {therapists?.filter(t => !unavailability?.includes(t.id)).map(t => (
                         <SelectItem key={t.id} value={t.id}>
                           {t.name} ({t.start_hour}:00–{t.end_hour}:00)
                         </SelectItem>
