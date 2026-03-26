@@ -218,18 +218,21 @@ export type Database = {
       shop_holidays: {
         Row: {
           created_at: string
+          early_close_hour: number | null
           holiday_date: string
           id: string
           reason: string | null
         }
         Insert: {
           created_at?: string
+          early_close_hour?: number | null
           holiday_date: string
           id?: string
           reason?: string | null
         }
         Update: {
           created_at?: string
+          early_close_hour?: number | null
           holiday_date?: string
           id?: string
           reason?: string | null
