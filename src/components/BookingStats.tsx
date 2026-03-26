@@ -56,6 +56,17 @@ export function BookingStats({ className }: StatsProps) {
     },
   });
 
+  const { data: sales } = useQuery({
+    queryKey: ['stats-sales'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('sales')
+        .select('*')
+        .order('sale_date', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const formatPrice = (p: number) => `A$ ${p.toLocaleString()}`;
 
   const stats = useMemo(() => {
