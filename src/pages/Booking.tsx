@@ -323,7 +323,7 @@ const Booking = () => {
                   )}
                 >
                   <div className="font-medium">{service.name}</div>
-                  <div className="text-sm text-muted-foreground mt-1">{service.duration_minutes} phút · {new Intl.NumberFormat('vi-VN').format(service.price)}đ</div>
+                  <div className="text-sm text-muted-foreground mt-1">{service.duration_minutes} phút · {formatPrice(service.price)}</div>
                 </button>
               ))}
             </CardContent>
