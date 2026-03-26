@@ -885,7 +885,7 @@ const AdminDashboard = () => {
                           <TableCell className="font-semibold">A$ {Number(s.amount).toLocaleString()}</TableCell>
                           <TableCell>
                             <Badge variant={s.payment_method === 'card' ? 'default' : 'secondary'}>
-                              {s.payment_method === 'card' ? '💳 ' + t('Thẻ') : '💵 ' + t('Tiền mặt')}
+                              {s.payment_method === 'card' ? t('Thẻ') : t('Tiền mặt')}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground max-w-[150px] truncate">{s.notes || '—'}</TableCell>
