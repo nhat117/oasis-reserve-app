@@ -908,6 +908,26 @@ const AdminDashboard = () => {
                 </div>
               </CardContent>
             </Card>
+            {/* Email Notification Settings */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">📧 {t('Cài đặt email')}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-sm">{t('Email xác nhận đặt lịch')}</p>
+                    <p className="text-xs text-muted-foreground">{t('Tự động gửi email xác nhận khi khách đặt lịch thành công')}</p>
+                  </div>
+                  <Badge variant="default">{t('Đã bật')}</Badge>
+                </div>
+                <div className="bg-muted rounded-lg p-3 text-sm space-y-1">
+                  <p className="text-muted-foreground">{t('Email gửi từ')}: <strong>notify.thinkflow.me</strong></p>
+                  <p className="text-muted-foreground">{t('Mẫu')}: {t('Xác nhận đặt lịch')}, {t('Nhắc lịch hẹn')}</p>
+                </div>
+                <p className="text-xs text-muted-foreground">{t('Email sẽ được gửi tự động khi khách hàng cung cấp địa chỉ email khi đặt lịch.')}</p>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
