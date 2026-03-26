@@ -1067,24 +1067,28 @@ const AdminDashboard = () => {
               </CardHeader>
               <CardContent>
                 {/* Sales filters */}
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <Input placeholder={t('Tìm khách hàng...')} value={salesFilterSearch} onChange={e => setSalesFilterSearch(e.target.value)} className="w-40 h-8 text-sm" />
-                  <Input type="date" value={salesFilterDateFrom} onChange={e => setSalesFilterDateFrom(e.target.value)} className="w-36 h-8 text-sm" />
-                  <span className="self-center text-xs text-muted-foreground">—</span>
-                  <Input type="date" value={salesFilterDateTo} onChange={e => setSalesFilterDateTo(e.target.value)} className="w-36 h-8 text-sm" />
-                  <Select value={salesFilterMethod} onValueChange={setSalesFilterMethod}>
-                    <SelectTrigger className="w-28 h-8 text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{t('Tất cả')}</SelectItem>
-                      <SelectItem value="cash">{t('Tiền mặt')}</SelectItem>
-                      <SelectItem value="card">{t('Thẻ')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {(salesFilterSearch || salesFilterDateFrom || salesFilterDateTo || salesFilterMethod !== 'all') && (
-                    <Button variant="ghost" size="sm" className="h-8" onClick={() => { setSalesFilterSearch(''); setSalesFilterDateFrom(''); setSalesFilterDateTo(''); setSalesFilterMethod('all'); }}>
-                      <X className="h-3 w-3 mr-1" />{t('Xóa lọc')}
-                    </Button>
-                  )}
+                <div className="flex flex-col sm:flex-row flex-wrap gap-2 mb-4">
+                  <Input placeholder={t('Tìm khách hàng...')} value={salesFilterSearch} onChange={e => setSalesFilterSearch(e.target.value)} className="w-full sm:w-40 h-8 text-sm" />
+                  <div className="flex gap-2 items-center">
+                    <Input type="date" value={salesFilterDateFrom} onChange={e => setSalesFilterDateFrom(e.target.value)} className="flex-1 sm:w-36 h-8 text-sm" />
+                    <span className="text-xs text-muted-foreground">—</span>
+                    <Input type="date" value={salesFilterDateTo} onChange={e => setSalesFilterDateTo(e.target.value)} className="flex-1 sm:w-36 h-8 text-sm" />
+                  </div>
+                  <div className="flex gap-2">
+                    <Select value={salesFilterMethod} onValueChange={setSalesFilterMethod}>
+                      <SelectTrigger className="flex-1 sm:w-28 h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{t('Tất cả')}</SelectItem>
+                        <SelectItem value="cash">{t('Tiền mặt')}</SelectItem>
+                        <SelectItem value="card">{t('Thẻ')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {(salesFilterSearch || salesFilterDateFrom || salesFilterDateTo || salesFilterMethod !== 'all') && (
+                      <Button variant="ghost" size="sm" className="h-8" onClick={() => { setSalesFilterSearch(''); setSalesFilterDateFrom(''); setSalesFilterDateTo(''); setSalesFilterMethod('all'); }}>
+                        <X className="h-3 w-3 mr-1" />{t('Xóa lọc')}
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 {(() => {
                   const filtered = (sales || []).filter((s: any) => {
