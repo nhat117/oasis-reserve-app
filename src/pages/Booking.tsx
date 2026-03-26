@@ -20,7 +20,8 @@ import { LanguageSwitcher, useI18n } from '@/hooks/useI18n';
 const Booking = () => {
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
-  const { formatPrice, t } = useI18n();
+  const { formatPrice, t, lang } = useI18n();
+  const dateLocale = lang === 'vi' ? viLocale : enAU;
 
   const [step, setStep] = useState(1);
   const [selectedService, setSelectedService] = useState(searchParams.get('service') || '');
