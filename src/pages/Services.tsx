@@ -54,12 +54,12 @@ const Services = () => {
             ))
           ) : (
             services?.map((service) => (
-              <Card key={service.id} className="hover:shadow-md transition-shadow">
-                <CardHeader>
+              <Card key={service.id} className="hover:shadow-md transition-shadow flex flex-col h-full">
+                <CardHeader className="flex-1">
                   <CardTitle className="text-xl">{service.name}</CardTitle>
-                  <CardDescription>{service.description}</CardDescription>
+                  <CardDescription className="line-clamp-3">{service.description}</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-4 pt-0">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
                       <Clock className="h-4 w-4" />
