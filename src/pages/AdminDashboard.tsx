@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { BookingCalendar } from '@/components/BookingCalendar';
 import { Textarea } from '@/components/ui/textarea';
 import { BookingStats } from '@/components/BookingStats';
-import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2 } from 'lucide-react';
+import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -750,9 +750,10 @@ const AdminDashboard = () => {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-6">
+      <div className="container mx-auto px-4 py-6 pb-24 sm:pb-6">
         <Tabs defaultValue="stats">
-          <TabsList className="mb-6">
+          {/* Desktop tabs - hidden on mobile */}
+          <TabsList className="mb-6 hidden sm:inline-flex">
             <TabsTrigger value="stats">{t('Thống kê')}</TabsTrigger>
             <TabsTrigger value="bookings">{t('Lịch hẹn')}</TabsTrigger>
             <TabsTrigger value="sales"><DollarSign className="h-4 w-4 mr-1" /> {t('Thanh toán')}</TabsTrigger>
@@ -760,6 +761,25 @@ const AdminDashboard = () => {
             <TabsTrigger value="therapists">{t('Thợ')}</TabsTrigger>
             <TabsTrigger value="settings"><Settings className="h-4 w-4 mr-1" /> {t('Cài đặt')}</TabsTrigger>
           </TabsList>
+
+          {/* Mobile bottom nav */}
+          <div className="fixed bottom-0 left-0 right-0 z-50 sm:hidden bg-card border-t safe-bottom">
+            <TabsList className="w-full h-auto bg-transparent rounded-none grid grid-cols-6 gap-0 p-0">
+              {[
+                { value: 'stats', icon: BarChart3, label: t('Thống kê') },
+                { value: 'bookings', icon: CalendarDays, label: t('Lịch') },
+                { value: 'sales', icon: DollarSign, label: t('Thu') },
+                { value: 'services', icon: Scissors, label: t('Dịch vụ') },
+                { value: 'therapists', icon: Users, label: t('Thợ') },
+                { value: 'settings', icon: Settings, label: t('Cài đặt') },
+              ].map(tab => (
+                <TabsTrigger key={tab.value} value={tab.value} className="flex-col gap-0.5 py-2 px-1 rounded-none data-[state=active]:bg-primary/10 data-[state=active]:shadow-none h-auto text-xs">
+                  <tab.icon className="h-5 w-5" />
+                  <span className="text-[10px] leading-tight">{tab.label}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
 
           {/* Stats Tab */}
           <TabsContent value="stats">
