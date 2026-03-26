@@ -96,6 +96,12 @@ const AdminDashboard = () => {
   // Card surcharge state
   const [cardSurchargePercent, setCardSurchargePercent] = useState('0');
 
+  // Sales filter state
+  const [salesFilterMethod, setSalesFilterMethod] = useState('all');
+  const [salesFilterDateFrom, setSalesFilterDateFrom] = useState('');
+  const [salesFilterDateTo, setSalesFilterDateTo] = useState('');
+  const [salesFilterSearch, setSalesFilterSearch] = useState('');
+
   // OpenAI settings state
   const [openaiApiKey, setOpenaiApiKey] = useState('');
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState('');
