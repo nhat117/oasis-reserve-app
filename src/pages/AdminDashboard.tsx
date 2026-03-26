@@ -296,6 +296,7 @@ const AdminDashboard = () => {
                     <TableRow>
                       <TableHead>Tên</TableHead>
                       <TableHead>SĐT</TableHead>
+                      <TableHead>Giờ làm việc</TableHead>
                       <TableHead>Trạng thái</TableHead>
                       <TableHead></TableHead>
                     </TableRow>
@@ -305,6 +306,7 @@ const AdminDashboard = () => {
                       <TableRow key={t.id}>
                         <TableCell className="font-medium">{t.name}</TableCell>
                         <TableCell>{t.phone || '—'}</TableCell>
+                        <TableCell className="text-sm">{t.start_hour}:00 – {t.end_hour}:00</TableCell>
                         <TableCell><Badge variant={t.is_active ? 'default' : 'secondary'}>{t.is_active ? 'Hoạt động' : 'Tắt'}</Badge></TableCell>
                         <TableCell>
                           <Button variant="ghost" size="sm" onClick={() => openTherapistEdit(t)}><Pencil className="h-4 w-4" /></Button>
