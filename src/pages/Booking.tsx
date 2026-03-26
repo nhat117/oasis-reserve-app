@@ -144,7 +144,8 @@ const Booking = () => {
         slotStart.setHours(h, m, 0, 0);
         const slotEnd = addMinutes(slotStart, duration);
 
-        if (slotEnd.getHours() > maxEnd || (slotEnd.getHours() === maxEnd && slotEnd.getMinutes() > 0)) continue;
+        const effectiveMaxEnd = earlyCloseHour ? Math.min(maxEnd, earlyCloseHour) : maxEnd;
+        if (slotEnd.getHours() > effectiveMaxEnd || (slotEnd.getHours() === effectiveMaxEnd && slotEnd.getMinutes() > 0)) continue;
         if (isToday(selectedDate) && isBefore(slotStart, now)) continue;
 
         const startStr = format(slotStart, 'HH:mm');
