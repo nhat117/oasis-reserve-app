@@ -77,6 +77,7 @@ const AdminDashboard = () => {
   const [saleAmount, setSaleAmount] = useState('');
   const [salePaymentMethod, setSalePaymentMethod] = useState<'cash' | 'card'>('cash');
   const [saleNotes, setSaleNotes] = useState('');
+  const [saleAddOns, setSaleAddOns] = useState<string[]>([]);
 
   // Currency settings state
   const [exchangeUSD, setExchangeUSD] = useState('');
@@ -144,7 +145,11 @@ const AdminDashboard = () => {
 
   const createSale = useMutation({
     mutationFn: async () => {
-      const baseAmount = parseFloat(saleAmount);
+      const addOnTotal = saleAddOns.reduce((sum, id) => {
+        const svc = services?.find(s => s.id === id);
+        return sum + (svc?.price || 0);
+      }, 0);
+      const baseAmount = parseFloat(saleAmount) + addOnTotal;
       const surcharge = salePaymentMethod === 'card' ? baseAmount * (parseFloat(cardSurchargeSetting || '0') / 100) : 0;
       const totalAmount = baseAmount + surcharge;
       const payload: any = {
@@ -168,6 +173,7 @@ const AdminDashboard = () => {
       setSaleAmount('');
       setSalePaymentMethod('cash');
       setSaleNotes('');
+      setSaleAddOns([]);
       toast({ title: t('Đã ghi nhận thanh toán') });
     },
     onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
@@ -891,7 +897,7 @@ const AdminDashboard = () => {
             <Card>
               <CardHeader className="flex-row items-center justify-between space-y-0">
                 <CardTitle>{t('Thanh toán')}</CardTitle>
-                <Dialog open={saleDialog} onOpenChange={(open) => { setSaleDialog(open); if (!open) { setSaleType('booking'); setSaleBookingId(''); setSaleServiceId(''); setSaleCustomerName(''); setSaleAmount(''); setSalePaymentMethod('cash'); setSaleNotes(''); } }}>
+                <Dialog open={saleDialog} onOpenChange={(open) => { setSaleDialog(open); if (!open) { setSaleType('booking'); setSaleBookingId(''); setSaleServiceId(''); setSaleCustomerName(''); setSaleAmount(''); setSalePaymentMethod('cash'); setSaleNotes(''); setSaleAddOns([]); } }}>
                   <DialogTrigger asChild>
                     <Button size="sm"><Plus className="h-4 w-4 mr-1" /> {t('Tạo thanh toán')}</Button>
                   </DialogTrigger>
@@ -959,6 +965,32 @@ const AdminDashboard = () => {
                         </>
                       )}
 
+                      {/* Add-on services */}
+                      <div>
+                        <Label>{t('Dịch vụ thêm')}</Label>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {services?.filter(s => s.is_active).map(s => {
+                            const isSelected = saleAddOns.includes(s.id);
+                            return (
+                              <Button
+                                key={s.id}
+                                type="button"
+                                size="sm"
+                                variant={isSelected ? 'default' : 'outline'}
+                                onClick={() => setSaleAddOns(prev => isSelected ? prev.filter(id => id !== s.id) : [...prev, s.id])}
+                              >
+                                {s.name} +{formatPrice(s.price)}
+                              </Button>
+                            );
+                          })}
+                        </div>
+                        {saleAddOns.length > 0 && (
+                          <div className="mt-2 text-sm text-muted-foreground">
+                            {t('Tổng thêm')}: {formatPrice(saleAddOns.reduce((sum, id) => sum + (services?.find(s => s.id === id)?.price || 0), 0))}
+                          </div>
+                        )}
+                      </div>
+
                       <div>
                         <Label>{t('Số tiền (AUD)')}</Label>
                         <Input type="number" value={saleAmount} onChange={e => setSaleAmount(e.target.value)} className="mt-1" placeholder="0" />
@@ -973,12 +1005,22 @@ const AdminDashboard = () => {
                             {t('Thẻ')}
                           </Button>
                         </div>
-                        {salePaymentMethod === 'card' && parseFloat(cardSurchargeSetting || '0') > 0 && saleAmount && (
-                          <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-950/30 rounded text-sm text-amber-700 dark:text-amber-400">
-                            {t('Phụ phí thẻ')}: {cardSurchargeSetting}% = <strong>A$ {(parseFloat(saleAmount) * parseFloat(cardSurchargeSetting) / 100).toFixed(2)}</strong>
-                            <br />{t('Tổng')}: <strong>A$ {(parseFloat(saleAmount) * (1 + parseFloat(cardSurchargeSetting) / 100)).toFixed(2)}</strong>
-                          </div>
-                        )}
+                        {(() => {
+                          const addOnTotal = saleAddOns.reduce((sum, id) => sum + (services?.find(s => s.id === id)?.price || 0), 0);
+                          const base = parseFloat(saleAmount || '0') + addOnTotal;
+                          const surchargeRate = parseFloat(cardSurchargeSetting || '0');
+                          const surchargeAmt = base * surchargeRate / 100;
+                          const grandTotal = base + (salePaymentMethod === 'card' ? surchargeAmt : 0);
+                          return (base > 0) ? (
+                            <div className="mt-2 p-2 bg-muted rounded text-sm">
+                              {addOnTotal > 0 && <div>{t('Dịch vụ chính')}: {formatPrice(parseFloat(saleAmount || '0'))} + {t('Thêm')}: {formatPrice(addOnTotal)}</div>}
+                              {salePaymentMethod === 'card' && surchargeRate > 0 && (
+                                <div>{t('Phụ phí thẻ')}: {surchargeRate}% = <strong>{formatPrice(surchargeAmt)}</strong></div>
+                              )}
+                              <div className="font-semibold">{t('Tổng')}: {formatPrice(grandTotal)}</div>
+                            </div>
+                          ) : null;
+                        })()}
                       </div>
                       <div>
                         <Label>{t('Ghi chú')}</Label>
