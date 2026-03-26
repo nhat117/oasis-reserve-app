@@ -170,65 +170,20 @@ const AdminDashboard = () => {
           <TabsContent value="bookings">
             <Card>
               <CardHeader className="flex-row items-center justify-between space-y-0">
-                <CardTitle>Danh sách lịch hẹn</CardTitle>
-                <div className="flex gap-2">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm">
-                        <CalendarIcon className="h-4 w-4 mr-1" />
-                        {filterDate ? format(filterDate, 'dd/MM') : 'Lọc ngày'}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={filterDate} onSelect={setFilterDate} className="p-3 pointer-events-auto" /></PopoverContent>
-                  </Popover>
-                  {filterDate && <Button variant="ghost" size="sm" onClick={() => setFilterDate(undefined)}>Xoá lọc</Button>}
-                  <Select value={filterTherapist} onValueChange={setFilterTherapist}>
-                    <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Tất cả thợ</SelectItem>
-                      {therapists?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <CardTitle>Lịch hẹn</CardTitle>
+                <Select value={filterTherapist} onValueChange={setFilterTherapist}>
+                  <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tất cả thợ</SelectItem>
+                    {therapists?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Ngày</TableHead>
-                      <TableHead>Giờ</TableHead>
-                      <TableHead>Khách</TableHead>
-                      <TableHead>SĐT</TableHead>
-                      <TableHead>Dịch vụ</TableHead>
-                      <TableHead>Thợ</TableHead>
-                      <TableHead>Trạng thái</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {bookings?.length === 0 && (
-                      <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Không có lịch hẹn</TableCell></TableRow>
-                    )}
-                    {bookings?.map(b => (
-                      <TableRow key={b.id}>
-                        <TableCell>{b.booking_date}</TableCell>
-                        <TableCell>{b.start_time?.slice(0, 5)}</TableCell>
-                        <TableCell>{b.customer_name}</TableCell>
-                        <TableCell>{b.customer_phone}</TableCell>
-                        <TableCell>{(b as any).services?.name}</TableCell>
-                        <TableCell>{(b as any).therapists?.name}</TableCell>
-                        <TableCell>{statusBadge(b.status)}</TableCell>
-                        <TableCell>
-                          {b.status === 'confirmed' && (
-                            <Button variant="ghost" size="sm" className="text-destructive" onClick={() => cancelBooking.mutate(b.id)}>
-                              Huỷ
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <BookingCalendar
+                  bookings={(bookings as any) || []}
+                  onCancel={(id) => cancelBooking.mutate(id)}
+                />
               </CardContent>
             </Card>
           </TabsContent>
