@@ -1234,6 +1234,30 @@ const AdminDashboard = () => {
                 )}
               </CardContent>
             </Card>
+
+            {/* Card Surcharge Settings */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">💳 {t('Phụ phí thẻ tín dụng')}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <Label>{t('Phần trăm phụ phí (%)')}</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="20"
+                    step="0.1"
+                    value={cardSurchargePercent}
+                    onChange={e => setCardSurchargePercent(e.target.value)}
+                    className="mt-1 w-[120px]"
+                    placeholder="0"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">{t('Phụ phí sẽ được tự động cộng thêm khi khách thanh toán bằng thẻ')}</p>
+                </div>
+                <Button size="sm" onClick={() => saveCardSurcharge.mutate()}>{t('Lưu')}</Button>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
