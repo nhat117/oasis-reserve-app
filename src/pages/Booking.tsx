@@ -384,6 +384,7 @@ const Booking = () => {
                 <p><strong>Thợ:</strong> {selectedTherapistName}</p>
                 <p><strong>Khách:</strong> {customerName}</p>
                 <p><strong>SĐT:</strong> {customerPhone}</p>
+                {customerEmail && <p><strong>Email:</strong> {customerEmail}</p>}
                 <p><strong>Giá:</strong> {currentService && new Intl.NumberFormat('vi-VN').format(currentService.price)}đ</p>
               </div>
               <div className="flex gap-2">
