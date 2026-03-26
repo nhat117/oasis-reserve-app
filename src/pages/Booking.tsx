@@ -351,6 +351,7 @@ const Booking = () => {
                       )}
                     >
                        <div className="font-medium">{service.name}</div>
+                       {service.description && <div className="text-sm text-muted-foreground mt-0.5">{service.description}</div>}
                        <div className="text-sm text-muted-foreground mt-1">{service.duration_minutes} {t('phút')} · {formatPrice(service.price)}</div>
                     </button>
                   ))}
