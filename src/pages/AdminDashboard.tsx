@@ -505,13 +505,23 @@ const AdminDashboard = () => {
   const createBooking = useMutation({
     mutationFn: async () => {
       const service = services?.find(s => s.id === bookingServiceId);
-      if (!service || !bookingDate || !bookingTime || !bookingTherapistId) throw new Error('Missing fields');
+      if (!service || !bookingDate || !bookingTime) throw new Error('Missing fields');
+      
+      // Resolve therapist: if still "random", find from available slots
+      let therapistId = bookingTherapistId;
+      if (therapistId === 'random') {
+        const slot = availableSlots.find(s => s.time === bookingTime && s.available);
+        if (!slot?.therapistId) throw new Error('No available therapist');
+        therapistId = slot.therapistId;
+      }
+      if (!therapistId) throw new Error('Missing therapist');
+      
       const [h, m] = bookingTime.split(':').map(Number);
       const endMin = h * 60 + m + service.duration_minutes;
       const endTime = `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
       const { error } = await supabase.from('bookings').insert({
         service_id: bookingServiceId,
-        therapist_id: bookingTherapistId,
+        therapist_id: therapistId,
         booking_date: format(bookingDate, 'yyyy-MM-dd'),
         start_time: bookingTime,
         end_time: endTime,
