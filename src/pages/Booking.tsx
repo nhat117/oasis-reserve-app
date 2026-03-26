@@ -398,7 +398,7 @@ const Booking = () => {
                     <SelectTrigger className="mt-1"><SelectValue placeholder={t('Chọn thợ')} /></SelectTrigger>
                     <SelectContent>
                       {randomEnabled !== false && (
-                        <SelectItem value="any">🎲 {t('Tự động chọn (bất kỳ thợ trống)')}</SelectItem>
+                        <SelectItem value="any">{t('Tự động chọn (bất kỳ thợ trống)')}</SelectItem>
                       )}
                       {therapists?.filter(t => !unavailability?.includes(t.id)).map(t => (
                         <SelectItem key={t.id} value={t.id}>
