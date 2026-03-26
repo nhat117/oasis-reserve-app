@@ -120,8 +120,9 @@ describe('Booking Availability', () => {
     const bookings: ExistingBooking[] = [
       { therapist_id: 'a', start_time: '10:00:00', end_time: '11:00:00', status: 'confirmed' },
     ];
-    // 11:30 is after buffer (11:15), should be available
-    const result = getAvailableTherapists('11:30', 60, [therapistA, therapistB], monday, [], bookings);
+    // Buffer means 11:00-11:15 is blocked. 11:30 start but end 12:30 overlaps A's break (12-13)
+    // So A is blocked by break, not buffer. B is available.
+    const result = getAvailableTherapists('11:30', 45, [therapistA, therapistB], monday, [], bookings);
     expect(result.map(t => t.id)).toContain('a');
   });
 
