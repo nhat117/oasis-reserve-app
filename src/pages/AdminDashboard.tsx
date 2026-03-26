@@ -42,10 +42,6 @@ const AdminDashboard = () => {
   const [therapistName, setTherapistName] = useState('');
   const [therapistPhone, setTherapistPhone] = useState('');
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><p>Đang tải...</p></div>;
-  if (!user) return <Navigate to="/admin/login" />;
-  if (!isAdmin) return <div className="min-h-screen flex items-center justify-center"><p className="text-destructive">Bạn không có quyền truy cập.</p></div>;
-
   const { data: bookings } = useQuery({
     queryKey: ['admin-bookings', filterDate?.toISOString(), filterTherapist],
     queryFn: async () => {
