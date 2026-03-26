@@ -1114,8 +1114,9 @@ const AdminDashboard = () => {
                         </TableRow>
                       ))}
                     </TableBody>
-                  </Table>
-                )}
+                   </Table>
+                  );
+                })()}
               </CardContent>
             </Card>
           </TabsContent>
