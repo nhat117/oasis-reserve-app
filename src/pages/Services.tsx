@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { LanguageSwitcher, useI18n } from '@/hooks/useI18n';
 
 const Services = () => {
-  const { formatPrice } = useI18n();
+  const { formatPrice, t } = useI18n();
   const { data: services, isLoading } = useQuery({
     queryKey: ['services'],
     queryFn: async () => {
@@ -30,7 +30,7 @@ const Services = () => {
           <div className="flex items-center gap-3">
             <LanguageSwitcher />
             <Link to="/booking">
-              <Button size="sm">Đặt lịch</Button>
+              <Button size="sm">{t('Đặt lịch')}</Button>
             </Link>
           </div>
         </div>
@@ -38,11 +38,11 @@ const Services = () => {
 
       <div className="container mx-auto px-4 py-8">
         <Link to="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-6">
-          <ArrowLeft className="h-4 w-4" /> Trang chủ
+          <ArrowLeft className="h-4 w-4" /> {t('Trang chủ')}
         </Link>
 
-        <h1 className="text-3xl md:text-4xl font-bold mb-2">Dịch vụ của chúng tôi</h1>
-        <p className="text-muted-foreground mb-8">Chọn dịch vụ phù hợp với nhu cầu của bạn</p>
+        <h1 className="text-3xl md:text-4xl font-bold mb-2">{t('Dịch vụ của chúng tôi')}</h1>
+        <p className="text-muted-foreground mb-8">{t('Chọn dịch vụ phù hợp với nhu cầu của bạn')}</p>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {isLoading ? (
@@ -63,12 +63,12 @@ const Services = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
                       <Clock className="h-4 w-4" />
-                      {service.duration_minutes} phút
+                      {service.duration_minutes} {t('phút')}
                     </div>
                     <span className="text-lg font-semibold text-primary">{formatPrice(service.price)}</span>
                   </div>
                   <Link to={`/booking?service=${service.id}`}>
-                    <Button className="w-full">Đặt lịch dịch vụ này</Button>
+                    <Button className="w-full">{t('Đặt lịch dịch vụ này')}</Button>
                   </Link>
                 </CardContent>
               </Card>

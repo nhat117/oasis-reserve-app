@@ -123,7 +123,7 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
   // Load cached translations from DB on lang change
   useEffect(() => {
     if (lang === 'vi') {
-      setTranslations(VI_DEFAULTS);
+      setTranslations({});
       return;
     }
     const load = async () => {
@@ -163,14 +163,14 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
   }, [pendingKeys, lang]);
 
   const t = useCallback((key: string): string => {
-    if (lang === 'vi') return VI_DEFAULTS[key] || key;
+    if (lang === 'vi') return key; // Vietnamese is the source language
     if (translations[key]) return translations[key];
     // Queue for translation
     if (!requestedRef.current.has(key)) {
       requestedRef.current.add(key);
       setPendingKeys(prev => new Set(prev).add(key));
     }
-    return key; // Return key as fallback while translating
+    return key; // Return Vietnamese key as fallback while translating
   }, [lang, translations]);
 
   return (

@@ -44,7 +44,7 @@ serve(async (req) => {
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
     const langName = lang === "en" ? "English" : lang === "vi" ? "Vietnamese" : lang;
-    const prompt = `Translate the following UI text keys to ${langName}. Return a JSON object mapping each key to its translation. Keep it natural and concise for a spa booking app UI. Keys:\n${JSON.stringify(missing)}`;
+    const prompt = `Translate the following Vietnamese UI text strings to ${langName}. Return a JSON object mapping each original Vietnamese string to its ${langName} translation. Keep it natural and concise for a spa booking app UI. Strings to translate:\n${JSON.stringify(missing)}`;
 
     const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
