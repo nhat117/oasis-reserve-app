@@ -1126,24 +1126,46 @@ const AdminDashboard = () => {
                 </div>
               </CardContent>
             </Card>
-            {/* Email Notification Settings */}
+            {/* Resend Email Settings */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">📧 {t('Cài đặt email')}</CardTitle>
+                <CardTitle className="text-base">📧 {t('Cài đặt email')} (Resend)</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-sm">{t('Email xác nhận đặt lịch')}</p>
-                    <p className="text-xs text-muted-foreground">{t('Tự động gửi email xác nhận khi khách đặt lịch thành công')}</p>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label>{t('Resend API Key')}</Label>
+                  <Input
+                    type="password"
+                    value={resendApiKey}
+                    onChange={e => setResendApiKey(e.target.value)}
+                    placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    className="mt-1 font-mono text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t('Lấy API key tại')} <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary underline">resend.com/api-keys</a>
+                  </p>
+                </div>
+                <div>
+                  <Label>{t('Email gửi từ')} ({t('From address')})</Label>
+                  <Input
+                    value={resendFromEmail}
+                    onChange={e => setResendFromEmail(e.target.value)}
+                    placeholder="noreply@yourdomain.com"
+                    className="mt-1"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t('Dùng')} <code className="text-xs">onboarding@resend.dev</code> {t('để test, hoặc domain đã xác minh trên Resend')}
+                  </p>
+                </div>
+                <Button size="sm" onClick={() => saveResendSettings.mutate()} disabled={!resendApiKey.trim()}>
+                  {t('Lưu cài đặt email')}
+                </Button>
+                {resendSettings?.['resend_api_key'] && (
+                  <div className="bg-muted rounded-lg p-3 text-sm space-y-1">
+                    <p className="text-muted-foreground">✅ {t('Resend API key đã được cấu hình')}</p>
+                    <p className="text-muted-foreground">{t('Email gửi từ')}: <strong>{resendSettings['resend_from_email'] || 'onboarding@resend.dev'}</strong></p>
                   </div>
-                  <Badge variant="default">{t('Đã bật')}</Badge>
-                </div>
-                <div className="bg-muted rounded-lg p-3 text-sm space-y-1">
-                  <p className="text-muted-foreground">{t('Email gửi từ')}: <strong>notify.thinkflow.me</strong></p>
-                  <p className="text-muted-foreground">{t('Mẫu')}: {t('Xác nhận đặt lịch')}, {t('Nhắc lịch hẹn')}</p>
-                </div>
-                <p className="text-xs text-muted-foreground">{t('Email sẽ được gửi tự động khi khách hàng cung cấp địa chỉ email khi đặt lịch.')}</p>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
