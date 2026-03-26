@@ -893,6 +893,11 @@ const AdminDashboard = () => {
                   onReschedule={(id, newDate, newStartTime, newEndTime) =>
                     rescheduleBooking.mutate({ id, newDate, newStartTime, newEndTime })
                   }
+                  onDateSelect={(date, startTime) => {
+                    setBookingDate(new Date(date + 'T00:00:00'));
+                    if (startTime) setBookingTime(startTime);
+                    setBookingDialog(true);
+                  }}
                 />
               </CardContent>
             </Card>
