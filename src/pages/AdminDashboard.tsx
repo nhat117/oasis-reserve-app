@@ -115,6 +115,54 @@ const AdminDashboard = () => {
     },
   });
 
+  // Sales
+  const { data: sales } = useQuery({
+    queryKey: ['admin-sales'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('sales')
+        .select('*, bookings(customer_name, customer_phone, booking_date, start_time, services(name))')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const createSale = useMutation({
+    mutationFn: async () => {
+      const payload: any = {
+        amount: parseFloat(saleAmount),
+        payment_method: salePaymentMethod,
+        notes: saleNotes || null,
+        sale_date: format(new Date(), 'yyyy-MM-dd'),
+      };
+      if (saleBookingId) payload.booking_id = saleBookingId;
+      const { error } = await supabase.from('sales').insert(payload);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-sales'] });
+      queryClient.invalidateQueries({ queryKey: ['stats-bookings'] });
+      setSaleDialog(false);
+      setSaleBookingId('');
+      setSaleAmount('');
+      setSalePaymentMethod('cash');
+      setSaleNotes('');
+      toast({ title: t('Đã ghi nhận thanh toán') });
+    },
+    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+  });
+
+  const deleteSale = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('sales').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-sales'] });
+      toast({ title: t('Đã xoá thanh toán') });
+    },
+  });
+
   // Random therapist setting
   const { data: randomEnabled } = useQuery({
     queryKey: ['random-therapist-setting'],
