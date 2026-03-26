@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Leaf, Clock, ArrowLeft } from 'lucide-react';
+import { Clock, ArrowLeft } from 'lucide-react';
+import logoImg from '@/assets/logo.png';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const Services = () => {
@@ -25,8 +26,8 @@ const Services = () => {
       <header className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <Leaf className="h-6 w-6 text-primary" />
-            <span className="text-xl font-semibold font-serif text-primary">Dưỡng Sinh Spa</span>
+            <img src={logoImg} alt="Royal Head Spa" className="h-10 w-10 object-contain" />
+            <span className="text-xl font-semibold font-serif text-primary">Royal Head Spa</span>
           </Link>
           <Link to="/booking">
             <Button size="sm">Đặt lịch</Button>
