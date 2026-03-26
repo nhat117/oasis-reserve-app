@@ -473,7 +473,7 @@ const Booking = () => {
                 <p><strong>Khách:</strong> {customerName}</p>
                 <p><strong>SĐT:</strong> {customerPhone}</p>
                 {customerEmail && <p><strong>Email:</strong> {customerEmail}</p>}
-                <p><strong>Giá:</strong> {currentService && new Intl.NumberFormat('vi-VN').format(currentService.price)}đ</p>
+                <p><strong>Giá:</strong> {currentService && formatPrice(currentService.price)}</p>
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setStep(3)}>Quay lại</Button>
