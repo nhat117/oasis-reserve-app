@@ -770,10 +770,10 @@ const AdminDashboard = () => {
                         <Label>{t('Loại')}</Label>
                         <div className="flex gap-2 mt-1">
                           <Button type="button" variant={saleType === 'booking' ? 'default' : 'outline'} className="flex-1" onClick={() => { setSaleType('booking'); setSaleServiceId(''); setSaleCustomerName(''); }}>
-                            📅 {t('Lịch hẹn')}
+                            {t('Lịch hẹn')}
                           </Button>
                           <Button type="button" variant={saleType === 'walkin' ? 'default' : 'outline'} className="flex-1" onClick={() => { setSaleType('walkin'); setSaleBookingId(''); }}>
-                            🚶 {t('Khách vãng lai')}
+                            {t('Khách vãng lai')}
                           </Button>
                         </div>
                       </div>
