@@ -26,6 +26,7 @@ const Booking = () => {
   const [selectedTherapist, setSelectedTherapist] = useState('any');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookingComplete, setBookingComplete] = useState(false);
   const [assignedTherapistName, setAssignedTherapistName] = useState('');
@@ -155,6 +156,7 @@ const Booking = () => {
       therapist_id: therapistId,
       customer_name: customerName.trim(),
       customer_phone: customerPhone.trim(),
+      customer_email: customerEmail.trim() || null,
       booking_date: format(selectedDate, 'yyyy-MM-dd'),
       start_time: startTime,
       end_time: endTime,
@@ -191,6 +193,7 @@ const Booking = () => {
               <p><strong>Thợ:</strong> {assignedTherapistName || selectedTherapistName}</p>
               <p><strong>Khách:</strong> {customerName}</p>
               <p><strong>SĐT:</strong> {customerPhone}</p>
+              {customerEmail && <p><strong>Email:</strong> {customerEmail}</p>}
             </div>
             <p className="text-muted-foreground text-sm">Cảm ơn bạn đã đặt lịch. Chúng tôi sẽ liên hệ xác nhận.</p>
             <Link to="/">
@@ -351,6 +354,10 @@ const Booking = () => {
                 <Label htmlFor="phone">Số điện thoại</Label>
                 <Input id="phone" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="0901234567" className="mt-1" />
               </div>
+              <div>
+                <Label htmlFor="email">Email (không bắt buộc)</Label>
+                <Input id="email" type="email" value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} placeholder="email@example.com" className="mt-1" />
+              </div>
               <div className="flex gap-2 pt-4">
                 <Button variant="outline" onClick={() => setStep(2)}>Quay lại</Button>
                 <Button
@@ -377,6 +384,7 @@ const Booking = () => {
                 <p><strong>Thợ:</strong> {selectedTherapistName}</p>
                 <p><strong>Khách:</strong> {customerName}</p>
                 <p><strong>SĐT:</strong> {customerPhone}</p>
+                {customerEmail && <p><strong>Email:</strong> {customerEmail}</p>}
                 <p><strong>Giá:</strong> {currentService && new Intl.NumberFormat('vi-VN').format(currentService.price)}đ</p>
               </div>
               <div className="flex gap-2">
