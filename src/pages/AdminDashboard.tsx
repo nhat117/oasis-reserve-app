@@ -711,7 +711,7 @@ const AdminDashboard = () => {
             <Card>
               <CardHeader className="flex-row items-center justify-between space-y-0">
                 <CardTitle>{t('Thanh toán')}</CardTitle>
-                <Dialog open={saleDialog} onOpenChange={(open) => { setSaleDialog(open); if (!open) { setSaleBookingId(''); setSaleAmount(''); setSalePaymentMethod('cash'); setSaleNotes(''); } }}>
+                <Dialog open={saleDialog} onOpenChange={(open) => { setSaleDialog(open); if (!open) { setSaleType('booking'); setSaleBookingId(''); setSaleServiceId(''); setSaleCustomerName(''); setSaleAmount(''); setSalePaymentMethod('cash'); setSaleNotes(''); } }}>
                   <DialogTrigger asChild>
                     <Button size="sm"><Plus className="h-4 w-4 mr-1" /> {t('Tạo thanh toán')}</Button>
                   </DialogTrigger>
@@ -721,28 +721,64 @@ const AdminDashboard = () => {
                       <DialogDescription>{t('Ghi nhận thanh toán cho dịch vụ')}</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
+                      {/* Sale type toggle */}
                       <div>
-                        <Label>{t('Liên kết lịch hẹn (tuỳ chọn)')}</Label>
-                        <Select value={saleBookingId} onValueChange={(v) => {
-                          setSaleBookingId(v);
-                          if (v) {
-                            const booking = bookings?.find(b => b.id === v);
-                            if (booking) {
-                              setSaleAmount(String((booking as any).services?.price || 0));
-                            }
-                          }
-                        }}>
-                          <SelectTrigger className="mt-1"><SelectValue placeholder={t('Chọn lịch hẹn')} /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">{t('Không liên kết')}</SelectItem>
-                            {bookings?.filter(b => b.status === 'confirmed').slice(0, 20).map(b => (
-                              <SelectItem key={b.id} value={b.id}>
-                                {b.booking_date} {b.start_time?.slice(0, 5)} — {b.customer_name} ({(b as any).services?.name})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Label>{t('Loại')}</Label>
+                        <div className="flex gap-2 mt-1">
+                          <Button type="button" variant={saleType === 'booking' ? 'default' : 'outline'} className="flex-1" onClick={() => { setSaleType('booking'); setSaleServiceId(''); setSaleCustomerName(''); }}>
+                            📅 {t('Lịch hẹn')}
+                          </Button>
+                          <Button type="button" variant={saleType === 'walkin' ? 'default' : 'outline'} className="flex-1" onClick={() => { setSaleType('walkin'); setSaleBookingId(''); }}>
+                            🚶 {t('Khách vãng lai')}
+                          </Button>
+                        </div>
                       </div>
+
+                      {saleType === 'booking' ? (
+                        <div>
+                          <Label>{t('Chọn lịch hẹn')}</Label>
+                          <Select value={saleBookingId} onValueChange={(v) => {
+                            setSaleBookingId(v);
+                            if (v && v !== 'none') {
+                              const booking = bookings?.find(b => b.id === v);
+                              if (booking) setSaleAmount(String((booking as any).services?.price || 0));
+                            }
+                          }}>
+                            <SelectTrigger className="mt-1"><SelectValue placeholder={t('Chọn lịch hẹn')} /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">{t('Không liên kết')}</SelectItem>
+                              {bookings?.filter(b => b.status === 'confirmed').slice(0, 20).map(b => (
+                                <SelectItem key={b.id} value={b.id}>
+                                  {b.booking_date} {b.start_time?.slice(0, 5)} — {b.customer_name} ({(b as any).services?.name})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ) : (
+                        <>
+                          <div>
+                            <Label>{t('Dịch vụ')}</Label>
+                            <Select value={saleServiceId} onValueChange={(v) => {
+                              setSaleServiceId(v);
+                              const svc = services?.find(s => s.id === v);
+                              if (svc) setSaleAmount(String(svc.price));
+                            }}>
+                              <SelectTrigger className="mt-1"><SelectValue placeholder={t('Chọn dịch vụ')} /></SelectTrigger>
+                              <SelectContent>
+                                {services?.filter(s => s.is_active).map(s => (
+                                  <SelectItem key={s.id} value={s.id}>{s.name} — {formatPrice(s.price)}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>{t('Tên khách hàng')}</Label>
+                            <Input value={saleCustomerName} onChange={e => setSaleCustomerName(e.target.value)} className="mt-1" placeholder={t('Nhập tên khách')} />
+                          </div>
+                        </>
+                      )}
+
                       <div>
                         <Label>{t('Số tiền (AUD)')}</Label>
                         <Input type="number" value={saleAmount} onChange={e => setSaleAmount(e.target.value)} className="mt-1" placeholder="0" />
@@ -750,23 +786,19 @@ const AdminDashboard = () => {
                       <div>
                         <Label>{t('Phương thức thanh toán')}</Label>
                         <div className="flex gap-2 mt-1">
-                          <Button
-                            type="button"
-                            variant={salePaymentMethod === 'cash' ? 'default' : 'outline'}
-                            className="flex-1"
-                            onClick={() => setSalePaymentMethod('cash')}
-                          >
+                          <Button type="button" variant={salePaymentMethod === 'cash' ? 'default' : 'outline'} className="flex-1" onClick={() => setSalePaymentMethod('cash')}>
                             💵 {t('Tiền mặt')}
                           </Button>
-                          <Button
-                            type="button"
-                            variant={salePaymentMethod === 'card' ? 'default' : 'outline'}
-                            className="flex-1"
-                            onClick={() => setSalePaymentMethod('card')}
-                          >
+                          <Button type="button" variant={salePaymentMethod === 'card' ? 'default' : 'outline'} className="flex-1" onClick={() => setSalePaymentMethod('card')}>
                             💳 {t('Thẻ')}
                           </Button>
                         </div>
+                        {salePaymentMethod === 'card' && parseFloat(cardSurchargeSetting || '0') > 0 && saleAmount && (
+                          <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-950/30 rounded text-sm text-amber-700 dark:text-amber-400">
+                            ⚠️ {t('Phụ phí thẻ')}: {cardSurchargeSetting}% = <strong>A$ {(parseFloat(saleAmount) * parseFloat(cardSurchargeSetting) / 100).toFixed(2)}</strong>
+                            <br />{t('Tổng')}: <strong>A$ {(parseFloat(saleAmount) * (1 + parseFloat(cardSurchargeSetting) / 100)).toFixed(2)}</strong>
+                          </div>
+                        )}
                       </div>
                       <div>
                         <Label>{t('Ghi chú')}</Label>
