@@ -614,15 +614,95 @@ const AdminDashboard = () => {
 
   const formatPrice = (p: number) => `A$ ${p.toLocaleString()}`;
 
-  // Generate time slots for booking
-  const getTimeSlots = () => {
-    const slots: string[] = [];
+  // Generate available time slots for admin booking
+  const getAvailableTimeSlots = () => {
+    if (!bookingDate || !bookingServiceId) return [];
+    const service = services?.find(s => s.id === bookingServiceId);
+    if (!service) return [];
+    const dateStr = format(bookingDate, 'yyyy-MM-dd');
+    const duration = service.duration_minutes;
+    const BUFFER = 15;
+
+    // Get candidate therapists
+    const candidateTherapists = bookingTherapistId && bookingTherapistId !== 'random'
+      ? therapists?.filter(t => t.id === bookingTherapistId) || []
+      : therapists?.filter(t => t.is_active) || [];
+
+    // Check unavailability for the date
+    const unavailableTherapistIds = new Set(
+      (unavailabilities || []).filter(u => u.unavailable_date === dateStr).map(u => u.therapist_id)
+    );
+
+    // Check shop holidays
+    const holiday = (shopHolidays || []).find(h => h.holiday_date === dateStr);
+    if (holiday && !holiday.early_close_hour) return []; // full day off
+
+    const dayBookings = (bookings || []).filter(b => b.booking_date === dateStr && b.status === 'confirmed');
+
+    const allSlots: string[] = [];
     for (let h = 9; h < 18; h++) {
-      slots.push(`${String(h).padStart(2, '0')}:00`);
-      slots.push(`${String(h).padStart(2, '0')}:30`);
+      allSlots.push(`${String(h).padStart(2, '0')}:00`);
+      allSlots.push(`${String(h).padStart(2, '0')}:15`);
+      allSlots.push(`${String(h).padStart(2, '0')}:30`);
+      allSlots.push(`${String(h).padStart(2, '0')}:45`);
     }
-    return slots;
+
+    type SlotInfo = { time: string; available: boolean; therapistId?: string; therapistName?: string };
+    const result: SlotInfo[] = [];
+
+    for (const slot of allSlots) {
+      const [sh, sm] = slot.split(':').map(Number);
+      const startMins = sh * 60 + sm;
+      const endMins = startMins + duration;
+
+      if (endMins > (holiday?.early_close_hour || 18) * 60) {
+        result.push({ time: slot, available: false });
+        continue;
+      }
+
+      // Find first available therapist for this slot
+      let foundTherapist: { id: string; name: string } | null = null;
+      for (const th of candidateTherapists) {
+        if (unavailableTherapistIds.has(th.id)) continue;
+        const dayOfWeek = bookingDate.getDay() === 0 ? 7 : bookingDate.getDay();
+        if (!th.working_days.includes(dayOfWeek)) continue;
+        if (sh < th.start_hour || endMins > th.end_hour * 60) continue;
+        if (th.break_start && th.break_end) {
+          const breakStartMin = th.break_start * 60;
+          const breakEndMin = th.break_end * 60;
+          if (startMins < breakEndMin && endMins > breakStartMin) continue;
+        }
+
+        // Check conflicts with existing bookings for this therapist
+        const hasConflict = dayBookings.some(b => {
+          if (b.therapist_id !== th.id) return false;
+          const bStart = timeToMins(b.start_time);
+          const bEnd = timeToMins(b.end_time) + BUFFER;
+          return startMins < bEnd && endMins > bStart - BUFFER;
+        });
+        if (!hasConflict) {
+          foundTherapist = { id: th.id, name: th.name };
+          break;
+        }
+      }
+
+      result.push({
+        time: slot,
+        available: !!foundTherapist,
+        therapistId: foundTherapist?.id,
+        therapistName: foundTherapist?.name,
+      });
+    }
+
+    return result;
   };
+
+  const timeToMins = (t: string) => {
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+  };
+
+  const availableSlots = getAvailableTimeSlots();
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><p>{t('Đang tải...')}</p></div>;
   if (!user) return <Navigate to="/admin/login" />;
