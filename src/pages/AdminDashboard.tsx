@@ -505,13 +505,23 @@ const AdminDashboard = () => {
   const createBooking = useMutation({
     mutationFn: async () => {
       const service = services?.find(s => s.id === bookingServiceId);
-      if (!service || !bookingDate || !bookingTime || !bookingTherapistId) throw new Error('Missing fields');
+      if (!service || !bookingDate || !bookingTime) throw new Error('Missing fields');
+      
+      // Resolve therapist: if still "random", find from available slots
+      let therapistId = bookingTherapistId;
+      if (therapistId === 'random') {
+        const slot = availableSlots.find(s => s.time === bookingTime && s.available);
+        if (!slot?.therapistId) throw new Error('No available therapist');
+        therapistId = slot.therapistId;
+      }
+      if (!therapistId) throw new Error('Missing therapist');
+      
       const [h, m] = bookingTime.split(':').map(Number);
       const endMin = h * 60 + m + service.duration_minutes;
       const endTime = `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
       const { error } = await supabase.from('bookings').insert({
         service_id: bookingServiceId,
-        therapist_id: bookingTherapistId,
+        therapist_id: therapistId,
         booking_date: format(bookingDate, 'yyyy-MM-dd'),
         start_time: bookingTime,
         end_time: endTime,
@@ -614,15 +624,95 @@ const AdminDashboard = () => {
 
   const formatPrice = (p: number) => `A$ ${p.toLocaleString()}`;
 
-  // Generate time slots for booking
-  const getTimeSlots = () => {
-    const slots: string[] = [];
+  // Generate available time slots for admin booking
+  const getAvailableTimeSlots = () => {
+    if (!bookingDate || !bookingServiceId) return [];
+    const service = services?.find(s => s.id === bookingServiceId);
+    if (!service) return [];
+    const dateStr = format(bookingDate, 'yyyy-MM-dd');
+    const duration = service.duration_minutes;
+    const BUFFER = 15;
+
+    // Get candidate therapists
+    const candidateTherapists = bookingTherapistId && bookingTherapistId !== 'random'
+      ? therapists?.filter(t => t.id === bookingTherapistId) || []
+      : therapists?.filter(t => t.is_active) || [];
+
+    // Check unavailability for the date
+    const unavailableTherapistIds = new Set(
+      (unavailabilities || []).filter(u => u.unavailable_date === dateStr).map(u => u.therapist_id)
+    );
+
+    // Check shop holidays
+    const holiday = (shopHolidays || []).find(h => h.holiday_date === dateStr);
+    if (holiday && !holiday.early_close_hour) return []; // full day off
+
+    const dayBookings = (bookings || []).filter(b => b.booking_date === dateStr && b.status === 'confirmed');
+
+    const allSlots: string[] = [];
     for (let h = 9; h < 18; h++) {
-      slots.push(`${String(h).padStart(2, '0')}:00`);
-      slots.push(`${String(h).padStart(2, '0')}:30`);
+      allSlots.push(`${String(h).padStart(2, '0')}:00`);
+      allSlots.push(`${String(h).padStart(2, '0')}:15`);
+      allSlots.push(`${String(h).padStart(2, '0')}:30`);
+      allSlots.push(`${String(h).padStart(2, '0')}:45`);
     }
-    return slots;
+
+    type SlotInfo = { time: string; available: boolean; therapistId?: string; therapistName?: string };
+    const result: SlotInfo[] = [];
+
+    for (const slot of allSlots) {
+      const [sh, sm] = slot.split(':').map(Number);
+      const startMins = sh * 60 + sm;
+      const endMins = startMins + duration;
+
+      if (endMins > (holiday?.early_close_hour || 18) * 60) {
+        result.push({ time: slot, available: false });
+        continue;
+      }
+
+      // Find first available therapist for this slot
+      let foundTherapist: { id: string; name: string } | null = null;
+      for (const th of candidateTherapists) {
+        if (unavailableTherapistIds.has(th.id)) continue;
+        const dayOfWeek = bookingDate.getDay() === 0 ? 7 : bookingDate.getDay();
+        if (!th.working_days.includes(dayOfWeek)) continue;
+        if (sh < th.start_hour || endMins > th.end_hour * 60) continue;
+        if (th.break_start && th.break_end) {
+          const breakStartMin = th.break_start * 60;
+          const breakEndMin = th.break_end * 60;
+          if (startMins < breakEndMin && endMins > breakStartMin) continue;
+        }
+
+        // Check conflicts with existing bookings for this therapist
+        const hasConflict = dayBookings.some(b => {
+          if (b.therapist_id !== th.id) return false;
+          const bStart = timeToMins(b.start_time);
+          const bEnd = timeToMins(b.end_time) + BUFFER;
+          return startMins < bEnd && endMins > bStart - BUFFER;
+        });
+        if (!hasConflict) {
+          foundTherapist = { id: th.id, name: th.name };
+          break;
+        }
+      }
+
+      result.push({
+        time: slot,
+        available: !!foundTherapist,
+        therapistId: foundTherapist?.id,
+        therapistName: foundTherapist?.name,
+      });
+    }
+
+    return result;
   };
+
+  const timeToMins = (t: string) => {
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+  };
+
+  const availableSlots = getAvailableTimeSlots();
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><p>{t('Đang tải...')}</p></div>;
   if (!user) return <Navigate to="/admin/login" />;
@@ -695,9 +785,10 @@ const AdminDashboard = () => {
                         </div>
                         <div>
                           <Label>{t('Thợ')}</Label>
-                          <Select value={bookingTherapistId} onValueChange={setBookingTherapistId}>
+                          <Select value={bookingTherapistId} onValueChange={(v) => { setBookingTherapistId(v); setBookingTime(''); }}>
                             <SelectTrigger className="mt-1"><SelectValue placeholder={t('Chọn thợ')} /></SelectTrigger>
                             <SelectContent>
+                              <SelectItem value="random">{t('Tự động (ai rảnh)')}</SelectItem>
                               {therapists?.filter(t => t.is_active).map(t => (
                                 <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                               ))}
@@ -713,20 +804,42 @@ const AdminDashboard = () => {
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0" align="start">
-                              <Calendar mode="single" selected={bookingDate} onSelect={setBookingDate} className="p-3 pointer-events-auto" />
+                              <Calendar mode="single" selected={bookingDate} onSelect={(d) => { setBookingDate(d); setBookingTime(''); }} className="p-3 pointer-events-auto" />
                             </PopoverContent>
                           </Popover>
                         </div>
                         <div>
                           <Label>{t('Giờ')}</Label>
-                          <Select value={bookingTime} onValueChange={setBookingTime}>
-                            <SelectTrigger className="mt-1"><SelectValue placeholder={t('Chọn giờ')} /></SelectTrigger>
-                            <SelectContent>
-                              {getTimeSlots().map(t => (
-                                <SelectItem key={t} value={t}>{t}</SelectItem>
+                          {!bookingServiceId || !bookingDate ? (
+                            <p className="text-sm text-muted-foreground mt-1">{t('Chọn dịch vụ và ngày trước')}</p>
+                          ) : availableSlots.length === 0 ? (
+                            <p className="text-sm text-destructive mt-1">{t('Không có khung giờ trống')}</p>
+                          ) : (
+                            <div className="flex flex-wrap gap-1.5 mt-2 max-h-[200px] overflow-y-auto">
+                              {availableSlots.filter((_, i) => i % 2 === 0).map(slot => (
+                                <button key={slot.time} type="button" disabled={!slot.available}
+                                  onClick={() => {
+                                    setBookingTime(slot.time);
+                                    if (slot.therapistId && (bookingTherapistId === 'random' || !bookingTherapistId)) {
+                                      setBookingTherapistId(slot.therapistId);
+                                    }
+                                  }}
+                                  className={cn(
+                                    "px-2.5 py-1.5 rounded-md text-xs font-medium border transition-all",
+                                    slot.available && bookingTime !== slot.time && "border-border hover:border-primary hover:bg-primary/5 cursor-pointer",
+                                    slot.available && bookingTime === slot.time && "border-primary bg-primary text-primary-foreground",
+                                    !slot.available && "border-border bg-muted text-muted-foreground line-through opacity-50 cursor-not-allowed"
+                                  )}
+                                  title={slot.available ? (slot.therapistName || '') : t('Đã đặt')}
+                                >
+                                  {slot.time}
+                                  {slot.available && bookingTherapistId === 'random' && slot.therapistName && (
+                                    <span className="block text-[9px] opacity-70">{slot.therapistName.split(' ').pop()}</span>
+                                  )}
+                                </button>
                               ))}
-                            </SelectContent>
-                          </Select>
+                            </div>
+                          )}
                         </div>
                         <div>
                           <Label>{t('Tên khách hàng')}</Label>
