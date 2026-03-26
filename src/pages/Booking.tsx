@@ -93,6 +93,8 @@ const Booking = () => {
     const endStr = format(addMinutes(new Date(`2000-01-01T${timeStr}`), duration), 'HH:mm');
 
     return therapists.filter(t => {
+      // Check unavailability
+      if (unavailability?.includes(t.id)) return false;
       // Check working days
       if (!t.working_days.includes(dayOfWeek)) return false;
       // Check working hours
