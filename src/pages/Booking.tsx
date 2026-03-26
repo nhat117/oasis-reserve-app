@@ -267,21 +267,21 @@ const Booking = () => {
             <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
               <Check className="h-8 w-8 text-primary" />
             </div>
-            <CardTitle className="text-2xl">Đặt lịch thành công!</CardTitle>
+            <CardTitle className="text-2xl">{t('Đặt lịch thành công!')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="text-left bg-muted rounded-lg p-4 space-y-2 text-sm">
-              <p><strong>Dịch vụ:</strong> {currentService?.name}</p>
-              <p><strong>Ngày:</strong> {selectedDate && format(selectedDate, 'dd/MM/yyyy')}</p>
-              <p><strong>Giờ:</strong> {selectedTime}</p>
-              <p><strong>Thợ:</strong> {assignedTherapistName || selectedTherapistName}</p>
-              <p><strong>Khách:</strong> {customerName}</p>
-              <p><strong>SĐT:</strong> {customerPhone}</p>
+              <p><strong>{t('Dịch vụ')}:</strong> {currentService?.name}</p>
+              <p><strong>{t('Ngày')}:</strong> {selectedDate && format(selectedDate, 'dd/MM/yyyy')}</p>
+              <p><strong>{t('Giờ')}:</strong> {selectedTime}</p>
+              <p><strong>{t('Thợ')}:</strong> {assignedTherapistName || selectedTherapistName}</p>
+              <p><strong>{t('Khách')}:</strong> {customerName}</p>
+              <p><strong>{t('SĐT')}:</strong> {customerPhone}</p>
               {customerEmail && <p><strong>Email:</strong> {customerEmail}</p>}
             </div>
-            <p className="text-muted-foreground text-sm">Cảm ơn bạn đã đặt lịch. Chúng tôi sẽ liên hệ xác nhận.</p>
+            <p className="text-muted-foreground text-sm">{t('Cảm ơn bạn đã đặt lịch. Chúng tôi sẽ liên hệ xác nhận.')}</p>
             <Link to="/">
-              <Button className="w-full">Về trang chủ</Button>
+              <Button className="w-full">{t('Về trang chủ')}</Button>
             </Link>
           </CardContent>
         </Card>
