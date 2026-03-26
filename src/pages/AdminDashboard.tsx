@@ -1472,7 +1472,7 @@ const AdminDashboard = () => {
             {/* Shop Info */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">🏪 {t('Thông tin tiệm')}</CardTitle>
+                <CardTitle className="text-base">{t('Thông tin tiệm')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
@@ -1501,7 +1501,7 @@ const AdminDashboard = () => {
             {/* Currency Settings */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">💱 {t('Cài đặt tiền tệ')}</CardTitle>
+                <CardTitle className="text-base">{t('Cài đặt tiền tệ')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
@@ -1535,7 +1535,7 @@ const AdminDashboard = () => {
             <Card>
               <CardContent className="p-4 space-y-3">
                 <div>
-                  <p className="font-medium text-sm">📱 {t('Nhắc lịch qua SMS & WhatsApp')}</p>
+                  <p className="font-medium text-sm">{t('Nhắc lịch qua SMS & WhatsApp')}</p>
                   <p className="text-xs text-muted-foreground">{t('Gửi SMS/WhatsApp nhắc khách hàng 1 tiếng trước lịch hẹn')}</p>
                 </div>
                 <div className="flex gap-2">
@@ -1554,7 +1554,7 @@ const AdminDashboard = () => {
                 )}
                 <div className="flex items-center justify-between pt-2 border-t">
                   <div>
-                    <p className="font-medium text-sm">💬 WhatsApp</p>
+                    <p className="font-medium text-sm">WhatsApp</p>
                     <p className="text-xs text-muted-foreground">{t('Gửi thêm nhắc nhở qua WhatsApp')}</p>
                   </div>
                   <Switch checked={whatsappEnabled === true} onCheckedChange={(v) => toggleWhatsapp.mutate(v)} />
@@ -1565,19 +1565,19 @@ const AdminDashboard = () => {
             {/* Auto Reminder Settings */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">⏰ {t('Nhắc lịch tự động')}</CardTitle>
+                <CardTitle className="text-base">{t('Nhắc lịch tự động')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium text-sm">📧 {t('Nhắc qua Email')}</p>
+                    <p className="font-medium text-sm">{t('Nhắc qua Email')}</p>
                     <p className="text-xs text-muted-foreground">{t('Gửi email nhắc lịch tự động cho khách có email')}</p>
                   </div>
                   <Switch checked={reminderEmailEnabled} onCheckedChange={setReminderEmailEnabled} />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium text-sm">📱 {t('Nhắc qua SMS')}</p>
+                    <p className="font-medium text-sm">{t('Nhắc qua SMS')}</p>
                     <p className="text-xs text-muted-foreground">{t('Gửi SMS nhắc lịch tự động (cần cấu hình Twilio)')}</p>
                   </div>
                   <Switch checked={reminderSmsEnabled} onCheckedChange={setReminderSmsEnabled} />
@@ -1621,7 +1621,7 @@ const AdminDashboard = () => {
             {/* Resend Email Settings */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">📧 {t('Cài đặt email')} (Resend)</CardTitle>
+                <CardTitle className="text-base">{t('Cài đặt email')} (Resend)</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
@@ -1688,7 +1688,7 @@ const AdminDashboard = () => {
             {/* Create Admin Account */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">👤 {t('Tạo tài khoản admin mới')}</CardTitle>
+                <CardTitle className="text-base">{t('Tạo tài khoản admin mới')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
