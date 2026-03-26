@@ -41,11 +41,11 @@ const AdminDashboard = () => {
   const [therapistPhone, setTherapistPhone] = useState('');
 
   const { data: bookings } = useQuery({
-    queryKey: ['admin-bookings', filterDate?.toISOString(), filterTherapist],
+    queryKey: ['admin-bookings', filterTherapist],
     queryFn: async () => {
       let query = supabase.from('bookings').select('*, services(name), therapists(name)')
         .order('booking_date', { ascending: true }).order('start_time', { ascending: true });
-      if (filterDate) query = query.eq('booking_date', format(filterDate, 'yyyy-MM-dd'));
+      if (filterTherapist !== 'all') query = query.eq('therapist_id', filterTherapist);
       if (filterTherapist !== 'all') query = query.eq('therapist_id', filterTherapist);
       const { data, error } = await query;
       if (error) throw error;
