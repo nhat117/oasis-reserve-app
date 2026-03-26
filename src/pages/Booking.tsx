@@ -427,13 +427,13 @@ const Booking = () => {
               )}
 
               <div className="flex gap-2 pt-4">
-                <Button variant="outline" onClick={() => setStep(1)}>Quay lại</Button>
+                <Button variant="outline" onClick={() => setStep(1)}>{t('Quay lại')}</Button>
                 <Button
                   className="flex-1"
                   disabled={!selectedDate || !selectedTime}
                   onClick={() => setStep(3)}
                 >
-                  Tiếp tục
+                  {t('Tiếp tục')}
                 </Button>
               </div>
             </CardContent>
