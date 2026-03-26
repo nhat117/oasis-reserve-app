@@ -70,7 +70,10 @@ const AdminDashboard = () => {
 
   // Sales form state
   const [saleDialog, setSaleDialog] = useState(false);
+  const [saleType, setSaleType] = useState<'booking' | 'walkin'>('booking');
   const [saleBookingId, setSaleBookingId] = useState('');
+  const [saleServiceId, setSaleServiceId] = useState('');
+  const [saleCustomerName, setSaleCustomerName] = useState('');
   const [saleAmount, setSaleAmount] = useState('');
   const [salePaymentMethod, setSalePaymentMethod] = useState<'cash' | 'card'>('cash');
   const [saleNotes, setSaleNotes] = useState('');
