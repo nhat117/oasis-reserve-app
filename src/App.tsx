@@ -10,6 +10,7 @@ import Services from "./pages/Services";
 import Booking from "./pages/Booking";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminResetPassword from "./pages/AdminResetPassword";
 import NotFound from "./pages/NotFound";
 import Unsubscribe from "./pages/Unsubscribe";
 
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="/booking" element={<Booking />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/reset-password" element={<AdminResetPassword />} />
             <Route path="/unsubscribe" element={<Unsubscribe />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
