@@ -926,13 +926,13 @@ const AdminDashboard = () => {
           {/* Sales Tab */}
           <TabsContent value="sales">
             <Card>
-              <CardHeader className="flex-row items-center justify-between space-y-0">
+              <CardHeader className="space-y-2 sm:space-y-0 sm:flex-row sm:items-center sm:justify-between">
                 <CardTitle>{t('Thanh toán')}</CardTitle>
                 <Dialog open={saleDialog} onOpenChange={(open) => { setSaleDialog(open); if (!open) { setSaleType('booking'); setSaleBookingId(''); setSaleServiceId(''); setSaleCustomerName(''); setSaleAmount(''); setSalePaymentMethod('cash'); setSaleNotes(''); setSaleAddOns([]); } }}>
                   <DialogTrigger asChild>
-                    <Button size="sm"><Plus className="h-4 w-4 mr-1" /> {t('Tạo thanh toán')}</Button>
+                    <Button size="sm" className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-1" /> {t('Tạo thanh toán')}</Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-md">
+                  <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                       <DialogTitle>{t('Ghi nhận thanh toán')}</DialogTitle>
                       <DialogDescription>{t('Ghi nhận thanh toán cho dịch vụ')}</DialogDescription>
