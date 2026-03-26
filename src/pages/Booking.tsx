@@ -199,7 +199,7 @@ const Booking = () => {
     if (selectedTherapist === 'any') {
       const available = getAvailableTherapists(selectedTime, currentService.duration_minutes);
       if (available.length === 0) {
-        toast({ title: 'Lỗi', description: 'Không còn thợ trống. Vui lòng chọn giờ khác.', variant: 'destructive' });
+        toast({ title: t('Lỗi'), description: t('Không còn thợ trống. Vui lòng chọn giờ khác.'), variant: 'destructive' });
         setIsSubmitting(false);
         return;
       }
