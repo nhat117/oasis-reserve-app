@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { BookingCalendar } from '@/components/BookingCalendar';
 import { Textarea } from '@/components/ui/textarea';
 import { BookingStats } from '@/components/BookingStats';
-import { Leaf, LogOut, Plus, Pencil, CalendarOff, X } from 'lucide-react';
+import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -22,6 +22,8 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Navigate, Link } from 'react-router-dom';
+
+const CURRENCIES = ['VND', 'USD', 'EUR', 'AUD'] as const;
 
 const AdminDashboard = () => {
   const { user, isAdmin, loading, signOut } = useAuth();
@@ -53,10 +55,27 @@ const AdminDashboard = () => {
   const [holidayReason, setHolidayReason] = useState('');
   const [earlyCloseHour, setEarlyCloseHour] = useState('none');
 
+  // Create booking form state
+  const [bookingDialog, setBookingDialog] = useState(false);
+  const [bookingServiceId, setBookingServiceId] = useState('');
+  const [bookingTherapistId, setBookingTherapistId] = useState('');
+  const [bookingDate, setBookingDate] = useState<Date | undefined>();
+  const [bookingTime, setBookingTime] = useState('');
+  const [bookingCustomerName, setBookingCustomerName] = useState('');
+  const [bookingCustomerPhone, setBookingCustomerPhone] = useState('');
+  const [bookingCustomerEmail, setBookingCustomerEmail] = useState('');
+  const [bookingNotes, setBookingNotes] = useState('');
+
+  // Currency settings state
+  const [exchangeUSD, setExchangeUSD] = useState('');
+  const [exchangeEUR, setExchangeEUR] = useState('');
+  const [exchangeAUD, setExchangeAUD] = useState('');
+  const [defaultCurrency, setDefaultCurrency] = useState('AUD');
+
   const { data: bookings } = useQuery({
     queryKey: ['admin-bookings', filterTherapist],
     queryFn: async () => {
-      let query = supabase.from('bookings').select('*, services(name), therapists(name)')
+      let query = supabase.from('bookings').select('*, services(name, duration_minutes), therapists(name)')
         .order('booking_date', { ascending: true }).order('start_time', { ascending: true });
       if (filterTherapist !== 'all') query = query.eq('therapist_id', filterTherapist);
       const { data, error } = await query;
@@ -95,7 +114,7 @@ const AdminDashboard = () => {
 
   const toggleRandom = useMutation({
     mutationFn: async (enabled: boolean) => {
-      const { error } = await supabase.from('app_settings').update({ value: String(enabled) }).eq('key', 'random_therapist_enabled');
+      const { error } = await supabase.from('app_settings').upsert({ key: 'random_therapist_enabled', value: String(enabled) });
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['random-therapist-setting'] }); toast({ title: 'Đã cập nhật cài đặt' }); },
@@ -137,6 +156,44 @@ const AdminDashboard = () => {
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['whatsapp-setting'] }); toast({ title: 'Đã cập nhật WhatsApp' }); },
+  });
+
+  // Currency settings
+  const { data: currencySettings } = useQuery({
+    queryKey: ['currency-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('app_settings').select('key, value')
+        .in('key', ['exchange_rate_usd', 'exchange_rate_eur', 'exchange_rate_aud', 'default_currency']);
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      data?.forEach(r => { map[r.key] = r.value; });
+      return map;
+    },
+  });
+
+  useEffect(() => {
+    if (currencySettings) {
+      setExchangeUSD(currencySettings['exchange_rate_usd'] || '0.000039');
+      setExchangeEUR(currencySettings['exchange_rate_eur'] || '0.000036');
+      setExchangeAUD(currencySettings['exchange_rate_aud'] || '0.000061');
+      setDefaultCurrency(currencySettings['default_currency'] || 'AUD');
+    }
+  }, [currencySettings]);
+
+  const saveCurrencySettings = useMutation({
+    mutationFn: async () => {
+      const rows = [
+        { key: 'exchange_rate_usd', value: exchangeUSD },
+        { key: 'exchange_rate_eur', value: exchangeEUR },
+        { key: 'exchange_rate_aud', value: exchangeAUD },
+        { key: 'default_currency', value: defaultCurrency },
+      ];
+      for (const row of rows) {
+        const { error } = await supabase.from('app_settings').upsert(row);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['currency-settings'] }); toast({ title: 'Đã lưu cài đặt tiền tệ' }); },
   });
 
   // Therapist unavailability
@@ -215,6 +272,48 @@ const AdminDashboard = () => {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-bookings'] }); toast({ title: 'Đã dời lịch hẹn' }); },
   });
 
+  // Create booking from admin
+  const createBooking = useMutation({
+    mutationFn: async () => {
+      const service = services?.find(s => s.id === bookingServiceId);
+      if (!service || !bookingDate || !bookingTime || !bookingTherapistId) throw new Error('Missing fields');
+      const [h, m] = bookingTime.split(':').map(Number);
+      const endMin = h * 60 + m + service.duration_minutes;
+      const endTime = `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
+      const { error } = await supabase.from('bookings').insert({
+        service_id: bookingServiceId,
+        therapist_id: bookingTherapistId,
+        booking_date: format(bookingDate, 'yyyy-MM-dd'),
+        start_time: bookingTime,
+        end_time: endTime,
+        customer_name: bookingCustomerName,
+        customer_phone: bookingCustomerPhone,
+        customer_email: bookingCustomerEmail || null,
+        notes: bookingNotes || null,
+        status: 'confirmed',
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-bookings'] });
+      setBookingDialog(false);
+      resetBookingForm();
+      toast({ title: 'Đã tạo lịch hẹn' });
+    },
+    onError: (e) => { toast({ title: 'Lỗi', description: e.message, variant: 'destructive' }); },
+  });
+
+  const resetBookingForm = () => {
+    setBookingServiceId('');
+    setBookingTherapistId('');
+    setBookingDate(undefined);
+    setBookingTime('');
+    setBookingCustomerName('');
+    setBookingCustomerPhone('');
+    setBookingCustomerEmail('');
+    setBookingNotes('');
+  };
+
   const saveService = useMutation({
     mutationFn: async () => {
       const payload = { name: serviceName, description: serviceDesc || null, duration_minutes: parseInt(serviceDuration), price: parseInt(servicePrice) };
@@ -286,6 +385,16 @@ const AdminDashboard = () => {
 
   const formatPrice = (p: number) => new Intl.NumberFormat('vi-VN').format(p) + 'đ';
 
+  // Generate time slots for booking
+  const getTimeSlots = () => {
+    const slots: string[] = [];
+    for (let h = 9; h < 18; h++) {
+      slots.push(`${String(h).padStart(2, '0')}:00`);
+      slots.push(`${String(h).padStart(2, '0')}:30`);
+    }
+    return slots;
+  };
+
   if (loading) return <div className="min-h-screen flex items-center justify-center"><p>Đang tải...</p></div>;
   if (!user) return <Navigate to="/admin/login" />;
   if (!isAdmin) return <div className="min-h-screen flex items-center justify-center"><p className="text-destructive">Bạn không có quyền truy cập.</p></div>;
@@ -309,6 +418,7 @@ const AdminDashboard = () => {
             <TabsTrigger value="bookings">Lịch hẹn</TabsTrigger>
             <TabsTrigger value="services">Dịch vụ</TabsTrigger>
             <TabsTrigger value="therapists">Thợ</TabsTrigger>
+            <TabsTrigger value="settings"><Settings className="h-4 w-4 mr-1" /> Cài đặt</TabsTrigger>
           </TabsList>
 
           {/* Stats Tab */}
@@ -321,13 +431,91 @@ const AdminDashboard = () => {
             <Card>
               <CardHeader className="flex-row items-center justify-between space-y-0">
                 <CardTitle>Lịch hẹn</CardTitle>
-                <Select value={filterTherapist} onValueChange={setFilterTherapist}>
-                  <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Tất cả thợ</SelectItem>
-                    {therapists?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-2">
+                  <Select value={filterTherapist} onValueChange={setFilterTherapist}>
+                    <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tất cả thợ</SelectItem>
+                      {therapists?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Dialog open={bookingDialog} onOpenChange={(open) => { setBookingDialog(open); if (!open) resetBookingForm(); }}>
+                    <DialogTrigger asChild>
+                      <Button size="sm"><Plus className="h-4 w-4 mr-1" /> Tạo lịch</Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-md">
+                      <DialogHeader><DialogTitle>Tạo lịch hẹn mới</DialogTitle></DialogHeader>
+                      <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+                        <div>
+                          <Label>Dịch vụ</Label>
+                          <Select value={bookingServiceId} onValueChange={setBookingServiceId}>
+                            <SelectTrigger className="mt-1"><SelectValue placeholder="Chọn dịch vụ" /></SelectTrigger>
+                            <SelectContent>
+                              {services?.filter(s => s.is_active).map(s => (
+                                <SelectItem key={s.id} value={s.id}>{s.name} ({s.duration_minutes} phút — {formatPrice(s.price)})</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label>Thợ</Label>
+                          <Select value={bookingTherapistId} onValueChange={setBookingTherapistId}>
+                            <SelectTrigger className="mt-1"><SelectValue placeholder="Chọn thợ" /></SelectTrigger>
+                            <SelectContent>
+                              {therapists?.filter(t => t.is_active).map(t => (
+                                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label>Ngày</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" className={cn("w-full mt-1 justify-start", !bookingDate && "text-muted-foreground")}>
+                                {bookingDate ? format(bookingDate, 'dd/MM/yyyy') : 'Chọn ngày'}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar mode="single" selected={bookingDate} onSelect={setBookingDate} className="p-3 pointer-events-auto" />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <div>
+                          <Label>Giờ</Label>
+                          <Select value={bookingTime} onValueChange={setBookingTime}>
+                            <SelectTrigger className="mt-1"><SelectValue placeholder="Chọn giờ" /></SelectTrigger>
+                            <SelectContent>
+                              {getTimeSlots().map(t => (
+                                <SelectItem key={t} value={t}>{t}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label>Tên khách hàng</Label>
+                          <Input value={bookingCustomerName} onChange={e => setBookingCustomerName(e.target.value)} className="mt-1" placeholder="Họ và tên" />
+                        </div>
+                        <div>
+                          <Label>Số điện thoại</Label>
+                          <Input value={bookingCustomerPhone} onChange={e => setBookingCustomerPhone(e.target.value)} className="mt-1" placeholder="0912345678" />
+                        </div>
+                        <div>
+                          <Label>Email (tuỳ chọn)</Label>
+                          <Input value={bookingCustomerEmail} onChange={e => setBookingCustomerEmail(e.target.value)} className="mt-1" placeholder="email@example.com" />
+                        </div>
+                        <div>
+                          <Label>Ghi chú</Label>
+                          <Textarea value={bookingNotes} onChange={e => setBookingNotes(e.target.value)} className="mt-1" placeholder="Ghi chú thêm..." />
+                        </div>
+                        <Button className="w-full" onClick={() => createBooking.mutate()}
+                          disabled={!bookingServiceId || !bookingTherapistId || !bookingDate || !bookingTime || !bookingCustomerName.trim() || !bookingCustomerPhone.trim()}>
+                          Tạo lịch hẹn
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </CardHeader>
               <CardContent>
                 <BookingCalendar
@@ -397,48 +585,6 @@ const AdminDashboard = () => {
 
           {/* Therapists Tab */}
           <TabsContent value="therapists" className="space-y-6">
-            {/* Random therapist toggle */}
-            <Card>
-              <CardContent className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-sm">Tự động chọn thợ ngẫu nhiên</p>
-                  <p className="text-xs text-muted-foreground">Cho phép khách chọn "bất kỳ thợ trống" khi đặt lịch</p>
-                </div>
-                <Switch checked={randomEnabled !== false} onCheckedChange={(v) => toggleRandom.mutate(v)} />
-              </CardContent>
-            </Card>
-
-            {/* SMS & WhatsApp Notification Settings */}
-            <Card>
-              <CardContent className="p-4 space-y-3">
-                <div>
-                  <p className="font-medium text-sm">📱 Nhắc lịch qua SMS & WhatsApp</p>
-                  <p className="text-xs text-muted-foreground">Gửi SMS/WhatsApp nhắc khách hàng 1 tiếng trước lịch hẹn</p>
-                </div>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder={twilioNumber || "Số Twilio (vd: +84123456789)"}
-                    value={smsNumber}
-                    onChange={e => setSmsNumber(e.target.value)}
-                    className="flex-1"
-                  />
-                  <Button size="sm" disabled={!smsNumber.trim()} onClick={() => { saveSmsNumber.mutate(smsNumber.trim()); setSmsNumber(''); }}>
-                    Lưu
-                  </Button>
-                </div>
-                {twilioNumber && (
-                  <p className="text-xs text-muted-foreground">Số hiện tại: <strong>{twilioNumber}</strong></p>
-                )}
-                <div className="flex items-center justify-between pt-2 border-t">
-                  <div>
-                    <p className="font-medium text-sm">💬 WhatsApp</p>
-                    <p className="text-xs text-muted-foreground">Gửi thêm nhắc nhở qua WhatsApp</p>
-                  </div>
-                  <Switch checked={whatsappEnabled === true} onCheckedChange={(v) => toggleWhatsapp.mutate(v)} />
-                </div>
-              </CardContent>
-            </Card>
-
             {/* Unavailability */}
             <Card>
               <CardHeader className="pb-3">
@@ -612,6 +758,84 @@ const AdminDashboard = () => {
                     ))}
                   </TableBody>
                 </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Settings Tab */}
+          <TabsContent value="settings" className="space-y-6">
+            {/* Random therapist toggle */}
+            <Card>
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-sm">Tự động chọn thợ ngẫu nhiên</p>
+                  <p className="text-xs text-muted-foreground">Cho phép khách chọn "bất kỳ thợ trống" khi đặt lịch</p>
+                </div>
+                <Switch checked={randomEnabled !== false} onCheckedChange={(v) => toggleRandom.mutate(v)} />
+              </CardContent>
+            </Card>
+
+            {/* Currency Settings */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">💱 Cài đặt tiền tệ</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label>Đơn vị tiền mặc định (cho khách English)</Label>
+                  <Select value={defaultCurrency} onValueChange={setDefaultCurrency}>
+                    <SelectTrigger className="mt-1 w-[120px]"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CURRENCIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <Label className="text-xs">1 VNĐ → USD</Label>
+                    <Input type="text" value={exchangeUSD} onChange={e => setExchangeUSD(e.target.value)} className="mt-1" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">1 VNĐ → EUR</Label>
+                    <Input type="text" value={exchangeEUR} onChange={e => setExchangeEUR(e.target.value)} className="mt-1" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">1 VNĐ → AUD</Label>
+                    <Input type="text" value={exchangeAUD} onChange={e => setExchangeAUD(e.target.value)} className="mt-1" />
+                  </div>
+                </div>
+                <Button size="sm" onClick={() => saveCurrencySettings.mutate()}>Lưu cài đặt tiền tệ</Button>
+              </CardContent>
+            </Card>
+
+            {/* SMS & WhatsApp Notification Settings */}
+            <Card>
+              <CardContent className="p-4 space-y-3">
+                <div>
+                  <p className="font-medium text-sm">📱 Nhắc lịch qua SMS & WhatsApp</p>
+                  <p className="text-xs text-muted-foreground">Gửi SMS/WhatsApp nhắc khách hàng 1 tiếng trước lịch hẹn</p>
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder={twilioNumber || "Số Twilio (vd: +84123456789)"}
+                    value={smsNumber}
+                    onChange={e => setSmsNumber(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button size="sm" disabled={!smsNumber.trim()} onClick={() => { saveSmsNumber.mutate(smsNumber.trim()); setSmsNumber(''); }}>
+                    Lưu
+                  </Button>
+                </div>
+                {twilioNumber && (
+                  <p className="text-xs text-muted-foreground">Số hiện tại: <strong>{twilioNumber}</strong></p>
+                )}
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <div>
+                    <p className="font-medium text-sm">💬 WhatsApp</p>
+                    <p className="text-xs text-muted-foreground">Gửi thêm nhắc nhở qua WhatsApp</p>
+                  </div>
+                  <Switch checked={whatsappEnabled === true} onCheckedChange={(v) => toggleWhatsapp.mutate(v)} />
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
