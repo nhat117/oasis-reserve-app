@@ -2,12 +2,9 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import { supabase } from '@/integrations/supabase/client';
 
 type Lang = 'vi' | 'en';
-type Currency = 'VND' | 'USD' | 'EUR' | 'AUD';
+type Currency = 'AUD';
 
-const CURRENCY_MAP: Record<Lang, Currency> = {
-  vi: 'VND',
-  en: 'AUD',
-};
+const DEFAULT_CURRENCY: Currency = 'AUD';
 
 const DEFAULT_RATES: Record<Currency, number> = {
   VND: 1,
