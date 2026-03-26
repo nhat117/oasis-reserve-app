@@ -191,6 +191,9 @@ const AdminDashboard = () => {
                 <BookingCalendar
                   bookings={(bookings as any) || []}
                   onCancel={(id) => cancelBooking.mutate(id)}
+                  onReschedule={(id, newDate, newStartTime, newEndTime) =>
+                    rescheduleBooking.mutate({ id, newDate, newStartTime, newEndTime })
+                  }
                 />
               </CardContent>
             </Card>
