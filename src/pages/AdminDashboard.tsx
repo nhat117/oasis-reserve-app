@@ -136,8 +136,12 @@ const AdminDashboard = () => {
   });
 
   const addHoliday = useMutation({
-    mutationFn: async ({ date, reason }: { date: string; reason?: string }) => {
-      const { error } = await supabase.from('shop_holidays').insert({ holiday_date: date, reason });
+    mutationFn: async ({ date, reason, earlyCloseHour }: { date: string; reason?: string; earlyCloseHour?: number }) => {
+      const { error } = await supabase.from('shop_holidays').insert({
+        holiday_date: date,
+        reason,
+        early_close_hour: earlyCloseHour ?? null,
+      } as any);
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['shop-holidays'] }); toast({ title: 'Đã thêm ngày nghỉ tiệm' }); },
