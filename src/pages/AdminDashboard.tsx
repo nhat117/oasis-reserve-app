@@ -817,6 +817,8 @@ const AdminDashboard = () => {
                           <Label>{t('Giờ')}</Label>
                           {!bookingServiceId || !bookingDate ? (
                             <p className="text-sm text-muted-foreground mt-1">{t('Chọn dịch vụ và ngày trước')}</p>
+                          ) : availableSlots.length === 0 && bookingTherapistId && bookingTherapistId !== 'random' && (unavailabilities || []).some(u => u.therapist_id === bookingTherapistId && u.unavailable_date === format(bookingDate, 'yyyy-MM-dd')) ? (
+                            <p className="text-sm text-destructive mt-1">{t('Thợ nghỉ ngày này')} - {(unavailabilities || []).find(u => u.therapist_id === bookingTherapistId && u.unavailable_date === format(bookingDate, 'yyyy-MM-dd'))?.reason || t('Không có lý do')}</p>
                           ) : availableSlots.length === 0 ? (
                             <p className="text-sm text-destructive mt-1">{t('Không có khung giờ trống')}</p>
                           ) : (
