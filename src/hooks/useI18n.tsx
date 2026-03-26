@@ -182,15 +182,27 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
 
 export const useI18n = () => useContext(I18nContext);
 
-// Language switcher component
+// Language & currency switcher component
 export const LanguageSwitcher = ({ className }: { className?: string }) => {
-  const { lang, setLang } = useI18n();
+  const { lang, setLang, currency, setCurrency } = useI18n();
+  const currencies: Currency[] = ['VND', 'USD', 'EUR', 'AUD'];
   return (
-    <button
-      onClick={() => setLang(lang === 'en' ? 'vi' : 'en')}
-      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-border bg-card hover:bg-accent transition-colors ${className || ''}`}
-    >
-      {lang === 'en' ? '🇻🇳 Tiếng Việt' : '🇬🇧 English'}
-    </button>
+    <div className={`flex items-center gap-1.5 ${className || ''}`}>
+      <button
+        onClick={() => setLang(lang === 'en' ? 'vi' : 'en')}
+        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium border border-border bg-card hover:bg-accent transition-colors"
+      >
+        {lang === 'en' ? '🇻🇳 VI' : '🇬🇧 EN'}
+      </button>
+      <select
+        value={currency}
+        onChange={e => setCurrency(e.target.value as Currency)}
+        className="text-xs px-2 py-1.5 rounded-full border border-border bg-card hover:bg-accent transition-colors cursor-pointer"
+      >
+        {currencies.map(c => (
+          <option key={c} value={c}>{c}</option>
+        ))}
+      </select>
+    </div>
   );
 };
