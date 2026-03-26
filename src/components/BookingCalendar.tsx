@@ -119,7 +119,7 @@ function layoutOverlappingBookings(bookings: Booking[]): LayoutedBooking[] {
   return result;
 }
 
-export function BookingCalendar({ bookings, onCancel, onReschedule }: BookingCalendarProps) {
+export function BookingCalendar({ bookings, onCancel, onDelete, onReschedule }: BookingCalendarProps) {
   const { t, lang } = useI18n();
   const locale = lang === 'vi' ? vi : enAU;
   const weekdays = lang === 'vi' ? WEEKDAYS_VI : WEEKDAYS_EN;
