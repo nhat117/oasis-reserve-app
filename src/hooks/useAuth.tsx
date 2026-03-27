@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect, useRef, createContext, useContext } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
 
@@ -23,39 +23,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isEmployee, setIsEmployee] = useState(false);
   const [loading, setLoading] = useState(true);
+  const roleRequestRef = useRef(0);
 
   const checkRoles = async (userId: string) => {
     const [{ data: admin }, { data: employee }] = await Promise.all([
       supabase.rpc('has_role', { _user_id: userId, _role: 'admin' }),
       supabase.rpc('has_role', { _user_id: userId, _role: 'employee' }),
     ]);
-    setIsAdmin(!!admin);
-    setIsEmployee(!!employee);
+
+    return {
+      admin: !!admin,
+      employee: !!employee,
+    };
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        setTimeout(() => checkRoles(session.user.id), 0);
-      } else {
+    let mounted = true;
+
+    const applySession = async (nextSession: Session | null) => {
+      if (!mounted) return;
+
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
+
+      if (!nextSession?.user) {
+        roleRequestRef.current += 1;
         setIsAdmin(false);
         setIsEmployee(false);
+        setLoading(false);
+        return;
       }
+
+      setLoading(true);
+      setIsAdmin(false);
+      setIsEmployee(false);
+
+      const requestId = ++roleRequestRef.current;
+      const roles = await checkRoles(nextSession.user.id);
+
+      if (!mounted || requestId !== roleRequestRef.current) return;
+
+      setIsAdmin(roles.admin);
+      setIsEmployee(roles.employee);
       setLoading(false);
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      void applySession(session);
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        checkRoles(session.user.id);
-      }
-      setLoading(false);
+      void applySession(session);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {

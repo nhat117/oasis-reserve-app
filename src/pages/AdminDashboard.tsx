@@ -32,6 +32,10 @@ const AdminDashboard = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { t } = useI18n();
+  const canAccessSettings = isAdmin;
+  const requireAdmin = () => {
+    if (!isAdmin) throw new Error('Admin only');
+  };
 
   const [filterTherapist, setFilterTherapist] = useState('all');
 
@@ -254,6 +258,7 @@ const AdminDashboard = () => {
 
   const toggleRandom = useMutation({
     mutationFn: async (enabled: boolean) => {
+      requireAdmin();
       const { error } = await supabase.from('app_settings').upsert({ key: 'random_therapist_enabled', value: String(enabled) });
       if (error) throw error;
     },
@@ -274,6 +279,7 @@ const AdminDashboard = () => {
 
   const saveSmsNumber = useMutation({
     mutationFn: async (num: string) => {
+      requireAdmin();
       const { error } = await supabase.from('app_settings').upsert({ key: 'twilio_from_number', value: num });
       if (error) throw error;
     },
@@ -292,6 +298,7 @@ const AdminDashboard = () => {
 
   const toggleWhatsapp = useMutation({
     mutationFn: async (enabled: boolean) => {
+      requireAdmin();
       const { error } = await supabase.from('app_settings').upsert({ key: 'whatsapp_enabled', value: String(enabled) });
       if (error) throw error;
     },
@@ -333,6 +340,7 @@ const AdminDashboard = () => {
 
   const saveShopInfo = useMutation({
     mutationFn: async () => {
+      requireAdmin();
       const rows = [
         { key: 'shop_phone', value: shopPhone },
         { key: 'shop_address', value: shopAddress },
@@ -367,6 +375,7 @@ const AdminDashboard = () => {
 
   const saveResendSettings = useMutation({
     mutationFn: async () => {
+      requireAdmin();
       const rows = [
         { key: 'resend_api_key', value: resendApiKey },
         { key: 'resend_from_email', value: resendFromEmail },
@@ -398,6 +407,7 @@ const AdminDashboard = () => {
 
   const saveCardSurcharge = useMutation({
     mutationFn: async () => {
+      requireAdmin();
       const { error } = await supabase.from('app_settings').upsert({ key: 'card_surcharge_percent', value: cardSurchargePercent });
       if (error) throw error;
     },
@@ -427,6 +437,7 @@ const AdminDashboard = () => {
 
   const saveOpenaiSettings = useMutation({
     mutationFn: async () => {
+      requireAdmin();
       const rows = [
         { key: 'openai_api_key', value: openaiApiKey },
         { key: 'openai_base_url', value: openaiBaseUrl || 'https://api.openai.com/v1' },
@@ -467,6 +478,7 @@ const AdminDashboard = () => {
 
   const saveReminderSettings = useMutation({
     mutationFn: async () => {
+      requireAdmin();
       const rows = [
         { key: 'reminder_email_enabled', value: String(reminderEmailEnabled) },
         { key: 'reminder_sms_enabled', value: String(reminderSmsEnabled) },
@@ -494,6 +506,7 @@ const AdminDashboard = () => {
 
   const saveTier = useMutation({
     mutationFn: async () => {
+      requireAdmin();
       const payload = { name: tierName, min_visits: parseInt(tierMinVisits), discount_percent: parseFloat(tierDiscountPercent) };
       if (editingTier) {
         const { error } = await supabase.from('membership_tiers').update(payload).eq('id', editingTier.id);
@@ -513,7 +526,11 @@ const AdminDashboard = () => {
   });
 
   const toggleTierActive = useMutation({
-    mutationFn: async ({ id, active }: { id: string; active: boolean }) => { const { error } = await supabase.from('membership_tiers').update({ is_active: active }).eq('id', id); if (error) throw error; },
+    mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
+      requireAdmin();
+      const { error } = await supabase.from('membership_tiers').update({ is_active: active }).eq('id', id);
+      if (error) throw error;
+    },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['membership-tiers'] }); },
   });
 
@@ -529,6 +546,7 @@ const AdminDashboard = () => {
 
   const saveDiscount = useMutation({
     mutationFn: async () => {
+      requireAdmin();
       const payload: any = {
         code: discountCode.toUpperCase().trim(),
         discount_percent: parseFloat(discountPercent),
@@ -555,7 +573,11 @@ const AdminDashboard = () => {
   });
 
   const toggleDiscountActive = useMutation({
-    mutationFn: async ({ id, active }: { id: string; active: boolean }) => { const { error } = await supabase.from('discount_codes').update({ is_active: active }).eq('id', id); if (error) throw error; },
+    mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
+      requireAdmin();
+      const { error } = await supabase.from('discount_codes').update({ is_active: active }).eq('id', id);
+      if (error) throw error;
+    },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['discount-codes'] }); },
   });
 
@@ -579,17 +601,29 @@ const AdminDashboard = () => {
   });
 
   const toggleMembership = useMutation({
-    mutationFn: async (enabled: boolean) => { const { error } = await supabase.from('app_settings').upsert({ key: 'membership_enabled', value: String(enabled) }); if (error) throw error; },
+    mutationFn: async (enabled: boolean) => {
+      requireAdmin();
+      const { error } = await supabase.from('app_settings').upsert({ key: 'membership_enabled', value: String(enabled) });
+      if (error) throw error;
+    },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['membership-enabled'] }); toast({ title: t('Đã cập nhật') }); },
   });
 
   const toggleDiscountCodes = useMutation({
-    mutationFn: async (enabled: boolean) => { const { error } = await supabase.from('app_settings').upsert({ key: 'discount_codes_enabled', value: String(enabled) }); if (error) throw error; },
+    mutationFn: async (enabled: boolean) => {
+      requireAdmin();
+      const { error } = await supabase.from('app_settings').upsert({ key: 'discount_codes_enabled', value: String(enabled) });
+      if (error) throw error;
+    },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['discount-codes-enabled'] }); toast({ title: t('Đã cập nhật') }); },
   });
 
   // Delete all data
   const handleDeleteAllData = async () => {
+    if (!isAdmin) {
+      toast({ title: t('Lỗi'), description: t('Chỉ admin có quyền thực hiện thao tác này'), variant: 'destructive' });
+      return;
+    }
     if (!deletePassword.trim()) return;
     setDeleting(true);
     try {
@@ -642,6 +676,7 @@ const AdminDashboard = () => {
 
   const saveCurrencySettings = useMutation({
     mutationFn: async () => {
+      requireAdmin();
       const rows = [
         { key: 'exchange_rate_usd', value: exchangeUSD },
         { key: 'exchange_rate_eur', value: exchangeEUR },
@@ -676,6 +711,7 @@ const AdminDashboard = () => {
 
   const removeUnavailability = useMutation({
     mutationFn: async (id: string) => {
+      requireAdmin();
       const { error } = await supabase.from('therapist_unavailability').delete().eq('id', id);
       if (error) throw error;
     },
@@ -738,6 +774,7 @@ const AdminDashboard = () => {
 
   const removeHoliday = useMutation({
     mutationFn: async (id: string) => {
+      requireAdmin();
       const { error } = await supabase.from('shop_holidays').delete().eq('id', id);
       if (error) throw error;
     },
@@ -1064,7 +1101,9 @@ const AdminDashboard = () => {
             <TabsTrigger value="sales" className="rounded-lg px-4 text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground">{t('Thanh toán')}</TabsTrigger>
             <TabsTrigger value="services" className="rounded-lg px-4 text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground">{t('Dịch vụ')}</TabsTrigger>
             <TabsTrigger value="therapists" className="rounded-lg px-4 text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground">{t('Thợ')}</TabsTrigger>
-            <TabsTrigger value="settings" className="rounded-lg px-4 text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground">{t('Cài đặt')}</TabsTrigger>
+            {canAccessSettings && (
+              <TabsTrigger value="settings" className="rounded-lg px-4 text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground">{t('Cài đặt')}</TabsTrigger>
+            )}
           </TabsList>
 
           {/* Mobile bottom nav */}
@@ -1077,7 +1116,7 @@ const AdminDashboard = () => {
                 { value: 'sales', icon: DollarSign, label: t('Thu') },
                 { value: 'services', icon: Scissors, label: t('Dịch vụ') },
                 { value: 'therapists', icon: Users, label: t('Thợ') },
-                { value: 'settings', icon: Settings, label: t('Cài đặt') },
+                ...(canAccessSettings ? [{ value: 'settings', icon: Settings, label: t('Cài đặt') }] : []),
               ].map(tab => (
                 <TabsTrigger key={tab.value} value={tab.value} className="flex-col gap-1 py-2.5 px-1 rounded-none data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none h-auto text-xs text-muted-foreground transition-colors">
                   <tab.icon className="h-5 w-5" />
@@ -1326,7 +1365,7 @@ const AdminDashboard = () => {
                 <BookingCalendar
                   bookings={(bookings as any) || []}
                   onCancel={(id) => cancelBooking.mutate(id)}
-                  onDelete={(id) => deleteBooking.mutate(id)}
+                  onDelete={isAdmin ? (id) => deleteBooking.mutate(id) : undefined}
                   onReschedule={(id, newDate, newStartTime, newEndTime) =>
                     rescheduleBooking.mutate({ id, newDate, newStartTime, newEndTime })
                   }
@@ -1552,9 +1591,11 @@ const AdminDashboard = () => {
                                 <Badge variant={s.payment_method === 'card' ? 'default' : 'secondary'} className="text-xs">
                                   {s.payment_method === 'card' ? t('Thẻ') : t('Tiền mặt')}
                                 </Badge>
-                                <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => deleteSale.mutate(s.id)}>
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
+                                {isAdmin && (
+                                  <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => deleteSale.mutate(s.id)}>
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                )}
                               </div>
                             </div>
                             <div className="text-xs text-muted-foreground space-y-0.5">
@@ -1596,9 +1637,11 @@ const AdminDashboard = () => {
                                 </TableCell>
                                 <TableCell className="text-xs text-muted-foreground max-w-[150px] truncate">{s.notes || '—'}</TableCell>
                                 <TableCell>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteSale.mutate(s.id)}>
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
+                                  {isAdmin && (
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteSale.mutate(s.id)}>
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  )}
                                 </TableCell>
                               </TableRow>
                             ))}
@@ -1660,7 +1703,9 @@ const AdminDashboard = () => {
                         <TableCell><Badge variant={s.is_active ? 'default' : 'secondary'}>{s.is_active ? t('Hoạt động') : t('Tắt')}</Badge></TableCell>
                         <TableCell className="space-x-1">
                           <Button variant="ghost" size="sm" onClick={() => openServiceEdit(s)}><Pencil className="h-4 w-4" /></Button>
-                          <Button variant="ghost" size="sm" className="text-destructive" onClick={() => { if (confirm(t('Xoá dịch vụ này?'))) deleteService.mutate(s.id); }}><Trash2 className="h-4 w-4" /></Button>
+                          {isAdmin && (
+                            <Button variant="ghost" size="sm" className="text-destructive" onClick={() => { if (confirm(t('Xoá dịch vụ này?'))) deleteService.mutate(s.id); }}><Trash2 className="h-4 w-4" /></Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1711,9 +1756,11 @@ const AdminDashboard = () => {
                     {unavailabilities.filter(u => u.unavailable_date >= format(new Date(), 'yyyy-MM-dd')).map(u => (
                       <div key={u.id} className="flex items-center justify-between py-1.5 px-3 bg-muted rounded text-sm">
                         <span><strong>{(u as any).therapists?.name}</strong> — {u.unavailable_date}</span>
-                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeUnavailability.mutate(u.id)}>
-                          <X className="h-3 w-3" />
-                        </Button>
+                        {isAdmin && (
+                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeUnavailability.mutate(u.id)}>
+                            <X className="h-3 w-3" />
+                          </Button>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1777,9 +1824,11 @@ const AdminDashboard = () => {
                           {h.early_close_hour ? ` — ${t('Đóng cửa lúc')} ${h.early_close_hour}:00` : ` — ${t('Nghỉ cả ngày')}`}
                           {h.reason ? ` (${h.reason})` : ''}
                         </span>
-                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeHoliday.mutate(h.id)}>
-                          <X className="h-3 w-3" />
-                        </Button>
+                        {isAdmin && (
+                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeHoliday.mutate(h.id)}>
+                            <X className="h-3 w-3" />
+                          </Button>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1846,7 +1895,9 @@ const AdminDashboard = () => {
                         <TableCell><Badge variant={th.is_active ? 'default' : 'secondary'}>{th.is_active ? t('Hoạt động') : t('Tắt')}</Badge></TableCell>
                         <TableCell className="space-x-1">
                           <Button variant="ghost" size="sm" onClick={() => openTherapistEdit(th)}><Pencil className="h-4 w-4" /></Button>
-                          <Button variant="ghost" size="sm" className="text-destructive" onClick={() => { if (confirm(t('Xoá thợ này?'))) deleteTherapist.mutate(th.id); }}><Trash2 className="h-4 w-4" /></Button>
+                          {isAdmin && (
+                            <Button variant="ghost" size="sm" className="text-destructive" onClick={() => { if (confirm(t('Xoá thợ này?'))) deleteTherapist.mutate(th.id); }}><Trash2 className="h-4 w-4" /></Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1857,6 +1908,7 @@ const AdminDashboard = () => {
           </TabsContent>
 
           {/* Settings Tab */}
+          {isAdmin && (
           <TabsContent value="settings" className="space-y-6">
             {/* Shop Info */}
             <Card>
@@ -2524,6 +2576,7 @@ const AdminDashboard = () => {
               </Card>
             )}
           </TabsContent>
+          )}
         </Tabs>
       </div>
     </div>
