@@ -95,6 +95,48 @@ export type Database = {
           },
         ]
       }
+      discount_codes: {
+        Row: {
+          code: string
+          created_at: string
+          current_uses: number
+          discount_amount: number
+          discount_percent: number
+          id: string
+          is_active: boolean
+          max_uses: number | null
+          updated_at: string
+          valid_from: string | null
+          valid_to: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          current_uses?: number
+          discount_amount?: number
+          discount_percent?: number
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          updated_at?: string
+          valid_from?: string | null
+          valid_to?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          current_uses?: number
+          discount_amount?: number
+          discount_percent?: number
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          updated_at?: string
+          valid_from?: string | null
+          valid_to?: string | null
+        }
+        Relationships: []
+      }
       email_send_log: {
         Row: {
           created_at: string
@@ -179,6 +221,74 @@ export type Database = {
           id?: string
           token?: string
           used_at?: string | null
+        }
+        Relationships: []
+      }
+      guest_visits: {
+        Row: {
+          created_at: string
+          customer_name: string | null
+          customer_phone: string
+          id: string
+          membership_tier_id: string | null
+          updated_at: string
+          visit_count: number
+        }
+        Insert: {
+          created_at?: string
+          customer_name?: string | null
+          customer_phone: string
+          id?: string
+          membership_tier_id?: string | null
+          updated_at?: string
+          visit_count?: number
+        }
+        Update: {
+          created_at?: string
+          customer_name?: string | null
+          customer_phone?: string
+          id?: string
+          membership_tier_id?: string | null
+          updated_at?: string
+          visit_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_visits_membership_tier_id_fkey"
+            columns: ["membership_tier_id"]
+            isOneToOne: false
+            referencedRelation: "membership_tiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      membership_tiers: {
+        Row: {
+          created_at: string
+          discount_percent: number
+          id: string
+          is_active: boolean
+          min_visits: number
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          discount_percent?: number
+          id?: string
+          is_active?: boolean
+          min_visits?: number
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          discount_percent?: number
+          id?: string
+          is_active?: boolean
+          min_visits?: number
+          name?: string
+          updated_at?: string
         }
         Relationships: []
       }
