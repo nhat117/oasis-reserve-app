@@ -119,6 +119,27 @@ const AdminDashboard = () => {
   const [reminder1stHours, setReminder1stHours] = useState('24');
   const [reminder2ndHours, setReminder2ndHours] = useState('1');
 
+  // Membership & discount state
+  const [membershipDialog, setMembershipDialog] = useState(false);
+  const [editingTier, setEditingTier] = useState<any>(null);
+  const [tierName, setTierName] = useState('');
+  const [tierMinVisits, setTierMinVisits] = useState('0');
+  const [tierDiscountPercent, setTierDiscountPercent] = useState('0');
+
+  const [discountDialog, setDiscountDialog] = useState(false);
+  const [editingDiscount, setEditingDiscount] = useState<any>(null);
+  const [discountCode, setDiscountCode] = useState('');
+  const [discountPercent, setDiscountPercent] = useState('0');
+  const [discountAmount, setDiscountAmount] = useState('0');
+  const [discountValidFrom, setDiscountValidFrom] = useState('');
+  const [discountValidTo, setDiscountValidTo] = useState('');
+  const [discountMaxUses, setDiscountMaxUses] = useState('');
+
+  // Delete all data state
+  const [deleteDialog, setDeleteDialog] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
   const { data: bookings } = useQuery({
     queryKey: ['admin-bookings', filterTherapist],
     queryFn: async () => {
