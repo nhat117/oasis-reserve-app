@@ -216,7 +216,7 @@ export function BookingStats({ className }: StatsProps) {
             <div className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
             <span className="text-muted-foreground">{entry.name}:</span>
             <span className="font-semibold text-foreground">
-              {entry.name === 'Sales' ? formatPrice(entry.value) : entry.value}
+              {entry.dataKey === 'Revenue' || entry.dataKey === 'Trend' ? formatPrice(entry.value) : entry.value}
             </span>
           </div>
         ))}
