@@ -2416,47 +2416,112 @@ const AdminDashboard = () => {
               </CardContent>
             </Card>
 
-            {/* ── Danger Zone: Delete All Data ── */}
-            <Card className="border-destructive/30">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2 text-destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  {t('Vùng nguy hiểm')}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground mb-4">{t('Xoá tất cả dữ liệu lịch hẹn, thanh toán, ngày nghỉ. Hành động không thể hoàn tác.')}</p>
-                <Dialog open={deleteDialog} onOpenChange={setDeleteDialog}>
-                  <DialogTrigger asChild>
-                    <Button variant="destructive" size="sm">
-                      <Trash2 className="h-3.5 w-3.5 mr-1" /> {t('Xoá tất cả dữ liệu')}
+            {/* ── Activity Logs (Admin only) ── */}
+            {isAdmin && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-primary" />
+                      {t('Nhật ký hoạt động')}
+                    </CardTitle>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        if (!activityLogs?.length) return;
+                        const csv = ['Thời gian,Email,Hành động,Chi tiết']
+                          .concat(activityLogs.map(l =>
+                            `"${new Date(l.created_at).toLocaleString()}","${l.user_email || ''}","${l.action}","${(l.details || '').replace(/"/g, '""')}"`
+                          ))
+                          .join('\n');
+                        const blob = new Blob([csv], { type: 'text/csv' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `activity-logs-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                    >
+                      <Download className="h-3.5 w-3.5 mr-1" /> {t('Tải CSV')}
                     </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle className="text-destructive flex items-center gap-2">
-                        <AlertTriangle className="h-5 w-5" /> {t('Xác nhận xoá tất cả dữ liệu')}
-                      </DialogTitle>
-                      <DialogDescription>
-                        {t('Nhập mật khẩu admin để xác nhận. Tất cả lịch hẹn, thanh toán, ngày nghỉ sẽ bị xoá vĩnh viễn.')}
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 pt-2">
-                      <div>
-                        <Label>{t('Mật khẩu admin')}</Label>
-                        <Input type="password" value={deletePassword} onChange={e => setDeletePassword(e.target.value)} placeholder={t('Nhập mật khẩu')} className="mt-1" />
-                      </div>
-                      <div className="flex gap-2">
-                        <Button variant="outline" onClick={() => setDeleteDialog(false)} className="flex-1">{t('Huỷ')}</Button>
-                        <Button variant="destructive" onClick={handleDeleteAllData} disabled={deleting || !deletePassword.trim()} className="flex-1">
-                          {deleting ? t('Đang xoá...') : t('Xoá tất cả')}
-                        </Button>
-                      </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {!activityLogs?.length ? (
+                    <p className="text-sm text-muted-foreground text-center py-6">{t('Chưa có nhật ký nào')}</p>
+                  ) : (
+                    <div className="max-h-[400px] overflow-y-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>{t('Thời gian')}</TableHead>
+                            <TableHead>Email</TableHead>
+                            <TableHead>{t('Hành động')}</TableHead>
+                            <TableHead>{t('Chi tiết')}</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {activityLogs.map(log => (
+                            <TableRow key={log.id}>
+                              <TableCell className="text-xs whitespace-nowrap">{new Date(log.created_at).toLocaleString()}</TableCell>
+                              <TableCell className="text-xs">{log.user_email}</TableCell>
+                              <TableCell><Badge variant="outline" className="text-[10px]">{log.action}</Badge></TableCell>
+                              <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">{log.details || '—'}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
                     </div>
-                  </DialogContent>
-                </Dialog>
-              </CardContent>
-            </Card>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* ── Danger Zone: Delete All Data (Admin only) ── */}
+            {isAdmin && (
+              <Card className="border-destructive/30">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2 text-destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    {t('Vùng nguy hiểm')}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground mb-4">{t('Xoá tất cả dữ liệu lịch hẹn, thanh toán, ngày nghỉ. Hành động không thể hoàn tác.')}</p>
+                  <Dialog open={deleteDialog} onOpenChange={setDeleteDialog}>
+                    <DialogTrigger asChild>
+                      <Button variant="destructive" size="sm">
+                        <Trash2 className="h-3.5 w-3.5 mr-1" /> {t('Xoá tất cả dữ liệu')}
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle className="text-destructive flex items-center gap-2">
+                          <AlertTriangle className="h-5 w-5" /> {t('Xác nhận xoá tất cả dữ liệu')}
+                        </DialogTitle>
+                        <DialogDescription>
+                          {t('Nhập mật khẩu admin để xác nhận. Tất cả lịch hẹn, thanh toán, ngày nghỉ sẽ bị xoá vĩnh viễn.')}
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 pt-2">
+                        <div>
+                          <Label>{t('Mật khẩu admin')}</Label>
+                          <Input type="password" value={deletePassword} onChange={e => setDeletePassword(e.target.value)} placeholder={t('Nhập mật khẩu')} className="mt-1" />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button variant="outline" onClick={() => setDeleteDialog(false)} className="flex-1">{t('Huỷ')}</Button>
+                          <Button variant="destructive" onClick={() => { handleDeleteAllData(); logActivity('delete_all_data', 'Wiped all bookings, sales, visits'); }} disabled={deleting || !deletePassword.trim()} className="flex-1">
+                            {deleting ? t('Đang xoá...') : t('Xoá tất cả')}
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         </Tabs>
       </div>
