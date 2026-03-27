@@ -1012,7 +1012,7 @@ const AdminDashboard = () => {
 
           {/* Mobile bottom nav */}
           <div className="fixed bottom-0 left-0 right-0 z-50 sm:hidden bg-card/95 backdrop-blur-md border-t border-border/40 safe-bottom">
-            <TabsList className="w-full h-auto bg-transparent rounded-none grid grid-cols-6 gap-0 p-0">
+            <TabsList className="w-full h-auto bg-transparent rounded-none grid grid-cols-7 gap-0 p-0">
               {[
                 { value: 'stats', icon: BarChart3, label: t('Thống kê') },
                 { value: 'bookings', icon: CalendarDays, label: t('Lịch') },
