@@ -897,6 +897,7 @@ const AdminDashboard = () => {
     setEditingTherapist(therapist || null);
     setTherapistName(therapist?.name || '');
     setTherapistPhone(therapist?.phone || '');
+    setTherapistEmail(therapist?.email || '');
     setTherapistStartHour(String(therapist?.start_hour || 9));
     setTherapistEndHour(String(therapist?.end_hour || 18));
     setTherapistBreakStart(therapist?.break_start ? String(therapist.break_start) : '');
