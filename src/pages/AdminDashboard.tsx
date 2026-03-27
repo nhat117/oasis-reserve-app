@@ -469,7 +469,139 @@ const AdminDashboard = () => {
     onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
 
-  useEffect(() => {
+  // Membership tiers
+  const { data: membershipTiers } = useQuery({
+    queryKey: ['membership-tiers'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('membership_tiers').select('*').order('min_visits');
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const saveTier = useMutation({
+    mutationFn: async () => {
+      const payload = { name: tierName, min_visits: parseInt(tierMinVisits), discount_percent: parseFloat(tierDiscountPercent) };
+      if (editingTier) {
+        const { error } = await supabase.from('membership_tiers').update(payload).eq('id', editingTier.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('membership_tiers').insert(payload);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['membership-tiers'] }); setMembershipDialog(false); setEditingTier(null); toast({ title: t('Đã lưu hạng thành viên') }); },
+    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+  });
+
+  const deleteTier = useMutation({
+    mutationFn: async (id: string) => { const { error } = await supabase.from('membership_tiers').delete().eq('id', id); if (error) throw error; },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['membership-tiers'] }); toast({ title: t('Đã xoá') }); },
+  });
+
+  const toggleTierActive = useMutation({
+    mutationFn: async ({ id, active }: { id: string; active: boolean }) => { const { error } = await supabase.from('membership_tiers').update({ is_active: active }).eq('id', id); if (error) throw error; },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['membership-tiers'] }); },
+  });
+
+  // Discount codes
+  const { data: discountCodes } = useQuery({
+    queryKey: ['discount-codes'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('discount_codes').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const saveDiscount = useMutation({
+    mutationFn: async () => {
+      const payload: any = {
+        code: discountCode.toUpperCase().trim(),
+        discount_percent: parseFloat(discountPercent),
+        discount_amount: parseFloat(discountAmount),
+        valid_from: discountValidFrom || null,
+        valid_to: discountValidTo || null,
+        max_uses: discountMaxUses ? parseInt(discountMaxUses) : null,
+      };
+      if (editingDiscount) {
+        const { error } = await supabase.from('discount_codes').update(payload).eq('id', editingDiscount.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('discount_codes').insert(payload);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['discount-codes'] }); setDiscountDialog(false); setEditingDiscount(null); toast({ title: t('Đã lưu mã giảm giá') }); },
+    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+  });
+
+  const deleteDiscount = useMutation({
+    mutationFn: async (id: string) => { const { error } = await supabase.from('discount_codes').delete().eq('id', id); if (error) throw error; },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['discount-codes'] }); toast({ title: t('Đã xoá') }); },
+  });
+
+  const toggleDiscountActive = useMutation({
+    mutationFn: async ({ id, active }: { id: string; active: boolean }) => { const { error } = await supabase.from('discount_codes').update({ is_active: active }).eq('id', id); if (error) throw error; },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['discount-codes'] }); },
+  });
+
+  // Membership & discount enabled toggles
+  const { data: membershipEnabled } = useQuery({
+    queryKey: ['membership-enabled'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'membership_enabled').single();
+      if (error) return false;
+      return data.value === 'true';
+    },
+  });
+
+  const { data: discountCodesEnabled } = useQuery({
+    queryKey: ['discount-codes-enabled'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'discount_codes_enabled').single();
+      if (error) return false;
+      return data.value === 'true';
+    },
+  });
+
+  const toggleMembership = useMutation({
+    mutationFn: async (enabled: boolean) => { const { error } = await supabase.from('app_settings').upsert({ key: 'membership_enabled', value: String(enabled) }); if (error) throw error; },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['membership-enabled'] }); toast({ title: t('Đã cập nhật') }); },
+  });
+
+  const toggleDiscountCodes = useMutation({
+    mutationFn: async (enabled: boolean) => { const { error } = await supabase.from('app_settings').upsert({ key: 'discount_codes_enabled', value: String(enabled) }); if (error) throw error; },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['discount-codes-enabled'] }); toast({ title: t('Đã cập nhật') }); },
+  });
+
+  // Delete all data
+  const handleDeleteAllData = async () => {
+    if (!deletePassword.trim()) return;
+    setDeleting(true);
+    try {
+      const { data: { session: s } } = await supabase.auth.getSession();
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-all-data`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${s?.access_token}` },
+          body: JSON.stringify({ password: deletePassword }),
+        }
+      );
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Failed');
+      toast({ title: t('Đã xoá tất cả dữ liệu') });
+      setDeleteDialog(false);
+      setDeletePassword('');
+      queryClient.invalidateQueries();
+    } catch (err: any) {
+      toast({ title: t('Lỗi'), description: err.message, variant: 'destructive' });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
     if (currencySettings) {
       setExchangeUSD(currencySettings['exchange_rate_usd'] || '0.000039');
       setExchangeEUR(currencySettings['exchange_rate_eur'] || '0.000036');
