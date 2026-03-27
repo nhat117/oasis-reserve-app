@@ -7,7 +7,7 @@ import { ArrowRight, Menu, X } from 'lucide-react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import { useRef, useState } from 'react';
 import logoImg from '@/assets/logo.png';
-import heroImg from '@/assets/hero-luxury.jpg';
+import heroImg from '@/assets/hero-headspa.png';
 import detail1Img from '@/assets/spa-detail-1.jpg';
 import detail2Img from '@/assets/spa-detail-2.jpg';
 
