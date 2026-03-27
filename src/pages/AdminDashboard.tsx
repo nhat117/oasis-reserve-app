@@ -545,7 +545,7 @@ const AdminDashboard = () => {
         if (error) throw error;
       }
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['discount-codes'] }); setDiscountDialog(false); setEditingDiscount(null); toast({ title: t('Đã lưu mã giảm giá') }); },
+    onSuccess: () => { logActivity('save_discount_code', `Code: ${discountCode}`); queryClient.invalidateQueries({ queryKey: ['discount-codes'] }); setDiscountDialog(false); setEditingDiscount(null); toast({ title: t('Đã lưu mã giảm giá') }); },
     onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
 
