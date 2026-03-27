@@ -3,7 +3,7 @@ import { loadFont } from "@remotion/google-fonts/CormorantGaramond";
 import { loadFont as loadSans } from "@remotion/google-fonts/Outfit";
 
 const { fontFamily: serifFont } = loadFont("normal", { weights: ["300"], subsets: ["latin", "vietnamese"] });
-const { fontFamily: sansFont } = loadSans("normal", { weights: ["200", "300"], subsets: ["latin", "vietnamese"] });
+const { fontFamily: sansFont } = loadSans("normal", { weights: ["300"], subsets: ["latin"] });
 
 export const Scene4: React.FC = () => {
   const frame = useCurrentFrame();
@@ -38,7 +38,7 @@ export const Scene4: React.FC = () => {
           </div>
         </div>
         <div style={{ height: 30 }} />
-        <div style={{ opacity: ctaOp, fontFamily: sansFont, fontSize: 14, color: "rgba(210,190,165,0.7)", letterSpacing: "0.3em", textTransform: "uppercase", fontWeight: 200 }}>
+        <div style={{ opacity: ctaOp, fontFamily: sansFont, fontSize: 14, color: "rgba(210,190,165,0.7)", letterSpacing: "0.3em", textTransform: "uppercase", fontWeight: 300 }}>
           Royal Head Spa
         </div>
       </AbsoluteFill>
