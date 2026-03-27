@@ -1322,7 +1322,11 @@ const AdminDashboard = () => {
                             setSaleBookingId(v);
                             if (v && v !== 'none') {
                               const booking = bookings?.find(b => b.id === v);
-                              if (booking) setSaleAmount(String((booking as any).services?.price || 0));
+                              if (booking) {
+                                setSaleAmount(String((booking as any).services?.price || 0));
+                                setSaleCustomerPhone(booking.customer_phone || '');
+                                setSaleCustomerName(booking.customer_name || '');
+                              }
                             }
                           }}>
                             <SelectTrigger className="mt-1"><SelectValue placeholder={t('Chọn lịch hẹn')} /></SelectTrigger>
