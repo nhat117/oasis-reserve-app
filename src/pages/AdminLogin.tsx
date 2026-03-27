@@ -17,7 +17,7 @@ const AdminLogin = () => {
   const [forgotMode, setForgotMode] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
-  const { signIn } = useAuth();
+  const { signIn, logActivity } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -29,6 +29,7 @@ const AdminLogin = () => {
     if (error) {
       toast({ title: 'Login failed', description: 'Incorrect email or password.', variant: 'destructive' });
     } else {
+      logActivity('login', `Logged in as ${email}`);
       navigate('/admin');
     }
   };
