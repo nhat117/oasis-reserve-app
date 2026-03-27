@@ -83,29 +83,27 @@ const Index = () => {
       </header>
 
       {/* Hero — Full Screen */}
-      <section className="relative h-[100svh] flex items-end">
+      <section className="relative h-[100svh] flex items-center justify-center">
         <div className="absolute inset-0">
           <img src={heroImg} alt="Royal Head Spa" className="w-full h-full object-cover" width={1920} height={1080} />
-          <div className="absolute inset-0 bg-gradient-to-t from-foreground/60 via-foreground/20 to-transparent" />
+          <div className="absolute inset-0 bg-foreground/40" />
         </div>
-        <div className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-10 pb-16 sm:pb-20 md:pb-28">
-          <div className="max-w-xl space-y-5 sm:space-y-8">
-            <p className="text-[10px] sm:text-xs tracking-[0.3em] uppercase text-background/70">{t('Gội đầu dưỡng sinh')}</p>
-            <h1 className="text-3xl sm:text-5xl md:text-7xl text-background leading-[1.1] font-light">
-              {t('A Ritual for')}
-              <br />
-              <em className="italic">{t('the Senses')}</em>
-            </h1>
-            <Link to="/booking">
-              <Button
-                size="lg"
-                className="rounded-none text-[10px] sm:text-xs tracking-[0.2em] uppercase px-8 sm:px-10 h-10 sm:h-12 mt-4 bg-background text-foreground hover:bg-background/90"
-              >
-                {t('Book Experience')}
-                <ArrowRight className="ml-2 h-3 w-3 sm:h-3.5 sm:w-3.5" />
-              </Button>
-            </Link>
-          </div>
+        <div className="relative text-center px-6 space-y-6 sm:space-y-8">
+          <p className="text-[10px] sm:text-xs tracking-[0.4em] uppercase text-background/60">{t('Gội đầu dưỡng sinh')}</p>
+          <h1 className="text-5xl sm:text-6xl md:text-8xl text-background leading-[1.05] font-light">
+            {t('A Ritual for')}
+            <br />
+            <em className="italic">{t('the Senses')}</em>
+          </h1>
+          <Link to="/booking">
+            <Button
+              size="lg"
+              className="rounded-none text-[10px] sm:text-xs tracking-[0.25em] uppercase px-10 sm:px-12 h-11 sm:h-12 mt-4 bg-background text-foreground hover:bg-background/90"
+            >
+              {t('Book Experience')}
+              <ArrowRight className="ml-2 h-3 w-3 sm:h-3.5 sm:w-3.5" />
+            </Button>
+          </Link>
         </div>
       </section>
 
