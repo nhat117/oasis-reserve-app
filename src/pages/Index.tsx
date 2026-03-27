@@ -11,11 +11,13 @@ import heroImg from '@/assets/hero-luxury.jpg';
 import detail1Img from '@/assets/spa-detail-1.jpg';
 import detail2Img from '@/assets/spa-detail-2.jpg';
 
+const luxuryEase = [0.25, 0.1, 0.25, 1] as const;
+
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
   visible: (i: number = 0) => ({
     opacity: 1, y: 0,
-    transition: { duration: 0.8, delay: i * 0.15, ease: [0.25, 0.1, 0.25, 1] }
+    transition: { duration: 0.8, delay: i * 0.15, ease: luxuryEase as unknown as string }
   })
 };
 
@@ -23,7 +25,7 @@ const fadeIn = {
   hidden: { opacity: 0 },
   visible: (i: number = 0) => ({
     opacity: 1,
-    transition: { duration: 1, delay: i * 0.2, ease: [0.25, 0.1, 0.25, 1] }
+    transition: { duration: 1, delay: i * 0.2, ease: luxuryEase as unknown as string }
   })
 };
 
@@ -31,7 +33,7 @@ const scaleReveal = {
   hidden: { opacity: 0, scale: 1.08 },
   visible: (i: number = 0) => ({
     opacity: 1, scale: 1,
-    transition: { duration: 1.2, delay: i * 0.2, ease: [0.25, 0.1, 0.25, 1] }
+    transition: { duration: 1.2, delay: i * 0.2, ease: luxuryEase as unknown as string }
   })
 };
 
