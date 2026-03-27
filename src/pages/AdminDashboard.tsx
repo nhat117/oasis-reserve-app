@@ -1036,6 +1036,116 @@ const AdminDashboard = () => {
             <BookingStats />
           </TabsContent>
 
+          {/* Customers Tab */}
+          <TabsContent value="customers">
+            <Card>
+              <CardHeader className="space-y-2 sm:space-y-0 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <UserCheck className="h-5 w-5 text-primary/70" />
+                    {t('Khách hàng')}
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1">{filteredCustomers.length} {t('khách hàng')}</p>
+                </div>
+                <div className="relative w-full sm:w-[250px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder={t('Tìm theo tên hoặc SĐT...')}
+                    value={customerSearch}
+                    onChange={e => setCustomerSearch(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              </CardHeader>
+              <CardContent>
+                {filteredCustomers.length === 0 ? (
+                  <div className="text-center py-10 text-muted-foreground">
+                    <UserCheck className="h-10 w-10 mx-auto mb-3 opacity-20" />
+                    <p className="text-sm font-medium">{t('Chưa có khách hàng')}</p>
+                    <p className="text-xs mt-1">{t('Khách hàng sẽ được theo dõi tự động khi hoàn thành lịch hẹn')}</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Desktop table */}
+                    <div className="hidden sm:block overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>{t('Khách hàng')}</TableHead>
+                            <TableHead>{t('Số điện thoại')}</TableHead>
+                            <TableHead className="text-center">{t('Lần ghé')}</TableHead>
+                            <TableHead>{t('Hạng thành viên')}</TableHead>
+                            <TableHead>{t('Giảm giá')}</TableHead>
+                            <TableHead>{t('Cập nhật')}</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredCustomers.map(g => (
+                            <TableRow key={g.id}>
+                              <TableCell className="font-medium">{g.customer_name || '—'}</TableCell>
+                              <TableCell className="font-mono text-sm">{g.customer_phone}</TableCell>
+                              <TableCell className="text-center">
+                                <Badge variant="secondary" className="tabular-nums">{g.visit_count}</Badge>
+                              </TableCell>
+                              <TableCell>
+                                {(g as any).membership_tiers ? (
+                                  <Badge className="bg-amber-50 text-amber-700 border-amber-200 border">
+                                    <Crown className="h-3 w-3 mr-1" />
+                                    {(g as any).membership_tiers.name}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">{t('Chưa có')}</span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {(g as any).membership_tiers?.discount_percent ? (
+                                  <span className="text-sm font-medium text-emerald-600">{(g as any).membership_tiers.discount_percent}%</span>
+                                ) : '—'}
+                              </TableCell>
+                              <TableCell className="text-xs text-muted-foreground">
+                                {new Date(g.updated_at).toLocaleDateString()}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    {/* Mobile cards */}
+                    <div className="sm:hidden space-y-2">
+                      {filteredCustomers.map(g => (
+                        <div key={g.id} className="p-3 rounded-xl border border-border/50 hover:bg-muted/30 transition-colors">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-9 h-9 rounded-full bg-primary/5 flex items-center justify-center text-sm font-semibold text-primary shrink-0">
+                                {(g.customer_name || '?').charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <p className="text-sm font-semibold">{g.customer_name || '—'}</p>
+                                <p className="text-xs text-muted-foreground font-mono">{g.customer_phone}</p>
+                              </div>
+                            </div>
+                            <Badge variant="secondary" className="tabular-nums">{g.visit_count} {t('lần')}</Badge>
+                          </div>
+                          <div className="flex items-center gap-2 mt-2 pl-[46px]">
+                            {(g as any).membership_tiers ? (
+                              <Badge className="bg-amber-50 text-amber-700 border-amber-200 border text-[10px]">
+                                <Crown className="h-2.5 w-2.5 mr-0.5" />
+                                {(g as any).membership_tiers.name} · {(g as any).membership_tiers.discount_percent}% {t('giảm')}
+                              </Badge>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground">{t('Chưa có hạng')}</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {/* Bookings Tab */}
           <TabsContent value="bookings">
             <Card>
