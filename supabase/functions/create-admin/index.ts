@@ -47,7 +47,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { email, password } = await req.json();
+    const { email, password, role } = await req.json();
+    const assignRole = role === "employee" ? "employee" : "admin";
+    
     if (!email || !password || password.length < 6) {
       return new Response(
         JSON.stringify({ error: "Email and password (min 6 chars) required" }),
@@ -71,10 +73,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Assign admin role
+    // Assign role
     const { error: roleError } = await adminClient
       .from("user_roles")
-      .insert({ user_id: newUser.user.id, role: "admin" });
+      .insert({ user_id: newUser.user.id, role: assignRole });
 
     if (roleError) {
       return new Response(JSON.stringify({ error: roleError.message }), {
@@ -98,11 +100,10 @@ Deno.serve(async (req) => {
       });
     } catch (emailErr) {
       console.error('Failed to send welcome email:', emailErr);
-      // Don't fail the whole request if email fails
     }
 
     return new Response(
-      JSON.stringify({ success: true, user_id: newUser.user.id }),
+      JSON.stringify({ success: true, user_id: newUser.user.id, role: assignRole }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
