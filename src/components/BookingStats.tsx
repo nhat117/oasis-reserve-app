@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarDays, TrendingUp, DollarSign, Clock, CalendarCheck, Users, CalendarIcon } from 'lucide-react';
+import { CalendarDays, TrendingUp, TrendingDown, DollarSign, Clock, CalendarCheck, Users, CalendarIcon, Crown } from 'lucide-react';
 import { format, subDays, addDays, startOfMonth, endOfMonth, differenceInDays, eachDayOfInterval } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { useI18n } from '@/hooks/useI18n';
@@ -76,17 +76,29 @@ export function BookingStats({ className }: StatsProps) {
     const completed = bookings.filter(b => b.status === 'completed');
     const active = [...confirmed, ...completed];
 
-    // ── Date range filtered bookings ──
     const fromStr = format(dateRange.from, 'yyyy-MM-dd');
     const toStr = format(dateRange.to, 'yyyy-MM-dd');
     const rangeBookings = active.filter(b => b.booking_date >= fromStr && b.booking_date <= toStr);
 
-    // ── Sales revenue (from actual sales table) ──
     const rangeSales = (sales || []).filter(s => s.sale_date >= fromStr && s.sale_date <= toStr);
     const rangeRevenue = rangeSales.reduce((s, sale) => s + Number(sale.amount), 0);
     const rangeBookingValue = rangeBookings.reduce((s, b) => s + ((b as any).services?.price || 0), 0);
 
-    // Chart data for range
+    // Previous period for comparison
+    const prevFrom = subDays(dateRange.from, rangeDays);
+    const prevTo = subDays(dateRange.from, 1);
+    const prevFromStr = format(prevFrom, 'yyyy-MM-dd');
+    const prevToStr = format(prevTo, 'yyyy-MM-dd');
+    const prevBookings = active.filter(b => b.booking_date >= prevFromStr && b.booking_date <= prevToStr);
+    const prevSales = (sales || []).filter(s => s.sale_date >= prevFromStr && s.sale_date <= prevToStr);
+    const prevRevenue = prevSales.reduce((s, sale) => s + Number(sale.amount), 0);
+    const prevBookingValue = prevBookings.reduce((s, b) => s + ((b as any).services?.price || 0), 0);
+
+    // Trend percentages
+    const revenueTrend = prevRevenue > 0 ? ((rangeRevenue - prevRevenue) / prevRevenue) * 100 : 0;
+    const countTrend = prevBookings.length > 0 ? ((rangeBookings.length - prevBookings.length) / prevBookings.length) * 100 : 0;
+    const valueTrend = prevBookingValue > 0 ? ((rangeBookingValue - prevBookingValue) / prevBookingValue) * 100 : 0;
+
     const allDays = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
     const chartData = allDays.map(d => {
       const dateStr = format(d, 'yyyy-MM-dd');
@@ -97,21 +109,17 @@ export function BookingStats({ className }: StatsProps) {
       return { name: dayLabel, Sales: salesAmount, Appointments: dayBookings.length };
     });
 
-    // ── Upcoming 7 days ──
     const next7End = addDays(today, 7);
     const upcomingBookings = confirmed.filter(b => {
       const d = new Date(b.booking_date);
       return d >= today && d <= next7End;
     }).sort((a, b) => a.booking_date.localeCompare(b.booking_date) || a.start_time.localeCompare(b.start_time));
 
-    // ── Activity (recent bookings) ──
     const recentActivity = bookings.slice(0, 10);
 
-    // ── Today's appointments (all confirmed for today) ──
     const todayNext = confirmed.filter(b => b.booking_date === todayStr)
       .sort((a, b) => a.start_time.localeCompare(b.start_time));
 
-    // ── Top services (this month vs last month) ──
     const monthStart = startOfMonth(today);
     const monthEnd = endOfMonth(today);
     const lastMonthStart = startOfMonth(subDays(monthStart, 1));
@@ -140,7 +148,6 @@ export function BookingStats({ className }: StatsProps) {
       .map(([id, v]) => ({ ...v, lastMonth: serviceCountLast[id] || 0 }))
       .sort((a, b) => b.count - a.count);
 
-    // ── Top team member ──
     const therapistRevenue: Record<string, { name: string; revenue: number; count: number }> = {};
     thisMonthBookings.forEach(b => {
       const name = (b as any).therapists?.name || 'Unknown';
@@ -154,6 +161,9 @@ export function BookingStats({ className }: StatsProps) {
       rangeRevenue,
       rangeCount: rangeBookings.length,
       rangeValue: rangeBookingValue,
+      revenueTrend,
+      countTrend,
+      valueTrend,
       chartData,
       upcomingBookings,
       recentActivity,
@@ -168,12 +178,44 @@ export function BookingStats({ className }: StatsProps) {
   const rangeLabel = PRESET_RANGES.find(r => r.key === rangePreset)?.label || 
     (customFrom && customTo ? `${format(customFrom, 'dd/MM')} – ${format(customTo, 'dd/MM')}` : '');
 
+  const TrendIndicator = ({ value }: { value: number }) => {
+    if (value === 0) return null;
+    const isUp = value > 0;
+    return (
+      <span className={cn("inline-flex items-center gap-0.5 text-xs font-medium", isUp ? "text-emerald-600" : "text-red-500")}>
+        {isUp ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+        {Math.abs(value).toFixed(1)}%
+      </span>
+    );
+  };
+
+  const maxServiceCount = Math.max(...stats.topServices.map(s => s.count), 1);
+  const maxTeamRevenue = Math.max(...stats.topTeam.map(t => t.revenue), 1);
+
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div className="rounded-xl border border-border/40 bg-card px-4 py-3 shadow-lg">
+        <p className="text-xs font-medium text-foreground mb-1.5">{label}</p>
+        {payload.map((entry: any, i: number) => (
+          <div key={i} className="flex items-center gap-2 text-xs">
+            <div className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
+            <span className="text-muted-foreground">{entry.name}:</span>
+            <span className="font-semibold text-foreground">
+              {entry.name === 'Sales' ? formatPrice(entry.value) : entry.value}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className={className}>
       {/* Date Range Filter */}
       <div className="flex items-center gap-2 mb-6 flex-wrap">
         <Select value={rangePreset} onValueChange={(v) => setRangePreset(v)}>
-          <SelectTrigger className="w-[160px] h-9">
+          <SelectTrigger className="w-[160px] h-9 rounded-lg border-border/60">
             <SelectValue placeholder={t('Chọn khoảng thời gian')} />
           </SelectTrigger>
           <SelectContent>
@@ -187,7 +229,7 @@ export function BookingStats({ className }: StatsProps) {
           <div className="flex items-center gap-2">
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className={cn("gap-1", !customFrom && "text-muted-foreground")}>
+                <Button variant="outline" size="sm" className={cn("gap-1 rounded-lg", !customFrom && "text-muted-foreground")}>
                   <CalendarIcon className="h-3.5 w-3.5" />
                   {customFrom ? format(customFrom, 'dd/MM/yyyy') : t('Từ ngày')}
                 </Button>
@@ -199,7 +241,7 @@ export function BookingStats({ className }: StatsProps) {
             <span className="text-muted-foreground">–</span>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className={cn("gap-1", !customTo && "text-muted-foreground")}>
+                <Button variant="outline" size="sm" className={cn("gap-1 rounded-lg", !customTo && "text-muted-foreground")}>
                   <CalendarIcon className="h-3.5 w-3.5" />
                   {customTo ? format(customTo, 'dd/MM/yyyy') : t('Đến ngày')}
                 </Button>
@@ -212,44 +254,83 @@ export function BookingStats({ className }: StatsProps) {
         )}
       </div>
 
+      {/* ── KPI Cards ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        {[
+          {
+            icon: DollarSign,
+            label: t('Doanh thu'),
+            value: formatPrice(stats.rangeRevenue),
+            trend: stats.revenueTrend,
+            sub: t(rangeLabel),
+          },
+          {
+            icon: CalendarCheck,
+            label: t('Lịch hẹn'),
+            value: stats.rangeCount.toString(),
+            trend: stats.countTrend,
+            sub: t(rangeLabel),
+          },
+          {
+            icon: TrendingUp,
+            label: t('Giá trị lịch hẹn'),
+            value: formatPrice(stats.rangeValue),
+            trend: stats.valueTrend,
+            sub: t(rangeLabel),
+          },
+        ].map((kpi, i) => (
+          <Card key={i} className="card-hover border-border/50">
+            <CardContent className="p-5">
+              <div className="flex items-start justify-between mb-3">
+                <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center">
+                  <kpi.icon className="h-5 w-5 text-primary/70" />
+                </div>
+                <TrendIndicator value={kpi.trend} />
+              </div>
+              <p className="text-3xl font-semibold font-serif tracking-tight text-foreground">{kpi.value}</p>
+              <p className="text-xs text-muted-foreground mt-1">{kpi.label} · {kpi.sub}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* ── Recent Sales ── */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-primary" />
-              {t('Doanh thu gần đây')}
-            </CardTitle>
-            <p className="text-xs text-muted-foreground">{t(rangeLabel)}</p>
+        {/* ── Revenue Chart ── */}
+        <Card className="card-hover border-border/50">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-medium flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-primary/60" />
+                {t('Doanh thu gần đây')}
+              </CardTitle>
+              {stats.revenueTrend !== 0 && (
+                <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full", stats.revenueTrend > 0 ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-500")}>
+                  {stats.revenueTrend > 0 ? '+' : ''}{stats.revenueTrend.toFixed(1)}% {t('vs trước')}
+                </span>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-3 gap-4 mb-4">
-              <div>
-                <p className="text-2xl font-bold">{formatPrice(stats.rangeRevenue)}</p>
-                <p className="text-xs text-muted-foreground">{t('Doanh thu')}</p>
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{stats.rangeCount}</p>
-                <p className="text-xs text-muted-foreground">{t('Lịch hẹn')}</p>
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{formatPrice(stats.rangeValue)}</p>
-                <p className="text-xs text-muted-foreground">{t('Giá trị lịch hẹn')}</p>
-              </div>
-            </div>
-            <div className="h-[200px]">
+            <div className="h-[220px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={stats.chartData}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} className="text-muted-foreground" interval={rangeDays > 14 ? Math.floor(rangeDays / 7) : 0} />
-                  <YAxis tick={{ fontSize: 11 }} className="text-muted-foreground" />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
-                    labelStyle={{ color: 'hsl(var(--foreground))' }}
-                  />
-                  <Legend />
-                  <Bar dataKey="Sales" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Appointments" fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} />
+                <BarChart data={stats.chartData} barCategoryGap="20%">
+                  <defs>
+                    <linearGradient id="salesGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.9} />
+                      <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.5} />
+                    </linearGradient>
+                    <linearGradient id="apptGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0.6} />
+                      <stop offset="100%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0.25} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" strokeOpacity={0.5} vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} interval={rangeDays > 14 ? Math.floor(rangeDays / 7) : 0} />
+                  <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(var(--muted))', radius: 6 }} />
+                  <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }} />
+                  <Bar dataKey="Sales" fill="url(#salesGrad)" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="Appointments" fill="url(#apptGrad)" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -257,37 +338,37 @@ export function BookingStats({ className }: StatsProps) {
         </Card>
 
         {/* ── Upcoming Appointments ── */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <CalendarCheck className="h-4 w-4 text-primary" />
+        <Card className="card-hover border-border/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-medium flex items-center gap-2">
+              <CalendarCheck className="h-4 w-4 text-primary/60" />
               {t('Lịch hẹn sắp tới')}
             </CardTitle>
             <p className="text-xs text-muted-foreground">{t('7 ngày tới')}</p>
           </CardHeader>
           <CardContent>
             {stats.upcomingBookings.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <CalendarDays className="h-10 w-10 mx-auto mb-2 opacity-30" />
+              <div className="text-center py-10 text-muted-foreground">
+                <CalendarDays className="h-10 w-10 mx-auto mb-3 opacity-20" />
                 <p className="text-sm font-medium">{t('Lịch trình trống')}</p>
-                <p className="text-xs mt-1">{t('Tạo lịch hẹn để dữ liệu xuất hiện')}</p>
+                <p className="text-xs mt-1 opacity-70">{t('Tạo lịch hẹn để dữ liệu xuất hiện')}</p>
               </div>
             ) : (
-              <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
+              <div className="space-y-1 max-h-[300px] overflow-y-auto pr-1">
                 {stats.upcomingBookings.map(b => (
-                  <div key={b.id} className="flex items-start gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
-                    <div className="text-center shrink-0 bg-primary/10 rounded-lg px-2 py-1.5">
-                      <p className="text-xs text-muted-foreground">{format(new Date(b.booking_date), 'EEE')}</p>
+                  <div key={b.id} className="flex items-start gap-3 p-3 rounded-xl border-l-2 border-primary/20 hover:bg-muted/40 transition-all duration-200">
+                    <div className="text-center shrink-0 bg-primary/5 rounded-lg px-2.5 py-1.5 min-w-[48px]">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{format(new Date(b.booking_date), 'EEE')}</p>
                       <p className="text-lg font-bold text-primary">{format(new Date(b.booking_date), 'd')}</p>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium truncate">{b.customer_name}</p>
-                        <Badge variant="outline" className="text-[10px] shrink-0">
+                        <p className="text-sm font-semibold truncate text-foreground">{b.customer_name}</p>
+                        <span className="text-[11px] text-primary/70 font-medium shrink-0">
                           {b.start_time?.slice(0, 5)} – {b.end_time?.slice(0, 5)}
-                        </Badge>
+                        </span>
                       </div>
-                      <p className="text-xs text-muted-foreground truncate">
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">
                         {(b as any).services?.name} · {(b as any).therapists?.name}
                       </p>
                     </div>
@@ -298,76 +379,86 @@ export function BookingStats({ className }: StatsProps) {
           </CardContent>
         </Card>
 
-        {/* ── Appointments Activity ── */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Clock className="h-4 w-4 text-primary" />
+        {/* ── Activity Timeline ── */}
+        <Card className="card-hover border-border/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-medium flex items-center gap-2">
+              <Clock className="h-4 w-4 text-primary/60" />
               {t('Hoạt động lịch hẹn')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             {stats.recentActivity.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">{t('Chưa có dữ liệu')}</p>
+              <p className="text-sm text-muted-foreground text-center py-6">{t('Chưa có dữ liệu')}</p>
             ) : (
-              <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
-                {stats.recentActivity.map(b => {
-                  const bookDate = new Date(b.booking_date);
-                  const dur = (b as any).services?.duration_minutes || 0;
-                  const statusColor = b.status === 'confirmed' ? 'default' : b.status === 'cancelled' ? 'destructive' : 'secondary';
-                  const statusText = b.status === 'confirmed' ? t('Đã đặt') : b.status === 'cancelled' ? t('Đã huỷ') : t('Hoàn thành');
-                  return (
-                    <div key={b.id} className="flex items-start gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
-                      <div className="text-center shrink-0 bg-muted rounded-lg px-2 py-1.5 min-w-[48px]">
-                        <p className="text-lg font-bold">{format(bookDate, 'd')}</p>
-                        <p className="text-[10px] text-muted-foreground uppercase">{format(bookDate, 'MMM')}</p>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <p className="text-xs text-muted-foreground">
-                            {format(bookDate, 'EEE, d MMM yyyy')} {b.start_time?.slice(0, 5)}
+              <div className="relative max-h-[340px] overflow-y-auto pr-1">
+                {/* Timeline line */}
+                <div className="absolute left-[23px] top-0 bottom-0 w-px bg-border/60" />
+                <div className="space-y-0">
+                  {stats.recentActivity.map(b => {
+                    const bookDate = new Date(b.booking_date);
+                    const dur = (b as any).services?.duration_minutes || 0;
+                    const statusColor = b.status === 'confirmed'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : b.status === 'cancelled'
+                      ? 'bg-red-50 text-red-600 border-red-200'
+                      : 'bg-primary/5 text-primary border-primary/20';
+                    const statusText = b.status === 'confirmed' ? t('Đã đặt') : b.status === 'cancelled' ? t('Đã huỷ') : t('Hoàn thành');
+                    return (
+                      <div key={b.id} className="relative flex items-start gap-3 py-3 pl-2">
+                        {/* Timeline dot */}
+                        <div className="relative z-10 mt-1.5 h-3 w-3 rounded-full border-2 border-primary/40 bg-card shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[11px] text-muted-foreground font-medium">
+                              {format(bookDate, 'EEE, d MMM')} · {b.start_time?.slice(0, 5)}
+                            </span>
+                            <span className={cn("text-[10px] font-medium px-2 py-0.5 rounded-full border", statusColor)}>
+                              {statusText}
+                            </span>
+                          </div>
+                          <p className="text-sm font-semibold text-foreground">{(b as any).services?.name}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {b.customer_name} · {dur > 0 ? `${Math.floor(dur / 60)}h${dur % 60 > 0 ? ` ${dur % 60}min` : ''}` : ''} {t('với')} {(b as any).therapists?.name}
                           </p>
-                          <Badge variant={statusColor} className="text-[10px]">{statusText}</Badge>
                         </div>
-                        <p className="text-sm font-semibold">{(b as any).services?.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {b.customer_name}, {dur > 0 ? `${Math.floor(dur / 60)}h ${dur % 60 > 0 ? `${dur % 60}min` : ''}` : ''} {t('với')} {(b as any).therapists?.name}
-                        </p>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* ── Right column: Today's Next + Top Services + Top Team ── */}
+        {/* ── Right column: Today + Top Services + Top Team ── */}
         <div className="space-y-6">
-          {/* Today's next appointments */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <CalendarDays className="h-4 w-4 text-primary" />
+          {/* Today's appointments */}
+          <Card className="card-hover border-border/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-medium flex items-center gap-2">
+                <CalendarDays className="h-4 w-4 text-primary/60" />
                 {t('Lịch hẹn hôm nay')}
               </CardTitle>
             </CardHeader>
             <CardContent>
               {stats.todayNext.length === 0 ? (
-                <div className="text-center py-6 text-muted-foreground">
-                  <CalendarDays className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                <div className="text-center py-8 text-muted-foreground">
+                  <CalendarDays className="h-8 w-8 mx-auto mb-2 opacity-20" />
                   <p className="text-sm font-medium">{t('Không có lịch hẹn hôm nay')}</p>
-                  <p className="text-xs mt-1">{t('Xem lịch để thêm lịch hẹn')}</p>
+                  <p className="text-xs mt-1 opacity-70">{t('Xem lịch để thêm lịch hẹn')}</p>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {stats.todayNext.slice(0, 5).map(b => (
-                    <div key={b.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
-                      <div>
-                        <p className="text-sm font-medium">{b.customer_name}</p>
-                        <p className="text-xs text-muted-foreground">{(b as any).services?.name}</p>
+                    <div key={b.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted/40 transition-all duration-200 border-l-2 border-primary/15">
+                      <span className="text-xs font-semibold text-primary bg-primary/5 rounded-lg px-2.5 py-1.5 shrink-0 tabular-nums">
+                        {b.start_time?.slice(0, 5)}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">{b.customer_name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{(b as any).services?.name}</p>
                       </div>
-                      <Badge variant="outline">{b.start_time?.slice(0, 5)}</Badge>
                     </div>
                   ))}
                 </div>
@@ -375,64 +466,88 @@ export function BookingStats({ className }: StatsProps) {
             </CardContent>
           </Card>
 
-          {/* Top services */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-primary" />
+          {/* Top services with progress bars */}
+          <Card className="card-hover border-border/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-medium flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-primary/60" />
                 {t('Dịch vụ hàng đầu')}
               </CardTitle>
             </CardHeader>
             <CardContent>
               {stats.topServices.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">{t('Chưa có dữ liệu')}</p>
+                <p className="text-sm text-muted-foreground text-center py-6">{t('Chưa có dữ liệu')}</p>
               ) : (
-                <div className="space-y-1">
-                  <div className="grid grid-cols-3 text-xs font-medium text-muted-foreground pb-2 border-b">
-                    <span>{t('Dịch vụ')}</span>
-                    <span className="text-center">{t('Tháng này')}</span>
-                    <span className="text-center">{t('Tháng trước')}</span>
-                  </div>
-                  {stats.topServices.map((s, i) => (
-                    <div key={i} className="grid grid-cols-3 py-2 text-sm items-center">
-                      <span className="font-medium truncate">{s.name}</span>
-                      <span className="text-center font-semibold">{s.count}</span>
-                      <span className="text-center text-muted-foreground">{s.lastMonth}</span>
-                    </div>
-                  ))}
+                <div className="space-y-4">
+                  {stats.topServices.map((s, i) => {
+                    const diff = s.count - s.lastMonth;
+                    return (
+                      <div key={i}>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-sm font-medium text-foreground truncate">{s.name}</span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-sm font-semibold tabular-nums">{s.count}</span>
+                            {diff !== 0 && (
+                              <span className={cn("text-[10px] font-medium flex items-center gap-0.5", diff > 0 ? "text-emerald-600" : "text-red-500")}>
+                                {diff > 0 ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
+                                {diff > 0 ? '+' : ''}{diff}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="h-1.5 w-full rounded-full bg-primary/10 overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-primary/50 transition-all duration-500"
+                            style={{ width: `${(s.count / maxServiceCount) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* Top team member */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Users className="h-4 w-4 text-primary" />
+          {/* Top team members with avatars */}
+          <Card className="card-hover border-border/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-medium flex items-center gap-2">
+                <Users className="h-4 w-4 text-primary/60" />
                 {t('Thợ hàng đầu')}
               </CardTitle>
             </CardHeader>
             <CardContent>
               {stats.topTeam.length === 0 ? (
-                <div className="text-center py-4 text-muted-foreground">
+                <div className="text-center py-6 text-muted-foreground">
                   <p className="text-sm">{t('Chưa có doanh thu tháng này')}</p>
-                  <p className="text-xs mt-1">{t('Tạo lịch hẹn để dữ liệu xuất hiện')}</p>
+                  <p className="text-xs mt-1 opacity-70">{t('Tạo lịch hẹn để dữ liệu xuất hiện')}</p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {stats.topTeam.map((tm, i) => (
-                    <div key={i} className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
-                          {i + 1}
+                    <div key={i}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2.5">
+                          <div className={cn(
+                            "w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold shrink-0",
+                            i === 0 ? "bg-amber-50 text-amber-700 ring-2 ring-amber-200" : "bg-primary/5 text-primary"
+                          )}>
+                            {i === 0 ? <Crown className="h-4 w-4" /> : tm.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">{tm.name}</p>
+                            <p className="text-[11px] text-muted-foreground">{tm.count} {t('lịch hẹn')}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-sm font-medium">{tm.name}</p>
-                          <p className="text-xs text-muted-foreground">{tm.count} {t('lịch hẹn')}</p>
-                        </div>
+                        <span className="text-sm font-semibold tabular-nums text-foreground">{formatPrice(tm.revenue)}</span>
                       </div>
-                      <span className="text-sm font-semibold">{formatPrice(tm.revenue)}</span>
+                      <div className="h-1.5 w-full rounded-full bg-primary/10 overflow-hidden ml-[46px]">
+                        <div
+                          className={cn("h-full rounded-full transition-all duration-500", i === 0 ? "bg-amber-400/70" : "bg-primary/40")}
+                          style={{ width: `${(tm.revenue / maxTeamRevenue) * 100}%` }}
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>

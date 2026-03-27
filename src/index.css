@@ -99,6 +99,15 @@
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* Card hover micro-interaction */
+.card-hover {
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+.card-hover:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px -4px hsl(var(--foreground) / 0.06);
+}
+
 
 /* FullCalendar custom styles */
 .fc-custom .fc {
