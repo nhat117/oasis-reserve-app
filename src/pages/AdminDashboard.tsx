@@ -47,6 +47,7 @@ const AdminDashboard = () => {
   const [editingTherapist, setEditingTherapist] = useState<any>(null);
   const [therapistName, setTherapistName] = useState('');
   const [therapistPhone, setTherapistPhone] = useState('');
+  const [therapistEmail, setTherapistEmail] = useState('');
   const [therapistStartHour, setTherapistStartHour] = useState('9');
   const [therapistEndHour, setTherapistEndHour] = useState('18');
   const [therapistBreakStart, setTherapistBreakStart] = useState('');
@@ -849,6 +850,7 @@ const AdminDashboard = () => {
       const payload = {
         name: therapistName,
         phone: therapistPhone || null,
+        email: therapistEmail || null,
         start_hour: parseInt(therapistStartHour),
         end_hour: parseInt(therapistEndHour),
         break_start: therapistBreakStart ? parseInt(therapistBreakStart) : null,
@@ -869,6 +871,19 @@ const AdminDashboard = () => {
     },
   });
 
+  const deleteTherapist = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('therapists').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-therapists'] });
+      toast({ title: t('Đã xoá thợ') });
+    },
+    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+  });
+
+
   const openServiceEdit = (service?: any) => {
     setEditingService(service || null);
     setServiceName(service?.name || '');
@@ -882,6 +897,7 @@ const AdminDashboard = () => {
     setEditingTherapist(therapist || null);
     setTherapistName(therapist?.name || '');
     setTherapistPhone(therapist?.phone || '');
+    setTherapistEmail(therapist?.email || '');
     setTherapistStartHour(String(therapist?.start_hour || 9));
     setTherapistEndHour(String(therapist?.end_hour || 18));
     setTherapistBreakStart(therapist?.break_start ? String(therapist.break_start) : '');
@@ -1761,6 +1777,7 @@ const AdminDashboard = () => {
                     </DialogHeader>
                     <div className="space-y-4">
                       <div><Label>{t('Tên')}</Label><Input value={therapistName} onChange={e => setTherapistName(e.target.value)} className="mt-1" /></div>
+                      <div><Label>{t('Email')}</Label><Input type="email" value={therapistEmail} onChange={e => setTherapistEmail(e.target.value)} className="mt-1" placeholder="staff@example.com" /></div>
                       <div><Label>{t('SĐT')}</Label><Input value={therapistPhone} onChange={e => setTherapistPhone(e.target.value)} className="mt-1" /></div>
                       <div className="grid grid-cols-2 gap-4">
                         <div><Label>{t('Giờ bắt đầu')}</Label><Input type="number" min="6" max="22" value={therapistStartHour} onChange={e => setTherapistStartHour(e.target.value)} className="mt-1" /></div>
@@ -1782,6 +1799,7 @@ const AdminDashboard = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>{t('Tên')}</TableHead>
+                      <TableHead>{t('Email')}</TableHead>
                       <TableHead>{t('SĐT')}</TableHead>
                       <TableHead>{t('Giờ làm việc')}</TableHead>
                       <TableHead>{t('Trạng thái')}</TableHead>
@@ -1792,6 +1810,7 @@ const AdminDashboard = () => {
                     {therapists?.map(th => (
                       <TableRow key={th.id}>
                         <TableCell className="font-medium">{th.name}</TableCell>
+                        <TableCell className="text-sm">{(th as any).email || '—'}</TableCell>
                         <TableCell>{th.phone || '—'}</TableCell>
                         <TableCell className="text-sm">
                           {th.start_hour}:00 – {th.end_hour}:00
@@ -1800,8 +1819,9 @@ const AdminDashboard = () => {
                           )}
                         </TableCell>
                         <TableCell><Badge variant={th.is_active ? 'default' : 'secondary'}>{th.is_active ? t('Hoạt động') : t('Tắt')}</Badge></TableCell>
-                        <TableCell>
+                        <TableCell className="space-x-1">
                           <Button variant="ghost" size="sm" onClick={() => openTherapistEdit(th)}><Pencil className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="sm" className="text-destructive" onClick={() => { if (confirm(t('Xoá thợ này?'))) deleteTherapist.mutate(th.id); }}><Trash2 className="h-4 w-4" /></Button>
                         </TableCell>
                       </TableRow>
                     ))}

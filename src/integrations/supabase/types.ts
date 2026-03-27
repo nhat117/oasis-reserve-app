@@ -457,6 +457,7 @@ export type Database = {
           break_end: number | null
           break_start: number | null
           created_at: string
+          email: string | null
           end_hour: number
           id: string
           is_active: boolean
@@ -470,6 +471,7 @@ export type Database = {
           break_end?: number | null
           break_start?: number | null
           created_at?: string
+          email?: string | null
           end_hour?: number
           id?: string
           is_active?: boolean
@@ -483,6 +485,7 @@ export type Database = {
           break_end?: number | null
           break_start?: number | null
           created_at?: string
+          email?: string | null
           end_hour?: number
           id?: string
           is_active?: boolean
