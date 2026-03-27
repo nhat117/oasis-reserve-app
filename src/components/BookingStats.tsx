@@ -100,14 +100,28 @@ export function BookingStats({ className }: StatsProps) {
     const valueTrend = prevBookingValue > 0 ? ((rangeBookingValue - prevBookingValue) / prevBookingValue) * 100 : 0;
 
     const allDays = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
-    const chartData = allDays.map(d => {
+    const rawChartData = allDays.map((d, idx) => {
       const dateStr = format(d, 'yyyy-MM-dd');
       const dayLabel = rangeDays <= 14 ? format(d, 'EEE d') : format(d, 'dd/MM');
       const dayBookings = active.filter(b => b.booking_date === dateStr);
       const daySales = (sales || []).filter(s => s.sale_date === dateStr);
       const salesAmount = daySales.reduce((s, sale) => s + Number(sale.amount), 0);
-      return { name: dayLabel, Sales: salesAmount, Appointments: dayBookings.length };
+      return { name: dayLabel, Revenue: salesAmount, Bookings: dayBookings.length, idx };
     });
+
+    // Linear regression for revenue prediction
+    const n = rawChartData.length;
+    const sumX = rawChartData.reduce((s, d) => s + d.idx, 0);
+    const sumY = rawChartData.reduce((s, d) => s + d.Revenue, 0);
+    const sumXY = rawChartData.reduce((s, d) => s + d.idx * d.Revenue, 0);
+    const sumX2 = rawChartData.reduce((s, d) => s + d.idx * d.idx, 0);
+    const slope = n > 1 ? (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX) : 0;
+    const intercept = n > 0 ? (sumY - slope * sumX) / n : 0;
+
+    const chartData = rawChartData.map(d => ({
+      ...d,
+      Trend: Math.max(0, Math.round(intercept + slope * d.idx)),
+    }));
 
     const next7End = addDays(today, 7);
     const upcomingBookings = confirmed.filter(b => {
@@ -202,7 +216,7 @@ export function BookingStats({ className }: StatsProps) {
             <div className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
             <span className="text-muted-foreground">{entry.name}:</span>
             <span className="font-semibold text-foreground">
-              {entry.name === 'Sales' ? formatPrice(entry.value) : entry.value}
+              {entry.dataKey === 'Revenue' || entry.dataKey === 'Trend' ? formatPrice(entry.value) : entry.value}
             </span>
           </div>
         ))}
@@ -311,13 +325,13 @@ export function BookingStats({ className }: StatsProps) {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="h-[220px]">
+            <div className="h-[240px]">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={stats.chartData} barCategoryGap="20%">
                   <defs>
-                    <linearGradient id="salesGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.9} />
-                      <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.5} />
+                    <linearGradient id="bookingGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.85} />
+                      <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" strokeOpacity={0.5} vertical={false} />
@@ -326,8 +340,9 @@ export function BookingStats({ className }: StatsProps) {
                   <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
                   <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(var(--muted))', radius: 6 }} />
                   <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }} />
-                  <Bar yAxisId="left" dataKey="Sales" fill="url(#salesGrad)" radius={[6, 6, 0, 0]} />
-                  <Line yAxisId="right" type="monotone" dataKey="Appointments" stroke="hsl(var(--muted-foreground))" strokeWidth={2} dot={{ r: 3, fill: 'hsl(var(--card))', stroke: 'hsl(var(--muted-foreground))', strokeWidth: 2 }} activeDot={{ r: 5 }} />
+                  <Bar yAxisId="left" dataKey="Bookings" fill="url(#bookingGrad)" radius={[6, 6, 0, 0]} name={t('Lịch hẹn')} />
+                  <Line yAxisId="right" type="monotone" dataKey="Revenue" stroke="hsl(28, 60%, 50%)" strokeWidth={2.5} dot={{ r: 3, fill: 'hsl(var(--card))', stroke: 'hsl(28, 60%, 50%)', strokeWidth: 2 }} activeDot={{ r: 5 }} name={t('Doanh thu')} />
+                  <Line yAxisId="right" type="monotone" dataKey="Trend" stroke="hsl(var(--muted-foreground))" strokeWidth={1.5} strokeDasharray="6 3" dot={false} name={t('Xu hướng')} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
