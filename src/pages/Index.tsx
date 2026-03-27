@@ -86,22 +86,22 @@ const Index = () => {
       <section className="relative h-[100svh] flex items-center justify-center">
         <div className="absolute inset-0">
           <img src={heroImg} alt="Royal Head Spa" className="w-full h-full object-cover" width={1920} height={1080} />
-          <div className="absolute inset-0 bg-foreground/40" />
+          <div className="absolute inset-0 bg-foreground/50" />
         </div>
-        <div className="relative text-center px-6 space-y-6 sm:space-y-8">
-          <p className="text-[10px] sm:text-xs tracking-[0.4em] uppercase text-background/60">{t('Gội đầu dưỡng sinh')}</p>
-          <h1 className="text-5xl sm:text-6xl md:text-8xl text-background leading-[1.05] font-light">
+        <div className="relative flex flex-col items-center justify-center text-center px-6 space-y-5 sm:space-y-8">
+          <p className="text-xs sm:text-sm tracking-[0.35em] uppercase text-background/60">{t('Herbal Head Spa')}</p>
+          <h1 className="text-[3.2rem] leading-[1.1] sm:text-7xl md:text-8xl text-background font-light">
             {t('A Ritual for')}
             <br />
             <em className="italic">{t('the Senses')}</em>
           </h1>
-          <Link to="/booking">
+          <Link to="/booking" className="pt-2 sm:pt-4">
             <Button
               size="lg"
-              className="rounded-none text-[10px] sm:text-xs tracking-[0.25em] uppercase px-10 sm:px-12 h-11 sm:h-12 mt-4 bg-background text-foreground hover:bg-background/90"
+              className="rounded-none text-xs sm:text-sm tracking-[0.25em] uppercase px-10 sm:px-14 h-14 sm:h-16 bg-background text-foreground hover:bg-background/90"
             >
               {t('Book Experience')}
-              <ArrowRight className="ml-2 h-3 w-3 sm:h-3.5 sm:w-3.5" />
+              <ArrowRight className="ml-3 h-4 w-4" />
             </Button>
           </Link>
         </div>
