@@ -73,7 +73,7 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Batch translate missing keys
   useEffect(() => {
-    if (lang === 'vi' || pendingKeys.size === 0) return;
+    if (pendingKeys.size === 0) return;
     const timer = setTimeout(async () => {
       const keys = Array.from(pendingKeys);
       setPendingKeys(new Set());
