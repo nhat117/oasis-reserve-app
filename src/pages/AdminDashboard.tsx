@@ -1474,9 +1474,10 @@ const AdminDashboard = () => {
                     if (salesFilterDateTo && s.sale_date > salesFilterDateTo) return false;
                     if (salesFilterSearch) {
                       const q = salesFilterSearch.toLowerCase();
-                      const name = (s.bookings?.customer_name || '').toLowerCase();
+                      const name = (s.customer_name || s.bookings?.customer_name || '').toLowerCase();
+                      const phone = (s.customer_phone || s.bookings?.customer_phone || '').toLowerCase();
                       const note = (s.notes || '').toLowerCase();
-                      if (!name.includes(q) && !note.includes(q)) return false;
+                      if (!name.includes(q) && !note.includes(q) && !phone.includes(q)) return false;
                     }
                     return true;
                   });
