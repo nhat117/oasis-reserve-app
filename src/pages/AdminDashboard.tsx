@@ -887,6 +887,7 @@ const AdminDashboard = () => {
       }
     },
     onSuccess: () => {
+      logActivity(editingTherapist ? 'update_therapist' : 'create_therapist', `Therapist: ${therapistName}`);
       queryClient.invalidateQueries({ queryKey: ['admin-therapists'] });
       setTherapistDialog(false);
       toast({ title: editingTherapist ? t('Đã cập nhật thợ') : t('Đã thêm thợ') });
