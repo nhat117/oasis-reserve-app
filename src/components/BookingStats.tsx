@@ -313,25 +313,22 @@ export function BookingStats({ className }: StatsProps) {
           <CardContent>
             <div className="h-[220px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={stats.chartData} barCategoryGap="20%">
+                <ComposedChart data={stats.chartData} barCategoryGap="20%">
                   <defs>
                     <linearGradient id="salesGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.9} />
                       <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.5} />
                     </linearGradient>
-                    <linearGradient id="apptGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0.6} />
-                      <stop offset="100%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0.25} />
-                    </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" strokeOpacity={0.5} vertical={false} />
                   <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} interval={rangeDays > 14 ? Math.floor(rangeDays / 7) : 0} />
-                  <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="left" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
                   <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(var(--muted))', radius: 6 }} />
                   <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }} />
-                  <Bar dataKey="Sales" fill="url(#salesGrad)" radius={[6, 6, 0, 0]} />
-                  <Bar dataKey="Appointments" fill="url(#apptGrad)" radius={[6, 6, 0, 0]} />
-                </BarChart>
+                  <Bar yAxisId="left" dataKey="Sales" fill="url(#salesGrad)" radius={[6, 6, 0, 0]} />
+                  <Line yAxisId="right" type="monotone" dataKey="Appointments" stroke="hsl(var(--muted-foreground))" strokeWidth={2} dot={{ r: 3, fill: 'hsl(var(--card))', stroke: 'hsl(var(--muted-foreground))', strokeWidth: 2 }} activeDot={{ r: 5 }} />
+                </ComposedChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
