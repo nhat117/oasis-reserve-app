@@ -74,6 +74,7 @@ const AdminDashboard = () => {
   const [saleBookingId, setSaleBookingId] = useState('');
   const [saleServiceId, setSaleServiceId] = useState('');
   const [saleCustomerName, setSaleCustomerName] = useState('');
+  const [saleCustomerPhone, setSaleCustomerPhone] = useState('');
   const [saleAmount, setSaleAmount] = useState('');
   const [salePaymentMethod, setSalePaymentMethod] = useState<'cash' | 'card'>('cash');
   const [saleNotes, setSaleNotes] = useState('');
@@ -181,7 +182,7 @@ const AdminDashboard = () => {
         .select('*, bookings(customer_name, customer_phone, booking_date, start_time, services(name))')
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data;
+      return data as any[];
     },
   });
 
@@ -199,6 +200,8 @@ const AdminDashboard = () => {
         payment_method: salePaymentMethod,
         notes: saleNotes || null,
         sale_date: format(new Date(), 'yyyy-MM-dd'),
+        customer_phone: saleCustomerPhone || null,
+        customer_name: saleCustomerName || null,
       };
       if (saleType === 'booking' && saleBookingId && saleBookingId !== 'none') payload.booking_id = saleBookingId;
       const { error } = await supabase.from('sales').insert(payload);
@@ -212,6 +215,7 @@ const AdminDashboard = () => {
       setSaleBookingId('');
       setSaleServiceId('');
       setSaleCustomerName('');
+      setSaleCustomerPhone('');
       setSaleAmount('');
       setSalePaymentMethod('cash');
       setSaleNotes('');
@@ -1288,7 +1292,7 @@ const AdminDashboard = () => {
             <Card>
               <CardHeader className="space-y-2 sm:space-y-0 sm:flex-row sm:items-center sm:justify-between">
                 <CardTitle>{t('Thanh toán')}</CardTitle>
-                <Dialog open={saleDialog} onOpenChange={(open) => { setSaleDialog(open); if (!open) { setSaleType('booking'); setSaleBookingId(''); setSaleServiceId(''); setSaleCustomerName(''); setSaleAmount(''); setSalePaymentMethod('cash'); setSaleNotes(''); setSaleAddOns([]); } }}>
+                <Dialog open={saleDialog} onOpenChange={(open) => { setSaleDialog(open); if (!open) { setSaleType('booking'); setSaleBookingId(''); setSaleServiceId(''); setSaleCustomerName(''); setSaleCustomerPhone(''); setSaleAmount(''); setSalePaymentMethod('cash'); setSaleNotes(''); setSaleAddOns([]); } }}>
                   <DialogTrigger asChild>
                     <Button size="sm" className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-1" /> {t('Tạo thanh toán')}</Button>
                   </DialogTrigger>
@@ -1318,7 +1322,11 @@ const AdminDashboard = () => {
                             setSaleBookingId(v);
                             if (v && v !== 'none') {
                               const booking = bookings?.find(b => b.id === v);
-                              if (booking) setSaleAmount(String((booking as any).services?.price || 0));
+                              if (booking) {
+                                setSaleAmount(String((booking as any).services?.price || 0));
+                                setSaleCustomerPhone(booking.customer_phone || '');
+                                setSaleCustomerName(booking.customer_name || '');
+                              }
                             }
                           }}>
                             <SelectTrigger className="mt-1"><SelectValue placeholder={t('Chọn lịch hẹn')} /></SelectTrigger>
@@ -1331,6 +1339,11 @@ const AdminDashboard = () => {
                               ))}
                             </SelectContent>
                           </Select>
+                          {/* Phone for booking type */}
+                          <div>
+                            <Label>{t('Số điện thoại')}</Label>
+                            <Input value={saleCustomerPhone} onChange={e => setSaleCustomerPhone(e.target.value)} className="mt-1" placeholder="04xxxxxxxx" />
+                          </div>
                         </div>
                       ) : (
                         <>
@@ -1350,8 +1363,12 @@ const AdminDashboard = () => {
                             </Select>
                           </div>
                           <div>
-                            <Label>{t('Tên khách hàng')}</Label>
+                            <Label>{t('Tên khách hàng')} ({t('tuỳ chọn')})</Label>
                             <Input value={saleCustomerName} onChange={e => setSaleCustomerName(e.target.value)} className="mt-1" placeholder={t('Nhập tên khách')} />
+                          </div>
+                          <div>
+                            <Label>{t('Số điện thoại')}</Label>
+                            <Input value={saleCustomerPhone} onChange={e => setSaleCustomerPhone(e.target.value)} className="mt-1" placeholder="04xxxxxxxx" />
                           </div>
                         </>
                       )}
@@ -1457,9 +1474,10 @@ const AdminDashboard = () => {
                     if (salesFilterDateTo && s.sale_date > salesFilterDateTo) return false;
                     if (salesFilterSearch) {
                       const q = salesFilterSearch.toLowerCase();
-                      const name = (s.bookings?.customer_name || '').toLowerCase();
+                      const name = (s.customer_name || s.bookings?.customer_name || '').toLowerCase();
+                      const phone = (s.customer_phone || s.bookings?.customer_phone || '').toLowerCase();
                       const note = (s.notes || '').toLowerCase();
-                      if (!name.includes(q) && !note.includes(q)) return false;
+                      if (!name.includes(q) && !note.includes(q) && !phone.includes(q)) return false;
                     }
                     return true;
                   });
@@ -1487,7 +1505,8 @@ const AdminDashboard = () => {
                               </div>
                             </div>
                             <div className="text-xs text-muted-foreground space-y-0.5">
-                              <p>{s.sale_date} · {s.bookings?.customer_name || '—'}</p>
+                              <p>{s.sale_date} · {s.customer_name || s.bookings?.customer_name || '—'}</p>
+                              <p className="font-mono">{s.customer_phone || s.bookings?.customer_phone || ''}</p>
                               <p>{s.bookings?.services?.name || '—'}</p>
                               {s.notes && <p className="truncate">{s.notes}</p>}
                             </div>
@@ -1501,6 +1520,7 @@ const AdminDashboard = () => {
                             <TableRow>
                               <TableHead>{t('Ngày')}</TableHead>
                               <TableHead>{t('Khách hàng')}</TableHead>
+                              <TableHead>{t('SĐT')}</TableHead>
                               <TableHead>{t('Dịch vụ')}</TableHead>
                               <TableHead>{t('Số tiền')}</TableHead>
                               <TableHead>{t('Phương thức')}</TableHead>
@@ -1512,7 +1532,8 @@ const AdminDashboard = () => {
                             {filtered.map((s: any) => (
                               <TableRow key={s.id}>
                                 <TableCell className="text-sm">{s.sale_date}</TableCell>
-                                <TableCell className="text-sm">{s.bookings?.customer_name || '—'}</TableCell>
+                                <TableCell className="text-sm">{s.customer_name || s.bookings?.customer_name || '—'}</TableCell>
+                                <TableCell className="text-sm font-mono">{s.customer_phone || s.bookings?.customer_phone || '—'}</TableCell>
                                 <TableCell className="text-sm">{s.bookings?.services?.name || '—'}</TableCell>
                                 <TableCell className="font-semibold">{formatPrice(Number(s.amount))}</TableCell>
                                 <TableCell>

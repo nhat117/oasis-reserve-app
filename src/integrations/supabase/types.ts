@@ -297,6 +297,8 @@ export type Database = {
           amount: number
           booking_id: string | null
           created_at: string
+          customer_name: string | null
+          customer_phone: string | null
           id: string
           notes: string | null
           payment_method: string
@@ -307,6 +309,8 @@ export type Database = {
           amount?: number
           booking_id?: string | null
           created_at?: string
+          customer_name?: string | null
+          customer_phone?: string | null
           id?: string
           notes?: string | null
           payment_method?: string
@@ -317,6 +321,8 @@ export type Database = {
           amount?: number
           booking_id?: string | null
           created_at?: string
+          customer_name?: string | null
+          customer_phone?: string | null
           id?: string
           notes?: string | null
           payment_method?: string

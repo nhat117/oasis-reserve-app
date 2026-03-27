@@ -63,9 +63,9 @@ const Services = () => {
               <div key={service.id} className="border border-border/60 p-5 sm:p-6 hover:border-foreground/20 transition-colors duration-200 group">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="space-y-1.5 flex-1">
-                    <h2 className="text-lg sm:text-xl font-light">{service.name}</h2>
+                    <h2 className="text-lg sm:text-xl font-light">{t(service.name)}</h2>
                     {service.description && (
-                      <p className="text-sm text-muted-foreground leading-relaxed">{service.description}</p>
+                      <p className="text-sm text-muted-foreground leading-relaxed">{t(service.description)}</p>
                     )}
                     <div className="flex items-center gap-3 text-sm text-muted-foreground pt-1">
                       <span className="flex items-center gap-1">
