@@ -809,15 +809,17 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-muted/30">
-      <header className="border-b bg-card sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <Leaf className="h-5 w-5 text-primary" />
-            <span className="font-semibold font-serif text-primary">{t('Quản trị Spa')}</span>
+      <header className="border-b border-border/50 bg-card/80 backdrop-blur-sm sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2.5">
+            <Leaf className="h-5 w-5 text-primary/70" />
+            <span className="font-semibold font-serif text-primary tracking-wide">{t('Quản trị Spa')}</span>
           </Link>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <LanguageSwitcher />
-            <Button variant="ghost" size="sm" onClick={signOut}><LogOut className="h-4 w-4 mr-1" /> {t('Đăng xuất')}</Button>
+            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground text-xs gap-1.5" onClick={signOut}>
+              <LogOut className="h-3.5 w-3.5" /> {t('Đăng xuất')}
+            </Button>
           </div>
         </div>
       </header>
