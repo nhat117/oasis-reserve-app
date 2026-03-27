@@ -1799,6 +1799,7 @@ const AdminDashboard = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>{t('Tên')}</TableHead>
+                      <TableHead>{t('Email')}</TableHead>
                       <TableHead>{t('SĐT')}</TableHead>
                       <TableHead>{t('Giờ làm việc')}</TableHead>
                       <TableHead>{t('Trạng thái')}</TableHead>
@@ -1809,6 +1810,7 @@ const AdminDashboard = () => {
                     {therapists?.map(th => (
                       <TableRow key={th.id}>
                         <TableCell className="font-medium">{th.name}</TableCell>
+                        <TableCell className="text-sm">{(th as any).email || '—'}</TableCell>
                         <TableCell>{th.phone || '—'}</TableCell>
                         <TableCell className="text-sm">
                           {th.start_hour}:00 – {th.end_hour}:00
@@ -1817,8 +1819,9 @@ const AdminDashboard = () => {
                           )}
                         </TableCell>
                         <TableCell><Badge variant={th.is_active ? 'default' : 'secondary'}>{th.is_active ? t('Hoạt động') : t('Tắt')}</Badge></TableCell>
-                        <TableCell>
+                        <TableCell className="space-x-1">
                           <Button variant="ghost" size="sm" onClick={() => openTherapistEdit(th)}><Pencil className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="sm" className="text-destructive" onClick={() => { if (confirm(t('Xoá thợ này?'))) deleteTherapist.mutate(th.id); }}><Trash2 className="h-4 w-4" /></Button>
                         </TableCell>
                       </TableRow>
                     ))}
