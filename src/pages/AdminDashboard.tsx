@@ -1358,8 +1358,12 @@ const AdminDashboard = () => {
                             </Select>
                           </div>
                           <div>
-                            <Label>{t('Tên khách hàng')}</Label>
+                            <Label>{t('Tên khách hàng')} ({t('tuỳ chọn')})</Label>
                             <Input value={saleCustomerName} onChange={e => setSaleCustomerName(e.target.value)} className="mt-1" placeholder={t('Nhập tên khách')} />
+                          </div>
+                          <div>
+                            <Label>{t('Số điện thoại')}</Label>
+                            <Input value={saleCustomerPhone} onChange={e => setSaleCustomerPhone(e.target.value)} className="mt-1" placeholder="04xxxxxxxx" />
                           </div>
                         </>
                       )}
