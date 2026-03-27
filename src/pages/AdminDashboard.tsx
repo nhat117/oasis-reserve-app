@@ -605,7 +605,22 @@ const AdminDashboard = () => {
     }
   };
 
-  useEffect(() => {
+  // Guest visits / customers
+  const { data: guestVisits } = useQuery({
+    queryKey: ['guest-visits'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('guest_visits').select('*, membership_tiers(name, discount_percent)').order('visit_count', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const filteredCustomers = (guestVisits || []).filter(g => {
+    if (!customerSearch.trim()) return true;
+    const s = customerSearch.toLowerCase();
+    return g.customer_phone?.toLowerCase().includes(s) || g.customer_name?.toLowerCase().includes(s);
+  });
+
     if (currencySettings) {
       setExchangeUSD(currencySettings['exchange_rate_usd'] || '0.000039');
       setExchangeEUR(currencySettings['exchange_rate_eur'] || '0.000036');
