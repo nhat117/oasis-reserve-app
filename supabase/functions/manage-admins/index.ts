@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Verify caller is admin
+    // Verify caller is admin or employee
     const callerClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -40,8 +40,13 @@ Deno.serve(async (req) => {
       _user_id: caller.id,
       _role: "admin",
     });
-    if (!isAdmin) {
-      return new Response(JSON.stringify({ error: "Admin only" }), {
+    const { data: isEmployee } = await callerClient.rpc("has_role", {
+      _user_id: caller.id,
+      _role: "employee",
+    });
+    
+    if (!isAdmin && !isEmployee) {
+      return new Response(JSON.stringify({ error: "Access denied" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -50,11 +55,11 @@ Deno.serve(async (req) => {
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
     if (req.method === "GET") {
-      // List all admin users
+      // List all admin/employee users
       const { data: roles, error: rolesError } = await adminClient
         .from("user_roles")
-        .select("user_id")
-        .eq("role", "admin");
+        .select("user_id, role")
+        .in("role", ["admin", "employee"]);
 
       if (rolesError) {
         return new Response(JSON.stringify({ error: rolesError.message }), {
@@ -70,19 +75,28 @@ Deno.serve(async (req) => {
           admins.push({
             id: user.id,
             email: user.email,
+            role: role.role,
             created_at: user.created_at,
             is_current: user.id === caller.id,
           });
         }
       }
 
-      return new Response(JSON.stringify({ admins }), {
+      return new Response(JSON.stringify({ admins, caller_role: isAdmin ? 'admin' : 'employee' }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     if (req.method === "DELETE") {
+      // Only admins can delete
+      if (!isAdmin) {
+        return new Response(JSON.stringify({ error: "Admin only" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       const { user_id } = await req.json();
       if (!user_id) {
         return new Response(JSON.stringify({ error: "user_id required" }), {
@@ -91,7 +105,6 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Prevent self-deletion
       if (user_id === caller.id) {
         return new Response(JSON.stringify({ error: "Cannot delete your own account" }), {
           status: 400,
@@ -99,12 +112,10 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Remove role first, then delete user
       const { error: roleError } = await adminClient
         .from("user_roles")
         .delete()
-        .eq("user_id", user_id)
-        .eq("role", "admin");
+        .eq("user_id", user_id);
 
       if (roleError) {
         return new Response(JSON.stringify({ error: roleError.message }), {

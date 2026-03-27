@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { BookingCalendar } from '@/components/BookingCalendar';
 import { Textarea } from '@/components/ui/textarea';
 import { BookingStats } from '@/components/BookingStats';
-import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search } from 'lucide-react';
+import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -27,7 +27,7 @@ import { useI18n, LanguageSwitcher } from '@/hooks/useI18n';
 const CURRENCIES = ['VND', 'USD', 'EUR', 'AUD'] as const;
 
 const AdminDashboard = () => {
-  const { user, isAdmin, loading, signOut } = useAuth();
+  const { user, isAdmin, isEmployee, isStaff, userRole, loading, signOut, logActivity } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { t } = useI18n();
@@ -84,6 +84,7 @@ const AdminDashboard = () => {
   // Create admin state
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [newAdminPassword, setNewAdminPassword] = useState('');
+  const [newAdminRole, setNewAdminRole] = useState<'admin' | 'employee'>('employee');
   const [creatingAdmin, setCreatingAdmin] = useState(false);
   const [deletingAdminId, setDeletingAdminId] = useState<string | null>(null);
 
@@ -228,6 +229,7 @@ const AdminDashboard = () => {
 
   const deleteSale = useMutation({
     mutationFn: async (id: string) => {
+      if (!isAdmin) throw new Error('Admin only');
       const { error } = await supabase.from('sales').delete().eq('id', id);
       if (error) throw error;
     },
@@ -503,7 +505,7 @@ const AdminDashboard = () => {
   });
 
   const deleteTier = useMutation({
-    mutationFn: async (id: string) => { const { error } = await supabase.from('membership_tiers').delete().eq('id', id); if (error) throw error; },
+    mutationFn: async (id: string) => { if (!isAdmin) throw new Error('Admin only'); const { error } = await supabase.from('membership_tiers').delete().eq('id', id); if (error) throw error; },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['membership-tiers'] }); toast({ title: t('Đã xoá') }); },
   });
 
@@ -545,7 +547,7 @@ const AdminDashboard = () => {
   });
 
   const deleteDiscount = useMutation({
-    mutationFn: async (id: string) => { const { error } = await supabase.from('discount_codes').delete().eq('id', id); if (error) throw error; },
+    mutationFn: async (id: string) => { if (!isAdmin) throw new Error('Admin only'); const { error } = await supabase.from('discount_codes').delete().eq('id', id); if (error) throw error; },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['discount-codes'] }); toast({ title: t('Đã xoá') }); },
   });
 
@@ -704,8 +706,19 @@ const AdminDashboard = () => {
       );
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Failed');
-      return result.admins as { id: string; email: string; created_at: string; is_current: boolean }[];
+      return result.admins as { id: string; email: string; role: string; created_at: string; is_current: boolean }[];
     },
+  });
+
+  // Activity logs (admin only)
+  const { data: activityLogs, refetch: refetchLogs } = useQuery({
+    queryKey: ['activity-logs'],
+    queryFn: async () => {
+      const { data, error } = await (supabase.from('activity_logs' as any).select('*').order('created_at', { ascending: false }).limit(200) as any);
+      if (error) throw error;
+      return data as { id: string; user_id: string; user_email: string; action: string; details: string | null; created_at: string }[];
+    },
+    enabled: isAdmin,
   });
 
   const addHoliday = useMutation({
@@ -738,6 +751,7 @@ const AdminDashboard = () => {
 
   const deleteBooking = useMutation({
     mutationFn: async (id: string) => {
+      if (!isAdmin) throw new Error('Admin only');
       // Delete associated sales first
       await supabase.from('sales').delete().eq('booking_id', id);
       const { error } = await supabase.from('bookings').delete().eq('id', id);
@@ -835,6 +849,7 @@ const AdminDashboard = () => {
 
   const deleteService = useMutation({
     mutationFn: async (id: string) => {
+      if (!isAdmin) throw new Error('Admin only');
       const { error } = await supabase.from('services').delete().eq('id', id);
       if (error) throw error;
     },
@@ -873,6 +888,7 @@ const AdminDashboard = () => {
 
   const deleteTherapist = useMutation({
     mutationFn: async (id: string) => {
+      if (!isAdmin) throw new Error('Admin only');
       const { error } = await supabase.from('therapists').delete().eq('id', id);
       if (error) throw error;
     },
@@ -1010,7 +1026,7 @@ const AdminDashboard = () => {
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><p>{t('Đang tải...')}</p></div>;
   if (!user) return <Navigate to="/admin/login" />;
-  if (!isAdmin) return <div className="min-h-screen flex items-center justify-center"><p className="text-destructive">{t('Bạn không có quyền truy cập.')}</p></div>;
+  if (!isStaff) return <div className="min-h-screen flex items-center justify-center"><p className="text-destructive">{t('Bạn không có quyền truy cập.')}</p></div>;
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -2052,30 +2068,37 @@ const AdminDashboard = () => {
             {/* Admin Accounts Management */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Admin Accounts</CardTitle>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-primary" />
+                  {t('Quản lý tài khoản')}
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Existing admin list */}
                 {adminAccounts && adminAccounts.length > 0 && (
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium">Current Admins</Label>
+                    <Label className="text-sm font-medium">{t('Tài khoản hiện tại')}</Label>
                     <div className="space-y-2">
                       {adminAccounts.map(admin => (
                         <div key={admin.id} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium truncate">{admin.email}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium truncate">{admin.email}</p>
+                              <Badge variant={admin.role === 'admin' ? 'default' : 'secondary'} className="text-[10px] shrink-0">
+                                {admin.role === 'admin' ? 'Admin' : 'Employee'}
+                              </Badge>
+                            </div>
                             <p className="text-xs text-muted-foreground">
-                              {admin.is_current ? '(You)' : `Added ${new Date(admin.created_at).toLocaleDateString()}`}
+                              {admin.is_current ? `(${t('Bạn')})` : `${t('Tạo')} ${new Date(admin.created_at).toLocaleDateString()}`}
                             </p>
                           </div>
-                          {!admin.is_current && (
+                          {!admin.is_current && isAdmin && (
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-destructive hover:text-destructive shrink-0"
                               disabled={deletingAdminId === admin.id}
                               onClick={async () => {
-                                if (!confirm(`Remove admin account ${admin.email}? This cannot be undone.`)) return;
+                                if (!confirm(`${t('Xoá tài khoản')} ${admin.email}?`)) return;
                                 setDeletingAdminId(admin.id);
                                 try {
                                   const { data: { session: s } } = await supabase.auth.getSession();
@@ -2083,19 +2106,17 @@ const AdminDashboard = () => {
                                     `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-admins`,
                                     {
                                       method: 'DELETE',
-                                      headers: {
-                                        'Content-Type': 'application/json',
-                                        'Authorization': `Bearer ${s?.access_token}`,
-                                      },
+                                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${s?.access_token}` },
                                       body: JSON.stringify({ user_id: admin.id }),
                                     }
                                   );
                                   const result = await res.json();
                                   if (!res.ok) throw new Error(result.error || 'Failed');
-                                  toast({ title: 'Admin removed', description: admin.email });
+                                  logActivity('delete_account', `Deleted: ${admin.email} (${admin.role})`);
+                                  toast({ title: t('Đã xoá tài khoản'), description: admin.email });
                                   refetchAdmins();
                                 } catch (err: any) {
-                                  toast({ title: 'Error', description: err.message, variant: 'destructive' });
+                                  toast({ title: t('Lỗi'), description: err.message, variant: 'destructive' });
                                 } finally {
                                   setDeletingAdminId(null);
                                 }
@@ -2110,63 +2131,66 @@ const AdminDashboard = () => {
                   </div>
                 )}
 
-                {/* Create new admin */}
-                <div className="border-t pt-4 space-y-3">
-                  <Label className="text-sm font-medium">Create New Admin</Label>
-                  <div>
-                    <Label className="text-xs">Email</Label>
-                    <Input
-                      type="email"
-                      value={newAdminEmail}
-                      onChange={e => setNewAdminEmail(e.target.value)}
-                      placeholder="admin@example.com"
-                      className="mt-1"
-                    />
+                {isAdmin && (
+                  <div className="border-t pt-4 space-y-3">
+                    <Label className="text-sm font-medium">{t('Tạo tài khoản mới')}</Label>
+                    <div>
+                      <Label className="text-xs">{t('Loại tài khoản')}</Label>
+                      <div className="flex gap-2 mt-1">
+                        <Button type="button" variant={newAdminRole === 'employee' ? 'default' : 'outline'} size="sm" className="flex-1" onClick={() => setNewAdminRole('employee')}>
+                          Employee
+                        </Button>
+                        <Button type="button" variant={newAdminRole === 'admin' ? 'default' : 'outline'} size="sm" className="flex-1" onClick={() => setNewAdminRole('admin')}>
+                          Admin
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {newAdminRole === 'employee'
+                          ? t('Employee: có thể xem và tạo, không thể xoá hoặc xem nhật ký')
+                          : t('Admin: toàn quyền quản lý hệ thống')}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Email</Label>
+                      <Input type="email" value={newAdminEmail} onChange={e => setNewAdminEmail(e.target.value)} placeholder="staff@example.com" className="mt-1" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">{t('Mật khẩu')}</Label>
+                      <Input type="password" value={newAdminPassword} onChange={e => setNewAdminPassword(e.target.value)} placeholder={t('Tối thiểu 6 ký tự')} className="mt-1" />
+                    </div>
+                    <Button
+                      size="sm"
+                      disabled={creatingAdmin || !newAdminEmail.trim() || newAdminPassword.length < 6}
+                      onClick={async () => {
+                        setCreatingAdmin(true);
+                        try {
+                          const { data: { session: s } } = await supabase.auth.getSession();
+                          const res = await fetch(
+                            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-admin`,
+                            {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${s?.access_token}` },
+                              body: JSON.stringify({ email: newAdminEmail.trim(), password: newAdminPassword, role: newAdminRole }),
+                            }
+                          );
+                          const result = await res.json();
+                          if (!res.ok) throw new Error(result.error || 'Failed');
+                          logActivity('create_account', `Created ${newAdminRole}: ${newAdminEmail}`);
+                          toast({ title: t('Đã tạo tài khoản'), description: `${newAdminRole === 'admin' ? 'Admin' : 'Employee'}: ${newAdminEmail}` });
+                          setNewAdminEmail('');
+                          setNewAdminPassword('');
+                          refetchAdmins();
+                        } catch (err: any) {
+                          toast({ title: t('Lỗi'), description: err.message, variant: 'destructive' });
+                        } finally {
+                          setCreatingAdmin(false);
+                        }
+                      }}
+                    >
+                      {creatingAdmin ? t('Đang tạo...') : t('Tạo tài khoản')}
+                    </Button>
                   </div>
-                  <div>
-                    <Label className="text-xs">Password</Label>
-                    <Input
-                      type="password"
-                      value={newAdminPassword}
-                      onChange={e => setNewAdminPassword(e.target.value)}
-                      placeholder="Min 6 characters"
-                      className="mt-1"
-                    />
-                  </div>
-                  <Button
-                    size="sm"
-                    disabled={creatingAdmin || !newAdminEmail.trim() || newAdminPassword.length < 6}
-                    onClick={async () => {
-                      setCreatingAdmin(true);
-                      try {
-                        const { data: { session: s } } = await supabase.auth.getSession();
-                        const res = await fetch(
-                          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-admin`,
-                          {
-                            method: 'POST',
-                            headers: {
-                              'Content-Type': 'application/json',
-                              'Authorization': `Bearer ${s?.access_token}`,
-                            },
-                            body: JSON.stringify({ email: newAdminEmail.trim(), password: newAdminPassword }),
-                          }
-                        );
-                        const result = await res.json();
-                        if (!res.ok) throw new Error(result.error || 'Failed');
-                        toast({ title: 'Admin account created', description: `Welcome email sent to ${newAdminEmail}` });
-                        setNewAdminEmail('');
-                        setNewAdminPassword('');
-                        refetchAdmins();
-                      } catch (err: any) {
-                        toast({ title: 'Error', description: err.message, variant: 'destructive' });
-                      } finally {
-                        setCreatingAdmin(false);
-                      }
-                    }}
-                  >
-                    {creatingAdmin ? 'Creating...' : 'Create Admin Account'}
-                  </Button>
-                </div>
+                )}
               </CardContent>
             </Card>
 
@@ -2396,47 +2420,112 @@ const AdminDashboard = () => {
               </CardContent>
             </Card>
 
-            {/* ── Danger Zone: Delete All Data ── */}
-            <Card className="border-destructive/30">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2 text-destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  {t('Vùng nguy hiểm')}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground mb-4">{t('Xoá tất cả dữ liệu lịch hẹn, thanh toán, ngày nghỉ. Hành động không thể hoàn tác.')}</p>
-                <Dialog open={deleteDialog} onOpenChange={setDeleteDialog}>
-                  <DialogTrigger asChild>
-                    <Button variant="destructive" size="sm">
-                      <Trash2 className="h-3.5 w-3.5 mr-1" /> {t('Xoá tất cả dữ liệu')}
+            {/* ── Activity Logs (Admin only) ── */}
+            {isAdmin && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-primary" />
+                      {t('Nhật ký hoạt động')}
+                    </CardTitle>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        if (!activityLogs?.length) return;
+                        const csv = ['Thời gian,Email,Hành động,Chi tiết']
+                          .concat(activityLogs.map(l =>
+                            `"${new Date(l.created_at).toLocaleString()}","${l.user_email || ''}","${l.action}","${(l.details || '').replace(/"/g, '""')}"`
+                          ))
+                          .join('\n');
+                        const blob = new Blob([csv], { type: 'text/csv' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `activity-logs-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                    >
+                      <Download className="h-3.5 w-3.5 mr-1" /> {t('Tải CSV')}
                     </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle className="text-destructive flex items-center gap-2">
-                        <AlertTriangle className="h-5 w-5" /> {t('Xác nhận xoá tất cả dữ liệu')}
-                      </DialogTitle>
-                      <DialogDescription>
-                        {t('Nhập mật khẩu admin để xác nhận. Tất cả lịch hẹn, thanh toán, ngày nghỉ sẽ bị xoá vĩnh viễn.')}
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 pt-2">
-                      <div>
-                        <Label>{t('Mật khẩu admin')}</Label>
-                        <Input type="password" value={deletePassword} onChange={e => setDeletePassword(e.target.value)} placeholder={t('Nhập mật khẩu')} className="mt-1" />
-                      </div>
-                      <div className="flex gap-2">
-                        <Button variant="outline" onClick={() => setDeleteDialog(false)} className="flex-1">{t('Huỷ')}</Button>
-                        <Button variant="destructive" onClick={handleDeleteAllData} disabled={deleting || !deletePassword.trim()} className="flex-1">
-                          {deleting ? t('Đang xoá...') : t('Xoá tất cả')}
-                        </Button>
-                      </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {!activityLogs?.length ? (
+                    <p className="text-sm text-muted-foreground text-center py-6">{t('Chưa có nhật ký nào')}</p>
+                  ) : (
+                    <div className="max-h-[400px] overflow-y-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>{t('Thời gian')}</TableHead>
+                            <TableHead>Email</TableHead>
+                            <TableHead>{t('Hành động')}</TableHead>
+                            <TableHead>{t('Chi tiết')}</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {activityLogs.map(log => (
+                            <TableRow key={log.id}>
+                              <TableCell className="text-xs whitespace-nowrap">{new Date(log.created_at).toLocaleString()}</TableCell>
+                              <TableCell className="text-xs">{log.user_email}</TableCell>
+                              <TableCell><Badge variant="outline" className="text-[10px]">{log.action}</Badge></TableCell>
+                              <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">{log.details || '—'}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
                     </div>
-                  </DialogContent>
-                </Dialog>
-              </CardContent>
-            </Card>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* ── Danger Zone: Delete All Data (Admin only) ── */}
+            {isAdmin && (
+              <Card className="border-destructive/30">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2 text-destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    {t('Vùng nguy hiểm')}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground mb-4">{t('Xoá tất cả dữ liệu lịch hẹn, thanh toán, ngày nghỉ. Hành động không thể hoàn tác.')}</p>
+                  <Dialog open={deleteDialog} onOpenChange={setDeleteDialog}>
+                    <DialogTrigger asChild>
+                      <Button variant="destructive" size="sm">
+                        <Trash2 className="h-3.5 w-3.5 mr-1" /> {t('Xoá tất cả dữ liệu')}
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle className="text-destructive flex items-center gap-2">
+                          <AlertTriangle className="h-5 w-5" /> {t('Xác nhận xoá tất cả dữ liệu')}
+                        </DialogTitle>
+                        <DialogDescription>
+                          {t('Nhập mật khẩu admin để xác nhận. Tất cả lịch hẹn, thanh toán, ngày nghỉ sẽ bị xoá vĩnh viễn.')}
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 pt-2">
+                        <div>
+                          <Label>{t('Mật khẩu admin')}</Label>
+                          <Input type="password" value={deletePassword} onChange={e => setDeletePassword(e.target.value)} placeholder={t('Nhập mật khẩu')} className="mt-1" />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button variant="outline" onClick={() => setDeleteDialog(false)} className="flex-1">{t('Huỷ')}</Button>
+                          <Button variant="destructive" onClick={() => { handleDeleteAllData(); logActivity('delete_all_data', 'Wiped all bookings, sales, visits'); }} disabled={deleting || !deletePassword.trim()} className="flex-1">
+                            {deleting ? t('Đang xoá...') : t('Xoá tất cả')}
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         </Tabs>
       </div>
