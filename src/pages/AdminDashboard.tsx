@@ -760,7 +760,8 @@ const AdminDashboard = () => {
       const { error } = await supabase.from('bookings').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_d, id) => {
+      logActivity('delete_booking', `Booking ID: ${id}`);
       queryClient.invalidateQueries({ queryKey: ['admin-bookings'] });
       queryClient.invalidateQueries({ queryKey: ['admin-sales'] });
       toast({ title: t('Đã xoá lịch hẹn') });
