@@ -2065,6 +2065,23 @@ const AdminDashboard = () => {
               </CardContent>
             </Card>
 
+            {/* Logo Upload */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Leaf className="h-4 w-4 text-primary" />
+                  {t('Logo cửa hàng')}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {(() => {
+                  const { data: currentLogoPath } = supabase.storage.from('logos').getPublicUrl('shop-logo');
+                  return null;
+                })()}
+                <LogoUpload />
+              </CardContent>
+            </Card>
+
             {/* Admin Accounts Management */}
             <Card>
               <CardHeader className="pb-3">
