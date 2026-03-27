@@ -2,48 +2,48 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Be+Vietnam+Pro:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Outfit:wght@200;300;400;500;600&display=swap');
 
 @layer base {
   :root {
-    --background: 35 30% 95%;
-    --foreground: 25 30% 12%;
+    --background: 36 25% 96%;
+    --foreground: 30 20% 10%;
 
-    --card: 35 25% 97%;
-    --card-foreground: 25 30% 12%;
+    --card: 36 20% 98%;
+    --card-foreground: 30 20% 10%;
 
-    --popover: 35 25% 97%;
-    --popover-foreground: 25 30% 12%;
+    --popover: 36 20% 98%;
+    --popover-foreground: 30 20% 10%;
 
-    --primary: 30 35% 28%;
-    --primary-foreground: 35 30% 95%;
+    --primary: 28 28% 22%;
+    --primary-foreground: 36 25% 96%;
 
-    --secondary: 35 25% 88%;
-    --secondary-foreground: 25 30% 12%;
+    --secondary: 33 18% 90%;
+    --secondary-foreground: 30 20% 10%;
 
-    --muted: 35 18% 90%;
-    --muted-foreground: 25 15% 45%;
+    --muted: 33 14% 92%;
+    --muted-foreground: 28 10% 48%;
 
-    --accent: 35 30% 82%;
-    --accent-foreground: 25 30% 12%;
+    --accent: 33 20% 86%;
+    --accent-foreground: 30 20% 10%;
 
-    --destructive: 0 65% 50%;
+    --destructive: 0 60% 48%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 35 20% 85%;
-    --input: 35 20% 85%;
-    --ring: 30 35% 28%;
+    --border: 33 15% 88%;
+    --input: 33 15% 88%;
+    --ring: 28 28% 22%;
 
-    --radius: 0.75rem;
+    --radius: 0.5rem;
 
-    --sidebar-background: 35 20% 94%;
-    --sidebar-foreground: 25 25% 20%;
-    --sidebar-primary: 30 35% 28%;
-    --sidebar-primary-foreground: 35 30% 95%;
-    --sidebar-accent: 35 18% 90%;
-    --sidebar-accent-foreground: 25 25% 20%;
-    --sidebar-border: 35 20% 85%;
-    --sidebar-ring: 30 35% 28%;
+    --sidebar-background: 33 16% 95%;
+    --sidebar-foreground: 28 18% 18%;
+    --sidebar-primary: 28 28% 22%;
+    --sidebar-primary-foreground: 36 25% 96%;
+    --sidebar-accent: 33 14% 92%;
+    --sidebar-accent-foreground: 28 18% 18%;
+    --sidebar-border: 33 15% 88%;
+    --sidebar-ring: 28 28% 22%;
   }
 
   .dark {
@@ -84,11 +84,14 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: 'Be Vietnam Pro', sans-serif;
+    font-family: 'Outfit', sans-serif;
+    font-weight: 300;
+    letter-spacing: 0.01em;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Playfair Display', serif;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400;
   }
 }
 
@@ -110,14 +113,14 @@
   --fc-now-indicator-color: hsl(var(--primary));
   --fc-event-border-color: transparent;
   --fc-page-bg-color: transparent;
-  font-family: 'Be Vietnam Pro', system-ui, sans-serif;
+  font-family: 'Outfit', system-ui, sans-serif;
 }
 
 .fc-custom .fc .fc-toolbar-title {
-  font-family: 'Be Vietnam Pro', system-ui, sans-serif;
+  font-family: 'Outfit', system-ui, sans-serif;
   font-size: 1.1rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-weight: 500;
+  letter-spacing: 0.02em;
 }
 
 /* Remove highlight/selection outline on click */
@@ -157,7 +160,7 @@
 
 .fc-custom .fc .fc-col-header-cell {
   font-size: 0.8rem;
-  font-weight: 500;
+  font-weight: 400;
   color: hsl(var(--muted-foreground));
 }
 
