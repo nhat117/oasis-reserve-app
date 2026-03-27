@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { LanguageSwitcher, useI18n } from '@/hooks/useI18n';
 
 const Services = () => {
+  const logoImg = useLogo();
   const { formatPrice, t } = useI18n();
   const { data: services, isLoading } = useQuery({
     queryKey: ['services'],
