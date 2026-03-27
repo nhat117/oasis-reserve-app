@@ -827,13 +827,13 @@ const AdminDashboard = () => {
       <div className="container mx-auto px-4 py-6 pb-24 sm:pb-6">
         <Tabs defaultValue="stats">
           {/* Desktop tabs - hidden on mobile */}
-          <TabsList className="mb-6 hidden sm:inline-flex">
-            <TabsTrigger value="stats">{t('Thống kê')}</TabsTrigger>
-            <TabsTrigger value="bookings">{t('Lịch hẹn')}</TabsTrigger>
-            <TabsTrigger value="sales"><DollarSign className="h-4 w-4 mr-1" /> {t('Thanh toán')}</TabsTrigger>
-            <TabsTrigger value="services">{t('Dịch vụ')}</TabsTrigger>
-            <TabsTrigger value="therapists">{t('Thợ')}</TabsTrigger>
-            <TabsTrigger value="settings"><Settings className="h-4 w-4 mr-1" /> {t('Cài đặt')}</TabsTrigger>
+          <TabsList className="mb-6 hidden sm:inline-flex h-11 bg-muted/50 p-1 rounded-xl gap-1">
+            <TabsTrigger value="stats" className="rounded-lg px-4 text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground">{t('Thống kê')}</TabsTrigger>
+            <TabsTrigger value="bookings" className="rounded-lg px-4 text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground">{t('Lịch hẹn')}</TabsTrigger>
+            <TabsTrigger value="sales" className="rounded-lg px-4 text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground">{t('Thanh toán')}</TabsTrigger>
+            <TabsTrigger value="services" className="rounded-lg px-4 text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground">{t('Dịch vụ')}</TabsTrigger>
+            <TabsTrigger value="therapists" className="rounded-lg px-4 text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground">{t('Thợ')}</TabsTrigger>
+            <TabsTrigger value="settings" className="rounded-lg px-4 text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground">{t('Cài đặt')}</TabsTrigger>
           </TabsList>
 
           {/* Mobile bottom nav */}
