@@ -2035,6 +2035,223 @@ const AdminDashboard = () => {
                 )}
               </CardContent>
             </Card>
+
+            {/* ── Membership Tiers ── */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Crown className="h-4 w-4 text-primary" />
+                    {t('Hạng thành viên')}
+                  </CardTitle>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">{t('Bật/Tắt')}</span>
+                      <Switch checked={membershipEnabled === true} onCheckedChange={(v) => toggleMembership.mutate(v)} />
+                    </div>
+                    <Dialog open={membershipDialog} onOpenChange={setMembershipDialog}>
+                      <DialogTrigger asChild>
+                        <Button size="sm" variant="outline" onClick={() => { setEditingTier(null); setTierName(''); setTierMinVisits('0'); setTierDiscountPercent('0'); }}>
+                          <Plus className="h-3.5 w-3.5 mr-1" /> {t('Thêm')}
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>{editingTier ? t('Sửa hạng thành viên') : t('Thêm hạng thành viên')}</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-3 pt-2">
+                          <div>
+                            <Label>{t('Tên hạng')}</Label>
+                            <Input value={tierName} onChange={e => setTierName(e.target.value)} placeholder="VIP Gold" className="mt-1" />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label>{t('Số lần ghé tối thiểu')}</Label>
+                              <Input type="number" min="0" value={tierMinVisits} onChange={e => setTierMinVisits(e.target.value)} className="mt-1" />
+                            </div>
+                            <div>
+                              <Label>{t('Giảm giá (%)')}</Label>
+                              <Input type="number" min="0" max="100" step="0.5" value={tierDiscountPercent} onChange={e => setTierDiscountPercent(e.target.value)} className="mt-1" />
+                            </div>
+                          </div>
+                          <Button onClick={() => saveTier.mutate()} disabled={!tierName.trim()}>{editingTier ? t('Cập nhật') : t('Tạo')}</Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {!membershipTiers?.length ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">{t('Chưa có hạng thành viên nào')}</p>
+                ) : (
+                  <div className="space-y-2">
+                    {membershipTiers.map(tier => (
+                      <div key={tier.id} className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:bg-muted/30 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <Switch checked={tier.is_active} onCheckedChange={(v) => toggleTierActive.mutate({ id: tier.id, active: v })} />
+                          <div>
+                            <p className="text-sm font-semibold">{tier.name}</p>
+                            <p className="text-xs text-muted-foreground">{tier.min_visits}+ {t('lần ghé')} · {tier.discount_percent}% {t('giảm')}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
+                            setEditingTier(tier); setTierName(tier.name); setTierMinVisits(String(tier.min_visits)); setTierDiscountPercent(String(tier.discount_percent)); setMembershipDialog(true);
+                          }}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { if (confirm(t('Xoá hạng này?'))) deleteTier.mutate(tier.id); }}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* ── Discount Codes ── */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Tag className="h-4 w-4 text-primary" />
+                    {t('Mã giảm giá')}
+                  </CardTitle>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">{t('Bật/Tắt')}</span>
+                      <Switch checked={discountCodesEnabled === true} onCheckedChange={(v) => toggleDiscountCodes.mutate(v)} />
+                    </div>
+                    <Dialog open={discountDialog} onOpenChange={setDiscountDialog}>
+                      <DialogTrigger asChild>
+                        <Button size="sm" variant="outline" onClick={() => {
+                          setEditingDiscount(null); setDiscountCode(''); setDiscountPercent('0'); setDiscountAmount('0'); setDiscountValidFrom(''); setDiscountValidTo(''); setDiscountMaxUses('');
+                        }}>
+                          <Plus className="h-3.5 w-3.5 mr-1" /> {t('Thêm')}
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>{editingDiscount ? t('Sửa mã giảm giá') : t('Thêm mã giảm giá')}</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-3 pt-2">
+                          <div>
+                            <Label>{t('Mã')}</Label>
+                            <Input value={discountCode} onChange={e => setDiscountCode(e.target.value.toUpperCase())} placeholder="WELCOME10" className="mt-1 font-mono" />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label>{t('Giảm giá (%)')}</Label>
+                              <Input type="number" min="0" max="100" value={discountPercent} onChange={e => setDiscountPercent(e.target.value)} className="mt-1" />
+                            </div>
+                            <div>
+                              <Label>{t('Giảm cố định (A$)')}</Label>
+                              <Input type="number" min="0" value={discountAmount} onChange={e => setDiscountAmount(e.target.value)} className="mt-1" />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label>{t('Từ ngày')}</Label>
+                              <Input type="date" value={discountValidFrom} onChange={e => setDiscountValidFrom(e.target.value)} className="mt-1" />
+                            </div>
+                            <div>
+                              <Label>{t('Đến ngày')}</Label>
+                              <Input type="date" value={discountValidTo} onChange={e => setDiscountValidTo(e.target.value)} className="mt-1" />
+                            </div>
+                          </div>
+                          <div>
+                            <Label>{t('Giới hạn sử dụng')} ({t('để trống = không giới hạn')})</Label>
+                            <Input type="number" min="0" value={discountMaxUses} onChange={e => setDiscountMaxUses(e.target.value)} className="mt-1" placeholder={t('Không giới hạn')} />
+                          </div>
+                          <Button onClick={() => saveDiscount.mutate()} disabled={!discountCode.trim()}>{editingDiscount ? t('Cập nhật') : t('Tạo')}</Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {!discountCodes?.length ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">{t('Chưa có mã giảm giá nào')}</p>
+                ) : (
+                  <div className="space-y-2">
+                    {discountCodes.map(dc => (
+                      <div key={dc.id} className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:bg-muted/30 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <Switch checked={dc.is_active} onCheckedChange={(v) => toggleDiscountActive.mutate({ id: dc.id, active: v })} />
+                          <div>
+                            <p className="text-sm font-mono font-semibold">{dc.code}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {Number(dc.discount_percent) > 0 && `${dc.discount_percent}%`}
+                              {Number(dc.discount_percent) > 0 && Number(dc.discount_amount) > 0 && ' + '}
+                              {Number(dc.discount_amount) > 0 && `A$ ${dc.discount_amount}`}
+                              {dc.max_uses && ` · ${dc.current_uses}/${dc.max_uses} ${t('đã dùng')}`}
+                              {dc.valid_to && ` · ${t('hết hạn')} ${dc.valid_to}`}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
+                            setEditingDiscount(dc); setDiscountCode(dc.code); setDiscountPercent(String(dc.discount_percent)); setDiscountAmount(String(dc.discount_amount));
+                            setDiscountValidFrom(dc.valid_from || ''); setDiscountValidTo(dc.valid_to || ''); setDiscountMaxUses(dc.max_uses ? String(dc.max_uses) : ''); setDiscountDialog(true);
+                          }}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { if (confirm(t('Xoá mã này?'))) deleteDiscount.mutate(dc.id); }}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* ── Danger Zone: Delete All Data ── */}
+            <Card className="border-destructive/30">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2 text-destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  {t('Vùng nguy hiểm')}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-4">{t('Xoá tất cả dữ liệu lịch hẹn, thanh toán, ngày nghỉ. Hành động không thể hoàn tác.')}</p>
+                <Dialog open={deleteDialog} onOpenChange={setDeleteDialog}>
+                  <DialogTrigger asChild>
+                    <Button variant="destructive" size="sm">
+                      <Trash2 className="h-3.5 w-3.5 mr-1" /> {t('Xoá tất cả dữ liệu')}
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle className="text-destructive flex items-center gap-2">
+                        <AlertTriangle className="h-5 w-5" /> {t('Xác nhận xoá tất cả dữ liệu')}
+                      </DialogTitle>
+                      <DialogDescription>
+                        {t('Nhập mật khẩu admin để xác nhận. Tất cả lịch hẹn, thanh toán, ngày nghỉ sẽ bị xoá vĩnh viễn.')}
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 pt-2">
+                      <div>
+                        <Label>{t('Mật khẩu admin')}</Label>
+                        <Input type="password" value={deletePassword} onChange={e => setDeletePassword(e.target.value)} placeholder={t('Nhập mật khẩu')} className="mt-1" />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="outline" onClick={() => setDeleteDialog(false)} className="flex-1">{t('Huỷ')}</Button>
+                        <Button variant="destructive" onClick={handleDeleteAllData} disabled={deleting || !deletePassword.trim()} className="flex-1">
+                          {deleting ? t('Đang xoá...') : t('Xoá tất cả')}
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
