@@ -505,7 +505,7 @@ const AdminDashboard = () => {
   });
 
   const deleteTier = useMutation({
-    mutationFn: async (id: string) => { const { error } = await supabase.from('membership_tiers').delete().eq('id', id); if (error) throw error; },
+    mutationFn: async (id: string) => { if (!isAdmin) throw new Error('Admin only'); const { error } = await supabase.from('membership_tiers').delete().eq('id', id); if (error) throw error; },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['membership-tiers'] }); toast({ title: t('Đã xoá') }); },
   });
 
