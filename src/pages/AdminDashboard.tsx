@@ -211,6 +211,7 @@ const AdminDashboard = () => {
       if (error) throw error;
     },
     onSuccess: () => {
+      logActivity('create_sale', `Amount: ${saleAmount}, Method: ${salePaymentMethod}, Customer: ${saleCustomerName || saleCustomerPhone || 'N/A'}`);
       queryClient.invalidateQueries({ queryKey: ['admin-sales'] });
       queryClient.invalidateQueries({ queryKey: ['stats-bookings'] });
       setSaleDialog(false);
