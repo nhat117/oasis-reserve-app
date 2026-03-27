@@ -679,7 +679,7 @@ const AdminDashboard = () => {
       const { error } = await supabase.from('therapist_unavailability').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-unavailability'] }); toast({ title: t('Đã xoá ngày nghỉ') }); },
+    onSuccess: (_d, id) => { logActivity('delete_unavailability', `ID: ${id}`); queryClient.invalidateQueries({ queryKey: ['admin-unavailability'] }); toast({ title: t('Đã xoá ngày nghỉ') }); },
   });
 
   // Shop holidays
