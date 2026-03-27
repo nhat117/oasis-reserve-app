@@ -1339,6 +1339,11 @@ const AdminDashboard = () => {
                               ))}
                             </SelectContent>
                           </Select>
+                          {/* Phone for booking type */}
+                          <div>
+                            <Label>{t('Số điện thoại')}</Label>
+                            <Input value={saleCustomerPhone} onChange={e => setSaleCustomerPhone(e.target.value)} className="mt-1" placeholder="04xxxxxxxx" />
+                          </div>
                         </div>
                       ) : (
                         <>
