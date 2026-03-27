@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { LanguageSwitcher, useI18n } from '@/hooks/useI18n';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, Menu, X } from 'lucide-react';
-import logoImg from '@/assets/logo.png';
+import { useLogo } from '@/hooks/useLogo';
 import heroImg from '@/assets/hero-luxury.jpg';
 import detail1Img from '@/assets/spa-detail-1.jpg';
 import detail2Img from '@/assets/spa-detail-2.jpg';
