@@ -6,9 +6,13 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   isAdmin: boolean;
+  isEmployee: boolean;
+  isStaff: boolean; // admin or employee
+  userRole: 'admin' | 'employee' | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  logActivity: (action: string, details?: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -17,11 +21,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isEmployee, setIsEmployee] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const checkAdmin = async (userId: string) => {
-    const { data } = await supabase.rpc('has_role', { _user_id: userId, _role: 'admin' });
-    setIsAdmin(!!data);
+  const checkRoles = async (userId: string) => {
+    const [{ data: admin }, { data: employee }] = await Promise.all([
+      supabase.rpc('has_role', { _user_id: userId, _role: 'admin' }),
+      supabase.rpc('has_role', { _user_id: userId, _role: 'employee' }),
+    ]);
+    setIsAdmin(!!admin);
+    setIsEmployee(!!employee);
   };
 
   useEffect(() => {
@@ -29,9 +38,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        setTimeout(() => checkAdmin(session.user.id), 0);
+        setTimeout(() => checkRoles(session.user.id), 0);
       } else {
         setIsAdmin(false);
+        setIsEmployee(false);
       }
       setLoading(false);
     });
@@ -40,7 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        checkAdmin(session.user.id);
+        checkRoles(session.user.id);
       }
       setLoading(false);
     });
@@ -57,8 +67,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
   };
 
+  const logActivity = async (action: string, details?: string) => {
+    if (!user) return;
+    try {
+      await supabase.from('activity_logs' as any).insert({
+        user_id: user.id,
+        user_email: user.email,
+        action,
+        details,
+      });
+    } catch (e) {
+      console.error('Failed to log activity:', e);
+    }
+  };
+
+  const isStaff = isAdmin || isEmployee;
+  const userRole = isAdmin ? 'admin' : isEmployee ? 'employee' : null;
+
   return (
-    <AuthContext.Provider value={{ user, session, isAdmin, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, isAdmin, isEmployee, isStaff, userRole, loading, signIn, signOut, logActivity }}>
       {children}
     </AuthContext.Provider>
   );
