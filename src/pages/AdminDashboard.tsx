@@ -846,6 +846,7 @@ const AdminDashboard = () => {
       }
     },
     onSuccess: () => {
+      logActivity(editingService ? 'update_service' : 'create_service', `Service: ${serviceName}`);
       queryClient.invalidateQueries({ queryKey: ['admin-services'] });
       setServiceDialog(false);
       toast({ title: editingService ? t('Đã cập nhật dịch vụ') : t('Đã thêm dịch vụ') });
