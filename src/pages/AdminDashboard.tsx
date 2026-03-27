@@ -2446,61 +2446,36 @@ const AdminDashboard = () => {
             {isAdmin && (
               <Card>
                 <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-primary" />
-                      {t('Nhật ký hoạt động')}
-                    </CardTitle>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        if (!activityLogs?.length) return;
-                        const csv = ['Thời gian,Email,Hành động,Chi tiết']
-                          .concat(activityLogs.map(l =>
-                            `"${new Date(l.created_at).toLocaleString()}","${l.user_email || ''}","${l.action}","${(l.details || '').replace(/"/g, '""')}"`
-                          ))
-                          .join('\n');
-                        const blob = new Blob([csv], { type: 'text/csv' });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `activity-logs-${format(new Date(), 'yyyy-MM-dd')}.csv`;
-                        a.click();
-                        URL.revokeObjectURL(url);
-                      }}
-                    >
-                      <Download className="h-3.5 w-3.5 mr-1" /> {t('Tải CSV')}
-                    </Button>
-                  </div>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-primary" />
+                    {t('Nhật ký hoạt động')}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {!activityLogs?.length ? (
-                    <p className="text-sm text-muted-foreground text-center py-6">{t('Chưa có nhật ký nào')}</p>
-                  ) : (
-                    <div className="max-h-[400px] overflow-y-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>{t('Thời gian')}</TableHead>
-                            <TableHead>Email</TableHead>
-                            <TableHead>{t('Hành động')}</TableHead>
-                            <TableHead>{t('Chi tiết')}</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {activityLogs.map(log => (
-                            <TableRow key={log.id}>
-                              <TableCell className="text-xs whitespace-nowrap">{new Date(log.created_at).toLocaleString()}</TableCell>
-                              <TableCell className="text-xs">{log.user_email}</TableCell>
-                              <TableCell><Badge variant="outline" className="text-[10px]">{log.action}</Badge></TableCell>
-                              <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">{log.details || '—'}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
+                  <p className="text-sm text-muted-foreground mb-3">{t('Tất cả hoạt động được ghi lại tự động. Tải xuống để xem chi tiết.')}</p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!activityLogs?.length}
+                    onClick={() => {
+                      if (!activityLogs?.length) return;
+                      const csv = ['Thời gian,Email,Hành động,Chi tiết']
+                        .concat(activityLogs.map(l =>
+                          `"${new Date(l.created_at).toLocaleString()}","${l.user_email || ''}","${l.action}","${(l.details || '').replace(/"/g, '""')}"`
+                        ))
+                        .join('\n');
+                      const blob = new Blob([csv], { type: 'text/csv' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `activity-logs-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                  >
+                    <Download className="h-3.5 w-3.5 mr-1" /> {t('Tải CSV')}
+                  </Button>
+                  {!activityLogs?.length && <p className="text-xs text-muted-foreground mt-2">{t('Chưa có nhật ký nào')}</p>}
                 </CardContent>
               </Card>
             )}
