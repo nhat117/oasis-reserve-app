@@ -74,6 +74,7 @@ const AdminDashboard = () => {
   const [saleBookingId, setSaleBookingId] = useState('');
   const [saleServiceId, setSaleServiceId] = useState('');
   const [saleCustomerName, setSaleCustomerName] = useState('');
+  const [saleCustomerPhone, setSaleCustomerPhone] = useState('');
   const [saleAmount, setSaleAmount] = useState('');
   const [salePaymentMethod, setSalePaymentMethod] = useState<'cash' | 'card'>('cash');
   const [saleNotes, setSaleNotes] = useState('');
