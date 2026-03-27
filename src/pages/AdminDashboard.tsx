@@ -814,6 +814,7 @@ const AdminDashboard = () => {
       if (error) throw error;
     },
     onSuccess: () => {
+      logActivity('create_booking', `Customer: ${bookingCustomerName}, Phone: ${bookingCustomerPhone}`);
       queryClient.invalidateQueries({ queryKey: ['admin-bookings'] });
       setBookingDialog(false);
       resetBookingForm();
