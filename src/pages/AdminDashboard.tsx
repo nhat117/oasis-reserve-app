@@ -653,7 +653,7 @@ const AdminDashboard = () => {
         if (error) throw error;
       }
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['currency-settings'] }); toast({ title: t('Đã lưu cài đặt tiền tệ') }); },
+    onSuccess: () => { logActivity('update_currency', 'Updated currency settings'); queryClient.invalidateQueries({ queryKey: ['currency-settings'] }); toast({ title: t('Đã lưu cài đặt tiền tệ') }); },
   });
 
   // Therapist unavailability
