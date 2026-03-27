@@ -219,7 +219,7 @@ const Booking = () => {
       therapist_id: therapistId,
       customer_name: customerName.trim(),
       customer_phone: customerPhone.trim(),
-      customer_email: customerEmail.trim() || null,
+      customer_email: customerEmail.trim(),
       booking_date: bookingDateStr,
       start_time: startTime,
       end_time: endTime,
