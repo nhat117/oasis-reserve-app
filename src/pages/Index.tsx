@@ -5,13 +5,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { LanguageSwitcher, useI18n } from '@/hooks/useI18n';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, Menu, X } from 'lucide-react';
-import logoImg from '@/assets/logo.png';
+import { useLogo } from '@/hooks/useLogo';
 import heroImg from '@/assets/hero-luxury.jpg';
 import detail1Img from '@/assets/spa-detail-1.jpg';
 import detail2Img from '@/assets/spa-detail-2.jpg';
 
 const Index = () => {
   const { t } = useI18n();
+  const logoImg = useLogo();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const { data: shopSettings } = useQuery({
@@ -33,7 +34,7 @@ const Index = () => {
       <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 sm:gap-3">
-            <img src={logoImg} alt="Royal Head Spa" className="h-8 w-8 sm:h-10 sm:w-10 object-contain" />
+            <img src={logoImg} alt="Royal Head Spa" className="h-10 w-10 sm:h-14 sm:w-14 object-contain" />
             <span className="text-xs sm:text-sm tracking-[0.2em] sm:tracking-[0.25em] uppercase text-foreground font-light">Royal Head Spa</span>
           </Link>
 
@@ -181,7 +182,7 @@ const Index = () => {
       {/* Footer */}
       <footer className="border-t border-border/60 py-10 sm:py-14">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 flex flex-col items-center gap-4 sm:gap-5">
-          <img src={logoImg} alt="Royal Head Spa" className="h-7 w-7 sm:h-8 sm:w-8 object-contain opacity-40" loading="lazy" />
+          <img src={logoImg} alt="Royal Head Spa" className="h-10 w-10 sm:h-12 sm:w-12 object-contain opacity-40" loading="lazy" />
           <p className="text-[10px] sm:text-xs tracking-[0.15em] text-muted-foreground/60 text-center">© 2026 Royal Head Spa. {t('Mọi quyền được bảo lưu.')}</p>
           <Link to="/admin" className="text-[10px] tracking-[0.15em] uppercase text-muted-foreground/30 hover:text-muted-foreground transition-colors duration-300">
             {t('Quản trị')}

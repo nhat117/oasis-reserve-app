@@ -9,7 +9,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowLeft, ArrowRight, CalendarIcon, Check } from 'lucide-react';
-import logoImg from '@/assets/logo.png';
+import { useLogo } from '@/hooks/useLogo';
 import { format, addMinutes, isBefore, isToday, startOfDay } from 'date-fns';
 import { vi as viLocale, enAU } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -17,6 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { LanguageSwitcher, useI18n } from '@/hooks/useI18n';
 
 const Booking = () => {
+  const logoImg = useLogo();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { formatPrice, t, lang } = useI18n();
@@ -312,7 +313,7 @@ const Booking = () => {
       <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 sm:gap-3">
-            <img src={logoImg} alt="Royal Head Spa" className="h-8 w-8 sm:h-10 sm:w-10 object-contain" />
+            <img src={logoImg} alt="Royal Head Spa" className="h-10 w-10 sm:h-14 sm:w-14 object-contain" />
             <span className="text-xs sm:text-sm tracking-[0.2em] sm:tracking-[0.25em] uppercase text-foreground font-light">Royal Head Spa</span>
           </Link>
           <LanguageSwitcher />

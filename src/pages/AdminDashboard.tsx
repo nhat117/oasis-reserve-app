@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { BookingCalendar } from '@/components/BookingCalendar';
+import { LogoUpload as LogoUploadComponent } from '@/components/LogoUpload';
 import { Textarea } from '@/components/ui/textarea';
 import { BookingStats } from '@/components/BookingStats';
 import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield } from 'lucide-react';
@@ -2062,6 +2063,19 @@ const AdminDashboard = () => {
                   <p className="text-xs text-muted-foreground mt-1">{t('Phụ phí sẽ được tự động cộng thêm khi khách thanh toán bằng thẻ')}</p>
                 </div>
                 <Button size="sm" onClick={() => saveCardSurcharge.mutate()}>{t('Lưu')}</Button>
+              </CardContent>
+            </Card>
+
+            {/* Logo Upload */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Leaf className="h-4 w-4 text-primary" />
+                  {t('Logo cửa hàng')}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <LogoUploadComponent t={t} />
               </CardContent>
             </Card>
 
