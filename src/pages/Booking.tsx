@@ -17,6 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { LanguageSwitcher, useI18n } from '@/hooks/useI18n';
 
 const Booking = () => {
+  const logoImg = useLogo();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { formatPrice, t, lang } = useI18n();
