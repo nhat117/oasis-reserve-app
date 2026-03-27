@@ -832,7 +832,18 @@ const AdminDashboard = () => {
     },
   });
 
-  const saveTherapist = useMutation({
+  const deleteService = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('services').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-services'] });
+      toast({ title: t('Đã xoá dịch vụ') });
+    },
+    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+  });
+
     mutationFn: async () => {
       const payload = {
         name: therapistName,
