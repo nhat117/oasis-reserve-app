@@ -235,7 +235,8 @@ const AdminDashboard = () => {
       const { error } = await supabase.from('sales').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_d, id) => {
+      logActivity('delete_sale', `Sale ID: ${id}`);
       queryClient.invalidateQueries({ queryKey: ['admin-sales'] });
       toast({ title: t('Đã xoá thanh toán') });
     },
