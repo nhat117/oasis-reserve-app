@@ -576,7 +576,7 @@ const Booking = () => {
               </Button>
               <Button
                 className="flex-1 rounded-none text-xs tracking-[0.15em] uppercase h-10"
-                disabled={!customerName.trim() || !customerPhone.trim()}
+                disabled={!customerName.trim() || !customerPhone.trim() || !customerEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail.trim())}
                 onClick={() => setStep(4)}
               >
                 {t('Tiếp tục')}
