@@ -12,6 +12,7 @@ import detail2Img from '@/assets/spa-detail-2.jpg';
 
 const Index = () => {
   const { t } = useI18n();
+  const logoImg = useLogo();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const { data: shopSettings } = useQuery({
