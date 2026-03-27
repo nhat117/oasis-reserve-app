@@ -859,7 +859,8 @@ const AdminDashboard = () => {
       const { error } = await supabase.from('services').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_d, id) => {
+      logActivity('delete_service', `Service ID: ${id}`);
       queryClient.invalidateQueries({ queryKey: ['admin-services'] });
       toast({ title: t('Đã xoá dịch vụ') });
     },
