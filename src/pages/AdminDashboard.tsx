@@ -1520,6 +1520,7 @@ const AdminDashboard = () => {
                             <TableRow>
                               <TableHead>{t('Ngày')}</TableHead>
                               <TableHead>{t('Khách hàng')}</TableHead>
+                              <TableHead>{t('SĐT')}</TableHead>
                               <TableHead>{t('Dịch vụ')}</TableHead>
                               <TableHead>{t('Số tiền')}</TableHead>
                               <TableHead>{t('Phương thức')}</TableHead>
@@ -1531,7 +1532,8 @@ const AdminDashboard = () => {
                             {filtered.map((s: any) => (
                               <TableRow key={s.id}>
                                 <TableCell className="text-sm">{s.sale_date}</TableCell>
-                                <TableCell className="text-sm">{s.bookings?.customer_name || '—'}</TableCell>
+                                <TableCell className="text-sm">{s.customer_name || s.bookings?.customer_name || '—'}</TableCell>
+                                <TableCell className="text-sm font-mono">{s.customer_phone || s.bookings?.customer_phone || '—'}</TableCell>
                                 <TableCell className="text-sm">{s.bookings?.services?.name || '—'}</TableCell>
                                 <TableCell className="font-semibold">{formatPrice(Number(s.amount))}</TableCell>
                                 <TableCell>
