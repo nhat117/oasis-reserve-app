@@ -705,8 +705,19 @@ const AdminDashboard = () => {
       );
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Failed');
-      return result.admins as { id: string; email: string; created_at: string; is_current: boolean }[];
+      return result.admins as { id: string; email: string; role: string; created_at: string; is_current: boolean }[];
     },
+  });
+
+  // Activity logs (admin only)
+  const { data: activityLogs, refetch: refetchLogs } = useQuery({
+    queryKey: ['activity-logs'],
+    queryFn: async () => {
+      const { data, error } = await (supabase.from('activity_logs' as any).select('*').order('created_at', { ascending: false }).limit(200) as any);
+      if (error) throw error;
+      return data as { id: string; user_id: string; user_email: string; action: string; details: string | null; created_at: string }[];
+    },
+    enabled: isAdmin,
   });
 
   const addHoliday = useMutation({
