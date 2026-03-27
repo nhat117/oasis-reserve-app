@@ -27,7 +27,7 @@ import { useI18n, LanguageSwitcher } from '@/hooks/useI18n';
 const CURRENCIES = ['VND', 'USD', 'EUR', 'AUD'] as const;
 
 const AdminDashboard = () => {
-  const { user, isAdmin, loading, signOut } = useAuth();
+  const { user, isAdmin, isEmployee, isStaff, userRole, loading, signOut, logActivity } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { t } = useI18n();
