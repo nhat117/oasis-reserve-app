@@ -751,6 +751,7 @@ const AdminDashboard = () => {
 
   const deleteBooking = useMutation({
     mutationFn: async (id: string) => {
+      if (!isAdmin) throw new Error('Admin only');
       // Delete associated sales first
       await supabase.from('sales').delete().eq('booking_id', id);
       const { error } = await supabase.from('bookings').delete().eq('id', id);
