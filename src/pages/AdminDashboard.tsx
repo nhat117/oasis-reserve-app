@@ -2073,12 +2073,8 @@ const AdminDashboard = () => {
                   {t('Logo cửa hàng')}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {(() => {
-                  const { data: currentLogoPath } = supabase.storage.from('logos').getPublicUrl('shop-logo');
-                  return null;
-                })()}
-                <LogoUpload />
+              <CardContent>
+                <LogoUploadComponent t={t} />
               </CardContent>
             </Card>
 
