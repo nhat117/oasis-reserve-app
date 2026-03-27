@@ -871,6 +871,19 @@ const AdminDashboard = () => {
     },
   });
 
+  const deleteTherapist = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('therapists').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-therapists'] });
+      toast({ title: t('Đã xoá thợ') });
+    },
+    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+  });
+
+
   const openServiceEdit = (service?: any) => {
     setEditingService(service || null);
     setServiceName(service?.name || '');
