@@ -100,14 +100,28 @@ export function BookingStats({ className }: StatsProps) {
     const valueTrend = prevBookingValue > 0 ? ((rangeBookingValue - prevBookingValue) / prevBookingValue) * 100 : 0;
 
     const allDays = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
-    const chartData = allDays.map(d => {
+    const rawChartData = allDays.map((d, idx) => {
       const dateStr = format(d, 'yyyy-MM-dd');
       const dayLabel = rangeDays <= 14 ? format(d, 'EEE d') : format(d, 'dd/MM');
       const dayBookings = active.filter(b => b.booking_date === dateStr);
       const daySales = (sales || []).filter(s => s.sale_date === dateStr);
       const salesAmount = daySales.reduce((s, sale) => s + Number(sale.amount), 0);
-      return { name: dayLabel, Sales: salesAmount, Appointments: dayBookings.length };
+      return { name: dayLabel, Revenue: salesAmount, Bookings: dayBookings.length, idx };
     });
+
+    // Linear regression for revenue prediction
+    const n = rawChartData.length;
+    const sumX = rawChartData.reduce((s, d) => s + d.idx, 0);
+    const sumY = rawChartData.reduce((s, d) => s + d.Revenue, 0);
+    const sumXY = rawChartData.reduce((s, d) => s + d.idx * d.Revenue, 0);
+    const sumX2 = rawChartData.reduce((s, d) => s + d.idx * d.idx, 0);
+    const slope = n > 1 ? (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX) : 0;
+    const intercept = n > 0 ? (sumY - slope * sumX) / n : 0;
+
+    const chartData = rawChartData.map(d => ({
+      ...d,
+      Trend: Math.max(0, Math.round(intercept + slope * d.idx)),
+    }));
 
     const next7End = addDays(today, 7);
     const upcomingBookings = confirmed.filter(b => {
