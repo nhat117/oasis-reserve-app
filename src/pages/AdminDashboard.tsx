@@ -1016,6 +1016,7 @@ const AdminDashboard = () => {
               {[
                 { value: 'stats', icon: BarChart3, label: t('Thống kê') },
                 { value: 'bookings', icon: CalendarDays, label: t('Lịch') },
+                { value: 'customers', icon: UserCheck, label: t('Khách') },
                 { value: 'sales', icon: DollarSign, label: t('Thu') },
                 { value: 'services', icon: Scissors, label: t('Dịch vụ') },
                 { value: 'therapists', icon: Users, label: t('Thợ') },
