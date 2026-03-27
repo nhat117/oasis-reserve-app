@@ -15,7 +15,7 @@ import { BookingCalendar } from '@/components/BookingCalendar';
 import { LogoUpload as LogoUploadComponent } from '@/components/LogoUpload';
 import { Textarea } from '@/components/ui/textarea';
 import { BookingStats } from '@/components/BookingStats';
-import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield } from 'lucide-react';
+import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Navigate, Link } from 'react-router-dom';
 import { useI18n, LanguageSwitcher } from '@/hooks/useI18n';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const CURRENCIES = ['VND', 'USD', 'EUR', 'AUD'] as const;
 
@@ -35,6 +36,34 @@ const AdminDashboard = () => {
   const canAccessSettings = isAdmin;
   const requireAdmin = () => {
     if (!isAdmin) throw new Error('Admin only');
+  };
+
+  const AdminOnlyButton = ({ children, onClick, variant = 'ghost', size = 'sm', className = '' }: {
+    children: React.ReactNode;
+    onClick: () => void;
+    variant?: 'ghost' | 'destructive' | 'outline' | 'default';
+    size?: 'sm' | 'icon' | 'default';
+    className?: string;
+  }) => {
+    if (isAdmin) {
+      return <Button variant={variant} size={size} className={className} onClick={onClick}>{children}</Button>;
+    }
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span>
+              <Button variant={variant} size={size} className={cn(className, 'opacity-40 cursor-not-allowed')} disabled>
+                <Lock className="h-3 w-3 mr-1" />{children}
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p className="text-xs">{t('Chỉ admin có quyền thực hiện thao tác này')}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
   };
 
   const [filterTherapist, setFilterTherapist] = useState('all');
@@ -787,6 +816,7 @@ const AdminDashboard = () => {
       if (error) throw error;
     },
     onSuccess: (_d, id) => { logActivity('cancel_booking', `Booking ID: ${id}`); queryClient.invalidateQueries({ queryKey: ['admin-bookings'] }); toast({ title: t('Đã huỷ lịch hẹn') }); },
+    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
 
   const deleteBooking = useMutation({
@@ -873,6 +903,7 @@ const AdminDashboard = () => {
 
   const saveService = useMutation({
     mutationFn: async () => {
+      if (editingService) requireAdmin();
       const payload = { name: serviceName, description: serviceDesc || null, duration_minutes: parseInt(serviceDuration), price: parseInt(servicePrice) };
       if (editingService) {
         const { error } = await supabase.from('services').update(payload).eq('id', editingService.id);
@@ -906,6 +937,7 @@ const AdminDashboard = () => {
 
   const saveTherapist = useMutation({
     mutationFn: async () => {
+      if (editingTherapist) requireAdmin();
       const payload = {
         name: therapistName,
         phone: therapistPhone || null,
@@ -1083,6 +1115,10 @@ const AdminDashboard = () => {
             <span className="font-semibold font-serif text-primary tracking-wide">{t('Quản trị Spa')}</span>
           </Link>
           <div className="flex items-center gap-3">
+            <Badge variant={isAdmin ? 'default' : 'secondary'} className={cn('text-[10px] px-2 py-0.5', isAdmin ? 'bg-primary' : 'bg-amber-100 text-amber-700 border-amber-200 border')}>
+              <Shield className="h-3 w-3 mr-1" />
+              {isAdmin ? 'Admin' : 'Employee'}
+            </Badge>
             <LanguageSwitcher />
             <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground text-xs gap-1.5" onClick={signOut}>
               <LogOut className="h-3.5 w-3.5" /> {t('Đăng xuất')}
@@ -1093,6 +1129,14 @@ const AdminDashboard = () => {
 
       <div className="container mx-auto px-4 py-6 pb-24 sm:pb-6">
         <Tabs defaultValue="stats">
+          {/* Employee permission notice */}
+          {isEmployee && !isAdmin && (
+            <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+              <Shield className="h-4 w-4 shrink-0" />
+              <p>{t('Bạn đang đăng nhập với quyền Employee — có thể xem và tạo dữ liệu. Xoá và cài đặt hệ thống chỉ dành cho Admin.')}</p>
+            </div>
+          )}
+
           {/* Desktop tabs - hidden on mobile */}
           <TabsList className="mb-6 hidden sm:inline-flex h-11 bg-muted/50 p-1 rounded-xl gap-1">
             <TabsTrigger value="stats" className="rounded-lg px-4 text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground">{t('Thống kê')}</TabsTrigger>
@@ -1591,11 +1635,9 @@ const AdminDashboard = () => {
                                 <Badge variant={s.payment_method === 'card' ? 'default' : 'secondary'} className="text-xs">
                                   {s.payment_method === 'card' ? t('Thẻ') : t('Tiền mặt')}
                                 </Badge>
-                                {isAdmin && (
-                                  <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => deleteSale.mutate(s.id)}>
-                                    <Trash2 className="h-3 w-3" />
-                                  </Button>
-                                )}
+                                <AdminOnlyButton variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => deleteSale.mutate(s.id)}>
+                                  <Trash2 className="h-3 w-3" />
+                                </AdminOnlyButton>
                               </div>
                             </div>
                             <div className="text-xs text-muted-foreground space-y-0.5">
@@ -1637,11 +1679,9 @@ const AdminDashboard = () => {
                                 </TableCell>
                                 <TableCell className="text-xs text-muted-foreground max-w-[150px] truncate">{s.notes || '—'}</TableCell>
                                 <TableCell>
-                                  {isAdmin && (
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteSale.mutate(s.id)}>
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </Button>
-                                  )}
+                                  <AdminOnlyButton variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteSale.mutate(s.id)}>
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </AdminOnlyButton>
                                 </TableCell>
                               </TableRow>
                             ))}
@@ -1703,9 +1743,9 @@ const AdminDashboard = () => {
                         <TableCell><Badge variant={s.is_active ? 'default' : 'secondary'}>{s.is_active ? t('Hoạt động') : t('Tắt')}</Badge></TableCell>
                         <TableCell className="space-x-1">
                           <Button variant="ghost" size="sm" onClick={() => openServiceEdit(s)}><Pencil className="h-4 w-4" /></Button>
-                          {isAdmin && (
-                            <Button variant="ghost" size="sm" className="text-destructive" onClick={() => { if (confirm(t('Xoá dịch vụ này?'))) deleteService.mutate(s.id); }}><Trash2 className="h-4 w-4" /></Button>
-                          )}
+                          <AdminOnlyButton variant="ghost" size="sm" className="text-destructive" onClick={() => { if (confirm(t('Xoá dịch vụ này?'))) deleteService.mutate(s.id); }}>
+                            <Trash2 className="h-4 w-4" />
+                          </AdminOnlyButton>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1756,11 +1796,9 @@ const AdminDashboard = () => {
                     {unavailabilities.filter(u => u.unavailable_date >= format(new Date(), 'yyyy-MM-dd')).map(u => (
                       <div key={u.id} className="flex items-center justify-between py-1.5 px-3 bg-muted rounded text-sm">
                         <span><strong>{(u as any).therapists?.name}</strong> — {u.unavailable_date}</span>
-                        {isAdmin && (
-                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeUnavailability.mutate(u.id)}>
-                            <X className="h-3 w-3" />
-                          </Button>
-                        )}
+                        <AdminOnlyButton variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeUnavailability.mutate(u.id)}>
+                          <X className="h-3 w-3" />
+                        </AdminOnlyButton>
                       </div>
                     ))}
                   </div>
@@ -1824,11 +1862,9 @@ const AdminDashboard = () => {
                           {h.early_close_hour ? ` — ${t('Đóng cửa lúc')} ${h.early_close_hour}:00` : ` — ${t('Nghỉ cả ngày')}`}
                           {h.reason ? ` (${h.reason})` : ''}
                         </span>
-                        {isAdmin && (
-                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeHoliday.mutate(h.id)}>
-                            <X className="h-3 w-3" />
-                          </Button>
-                        )}
+                        <AdminOnlyButton variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeHoliday.mutate(h.id)}>
+                          <X className="h-3 w-3" />
+                        </AdminOnlyButton>
                       </div>
                     ))}
                   </div>
@@ -1895,9 +1931,9 @@ const AdminDashboard = () => {
                         <TableCell><Badge variant={th.is_active ? 'default' : 'secondary'}>{th.is_active ? t('Hoạt động') : t('Tắt')}</Badge></TableCell>
                         <TableCell className="space-x-1">
                           <Button variant="ghost" size="sm" onClick={() => openTherapistEdit(th)}><Pencil className="h-4 w-4" /></Button>
-                          {isAdmin && (
-                            <Button variant="ghost" size="sm" className="text-destructive" onClick={() => { if (confirm(t('Xoá thợ này?'))) deleteTherapist.mutate(th.id); }}><Trash2 className="h-4 w-4" /></Button>
-                          )}
+                          <AdminOnlyButton variant="ghost" size="sm" className="text-destructive" onClick={() => { if (confirm(t('Xoá thợ này?'))) deleteTherapist.mutate(th.id); }}>
+                            <Trash2 className="h-4 w-4" />
+                          </AdminOnlyButton>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -2190,7 +2226,10 @@ const AdminDashboard = () => {
                                   toast({ title: t('Đã xoá tài khoản'), description: admin.email });
                                   refetchAdmins();
                                 } catch (err: any) {
-                                  toast({ title: t('Lỗi'), description: err.message, variant: 'destructive' });
+                                  const msg = err.message === 'Failed to fetch'
+                                    ? t('Không thể kết nối đến server. Vui lòng kiểm tra kết nối hoặc deploy lại edge function.')
+                                    : err.message;
+                                  toast({ title: t('Lỗi'), description: msg, variant: 'destructive' });
                                 } finally {
                                   setDeletingAdminId(null);
                                 }

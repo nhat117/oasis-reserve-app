@@ -68,14 +68,23 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Deduplicate: one entry per user, pick highest role (admin > employee)
+      const userRoleMap = new Map<string, string>();
+      for (const r of roles || []) {
+        const existing = userRoleMap.get(r.user_id);
+        if (!existing || r.role === "admin") {
+          userRoleMap.set(r.user_id, r.role);
+        }
+      }
+
       const admins = [];
-      for (const role of roles || []) {
-        const { data: { user } } = await adminClient.auth.admin.getUserById(role.user_id);
+      for (const [userId, role] of userRoleMap) {
+        const { data: { user } } = await adminClient.auth.admin.getUserById(userId);
         if (user) {
           admins.push({
             id: user.id,
             email: user.email,
-            role: role.role,
+            role,
             created_at: user.created_at,
             is_current: user.id === caller.id,
           });
