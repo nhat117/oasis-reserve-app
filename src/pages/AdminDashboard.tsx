@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { BookingCalendar } from '@/components/BookingCalendar';
+import { LogoUpload as LogoUploadComponent } from '@/components/LogoUpload';
 import { Textarea } from '@/components/ui/textarea';
 import { BookingStats } from '@/components/BookingStats';
 import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield } from 'lucide-react';
