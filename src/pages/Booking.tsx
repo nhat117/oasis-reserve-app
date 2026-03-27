@@ -219,7 +219,7 @@ const Booking = () => {
       therapist_id: therapistId,
       customer_name: customerName.trim(),
       customer_phone: customerPhone.trim(),
-      customer_email: customerEmail.trim() || null,
+      customer_email: customerEmail.trim(),
       booking_date: bookingDateStr,
       start_time: startTime,
       end_time: endTime,
@@ -561,7 +561,7 @@ const Booking = () => {
               />
             </div>
             <div>
-              <p className="text-[10px] sm:text-xs tracking-[0.2em] uppercase text-muted-foreground mb-3">{t('Email (không bắt buộc)')}</p>
+              <p className="text-[10px] sm:text-xs tracking-[0.2em] uppercase text-muted-foreground mb-3">Email <span className="text-destructive">*</span></p>
               <Input
                 type="email"
                 value={customerEmail}
@@ -576,7 +576,7 @@ const Booking = () => {
               </Button>
               <Button
                 className="flex-1 rounded-none text-xs tracking-[0.15em] uppercase h-10"
-                disabled={!customerName.trim() || !customerPhone.trim()}
+                disabled={!customerName.trim() || !customerPhone.trim() || !customerEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail.trim())}
                 onClick={() => setStep(4)}
               >
                 {t('Tiếp tục')}
