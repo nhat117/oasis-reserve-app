@@ -211,6 +211,7 @@ const AdminDashboard = () => {
       if (error) throw error;
     },
     onSuccess: () => {
+      logActivity('create_sale', `Amount: ${saleAmount}, Method: ${salePaymentMethod}, Customer: ${saleCustomerName || saleCustomerPhone || 'N/A'}`);
       queryClient.invalidateQueries({ queryKey: ['admin-sales'] });
       queryClient.invalidateQueries({ queryKey: ['stats-bookings'] });
       setSaleDialog(false);
@@ -234,7 +235,8 @@ const AdminDashboard = () => {
       const { error } = await supabase.from('sales').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_d, id) => {
+      logActivity('delete_sale', `Sale ID: ${id}`);
       queryClient.invalidateQueries({ queryKey: ['admin-sales'] });
       toast({ title: t('Đã xoá thanh toán') });
     },
@@ -340,7 +342,7 @@ const AdminDashboard = () => {
         if (error) throw error;
       }
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['shop-info-settings'] }); toast({ title: t('Đã lưu thông tin tiệm') }); },
+    onSuccess: () => { logActivity('update_shop_info', 'Updated shop contact info'); queryClient.invalidateQueries({ queryKey: ['shop-info-settings'] }); toast({ title: t('Đã lưu thông tin tiệm') }); },
   });
 
   // Resend email settings
@@ -399,7 +401,7 @@ const AdminDashboard = () => {
       const { error } = await supabase.from('app_settings').upsert({ key: 'card_surcharge_percent', value: cardSurchargePercent });
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['card-surcharge-setting'] }); toast({ title: t('Đã lưu phụ phí thẻ') }); },
+    onSuccess: () => { logActivity('update_card_surcharge', `Surcharge: ${cardSurchargePercent}%`); queryClient.invalidateQueries({ queryKey: ['card-surcharge-setting'] }); toast({ title: t('Đã lưu phụ phí thẻ') }); },
   });
 
   // OpenAI settings
@@ -501,13 +503,13 @@ const AdminDashboard = () => {
         if (error) throw error;
       }
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['membership-tiers'] }); setMembershipDialog(false); setEditingTier(null); toast({ title: t('Đã lưu hạng thành viên') }); },
+    onSuccess: () => { logActivity('save_membership_tier', `Tier: ${tierName}`); queryClient.invalidateQueries({ queryKey: ['membership-tiers'] }); setMembershipDialog(false); setEditingTier(null); toast({ title: t('Đã lưu hạng thành viên') }); },
     onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
 
   const deleteTier = useMutation({
     mutationFn: async (id: string) => { if (!isAdmin) throw new Error('Admin only'); const { error } = await supabase.from('membership_tiers').delete().eq('id', id); if (error) throw error; },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['membership-tiers'] }); toast({ title: t('Đã xoá') }); },
+    onSuccess: (_d, id) => { logActivity('delete_membership_tier', `Tier ID: ${id}`); queryClient.invalidateQueries({ queryKey: ['membership-tiers'] }); toast({ title: t('Đã xoá') }); },
   });
 
   const toggleTierActive = useMutation({
@@ -543,13 +545,13 @@ const AdminDashboard = () => {
         if (error) throw error;
       }
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['discount-codes'] }); setDiscountDialog(false); setEditingDiscount(null); toast({ title: t('Đã lưu mã giảm giá') }); },
+    onSuccess: () => { logActivity('save_discount_code', `Code: ${discountCode}`); queryClient.invalidateQueries({ queryKey: ['discount-codes'] }); setDiscountDialog(false); setEditingDiscount(null); toast({ title: t('Đã lưu mã giảm giá') }); },
     onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
 
   const deleteDiscount = useMutation({
     mutationFn: async (id: string) => { if (!isAdmin) throw new Error('Admin only'); const { error } = await supabase.from('discount_codes').delete().eq('id', id); if (error) throw error; },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['discount-codes'] }); toast({ title: t('Đã xoá') }); },
+    onSuccess: (_d, id) => { logActivity('delete_discount_code', `Code ID: ${id}`); queryClient.invalidateQueries({ queryKey: ['discount-codes'] }); toast({ title: t('Đã xoá') }); },
   });
 
   const toggleDiscountActive = useMutation({
@@ -651,7 +653,7 @@ const AdminDashboard = () => {
         if (error) throw error;
       }
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['currency-settings'] }); toast({ title: t('Đã lưu cài đặt tiền tệ') }); },
+    onSuccess: () => { logActivity('update_currency', 'Updated currency settings'); queryClient.invalidateQueries({ queryKey: ['currency-settings'] }); toast({ title: t('Đã lưu cài đặt tiền tệ') }); },
   });
 
   // Therapist unavailability
@@ -669,7 +671,7 @@ const AdminDashboard = () => {
       const { error } = await supabase.from('therapist_unavailability').insert({ therapist_id: therapistId, unavailable_date: date, reason });
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-unavailability'] }); toast({ title: t('Đã thêm ngày nghỉ') }); },
+    onSuccess: () => { logActivity('add_unavailability', 'Added therapist unavailability'); queryClient.invalidateQueries({ queryKey: ['admin-unavailability'] }); toast({ title: t('Đã thêm ngày nghỉ') }); },
   });
 
   const removeUnavailability = useMutation({
@@ -677,7 +679,7 @@ const AdminDashboard = () => {
       const { error } = await supabase.from('therapist_unavailability').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-unavailability'] }); toast({ title: t('Đã xoá ngày nghỉ') }); },
+    onSuccess: (_d, id) => { logActivity('delete_unavailability', `ID: ${id}`); queryClient.invalidateQueries({ queryKey: ['admin-unavailability'] }); toast({ title: t('Đã xoá ngày nghỉ') }); },
   });
 
   // Shop holidays
@@ -747,7 +749,7 @@ const AdminDashboard = () => {
       const { error } = await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-bookings'] }); toast({ title: t('Đã huỷ lịch hẹn') }); },
+    onSuccess: (_d, id) => { logActivity('cancel_booking', `Booking ID: ${id}`); queryClient.invalidateQueries({ queryKey: ['admin-bookings'] }); toast({ title: t('Đã huỷ lịch hẹn') }); },
   });
 
   const deleteBooking = useMutation({
@@ -758,7 +760,8 @@ const AdminDashboard = () => {
       const { error } = await supabase.from('bookings').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_d, id) => {
+      logActivity('delete_booking', `Booking ID: ${id}`);
       queryClient.invalidateQueries({ queryKey: ['admin-bookings'] });
       queryClient.invalidateQueries({ queryKey: ['admin-sales'] });
       toast({ title: t('Đã xoá lịch hẹn') });
@@ -775,7 +778,7 @@ const AdminDashboard = () => {
       }).eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-bookings'] }); toast({ title: t('Đã dời lịch hẹn') }); },
+    onSuccess: () => { logActivity('reschedule_booking', 'Rescheduled a booking'); queryClient.invalidateQueries({ queryKey: ['admin-bookings'] }); toast({ title: t('Đã dời lịch hẹn') }); },
   });
 
   // Create booking from admin
@@ -811,6 +814,7 @@ const AdminDashboard = () => {
       if (error) throw error;
     },
     onSuccess: () => {
+      logActivity('create_booking', `Customer: ${bookingCustomerName}, Phone: ${bookingCustomerPhone}`);
       queryClient.invalidateQueries({ queryKey: ['admin-bookings'] });
       setBookingDialog(false);
       resetBookingForm();
@@ -842,6 +846,7 @@ const AdminDashboard = () => {
       }
     },
     onSuccess: () => {
+      logActivity(editingService ? 'update_service' : 'create_service', `Service: ${serviceName}`);
       queryClient.invalidateQueries({ queryKey: ['admin-services'] });
       setServiceDialog(false);
       toast({ title: editingService ? t('Đã cập nhật dịch vụ') : t('Đã thêm dịch vụ') });
@@ -854,7 +859,8 @@ const AdminDashboard = () => {
       const { error } = await supabase.from('services').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_d, id) => {
+      logActivity('delete_service', `Service ID: ${id}`);
       queryClient.invalidateQueries({ queryKey: ['admin-services'] });
       toast({ title: t('Đã xoá dịch vụ') });
     },
@@ -881,6 +887,7 @@ const AdminDashboard = () => {
       }
     },
     onSuccess: () => {
+      logActivity(editingTherapist ? 'update_therapist' : 'create_therapist', `Therapist: ${therapistName}`);
       queryClient.invalidateQueries({ queryKey: ['admin-therapists'] });
       setTherapistDialog(false);
       toast({ title: editingTherapist ? t('Đã cập nhật thợ') : t('Đã thêm thợ') });
@@ -893,7 +900,8 @@ const AdminDashboard = () => {
       const { error } = await supabase.from('therapists').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_d, id) => {
+      logActivity('delete_therapist', `Therapist ID: ${id}`);
       queryClient.invalidateQueries({ queryKey: ['admin-therapists'] });
       toast({ title: t('Đã xoá thợ') });
     },
