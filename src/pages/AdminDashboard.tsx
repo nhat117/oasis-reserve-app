@@ -602,6 +602,7 @@ const AdminDashboard = () => {
     }
   };
 
+  useEffect(() => {
     if (currencySettings) {
       setExchangeUSD(currencySettings['exchange_rate_usd'] || '0.000039');
       setExchangeEUR(currencySettings['exchange_rate_eur'] || '0.000036');
