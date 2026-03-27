@@ -849,6 +849,7 @@ const AdminDashboard = () => {
 
   const deleteService = useMutation({
     mutationFn: async (id: string) => {
+      if (!isAdmin) throw new Error('Admin only');
       const { error } = await supabase.from('services').delete().eq('id', id);
       if (error) throw error;
     },
