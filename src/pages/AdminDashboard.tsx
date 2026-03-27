@@ -342,7 +342,7 @@ const AdminDashboard = () => {
         if (error) throw error;
       }
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['shop-info-settings'] }); toast({ title: t('Đã lưu thông tin tiệm') }); },
+    onSuccess: () => { logActivity('update_shop_info', 'Updated shop contact info'); queryClient.invalidateQueries({ queryKey: ['shop-info-settings'] }); toast({ title: t('Đã lưu thông tin tiệm') }); },
   });
 
   // Resend email settings
