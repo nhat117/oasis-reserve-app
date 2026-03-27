@@ -1777,6 +1777,7 @@ const AdminDashboard = () => {
                     </DialogHeader>
                     <div className="space-y-4">
                       <div><Label>{t('Tên')}</Label><Input value={therapistName} onChange={e => setTherapistName(e.target.value)} className="mt-1" /></div>
+                      <div><Label>{t('Email')}</Label><Input type="email" value={therapistEmail} onChange={e => setTherapistEmail(e.target.value)} className="mt-1" placeholder="staff@example.com" /></div>
                       <div><Label>{t('SĐT')}</Label><Input value={therapistPhone} onChange={e => setTherapistPhone(e.target.value)} className="mt-1" /></div>
                       <div className="grid grid-cols-2 gap-4">
                         <div><Label>{t('Giờ bắt đầu')}</Label><Input type="number" min="6" max="22" value={therapistStartHour} onChange={e => setTherapistStartHour(e.target.value)} className="mt-1" /></div>
