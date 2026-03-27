@@ -844,6 +844,7 @@ const AdminDashboard = () => {
     onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
 
+  const saveTherapist = useMutation({
     mutationFn: async () => {
       const payload = {
         name: therapistName,
