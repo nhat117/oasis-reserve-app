@@ -143,6 +143,7 @@ const AdminDashboard = () => {
   // Customer list state
   const [customerSearch, setCustomerSearch] = useState('');
 
+  const { data: bookings } = useQuery({
     queryKey: ['admin-bookings', filterTherapist],
     queryFn: async () => {
       let query = supabase.from('bookings').select('*, services(name, duration_minutes, price), therapists(name)')
