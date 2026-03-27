@@ -809,15 +809,17 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-muted/30">
-      <header className="border-b bg-card sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <Leaf className="h-5 w-5 text-primary" />
-            <span className="font-semibold font-serif text-primary">{t('Quản trị Spa')}</span>
+      <header className="border-b border-border/50 bg-card/80 backdrop-blur-sm sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2.5">
+            <Leaf className="h-5 w-5 text-primary/70" />
+            <span className="font-semibold font-serif text-primary tracking-wide">{t('Quản trị Spa')}</span>
           </Link>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <LanguageSwitcher />
-            <Button variant="ghost" size="sm" onClick={signOut}><LogOut className="h-4 w-4 mr-1" /> {t('Đăng xuất')}</Button>
+            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground text-xs gap-1.5" onClick={signOut}>
+              <LogOut className="h-3.5 w-3.5" /> {t('Đăng xuất')}
+            </Button>
           </div>
         </div>
       </header>
@@ -825,17 +827,17 @@ const AdminDashboard = () => {
       <div className="container mx-auto px-4 py-6 pb-24 sm:pb-6">
         <Tabs defaultValue="stats">
           {/* Desktop tabs - hidden on mobile */}
-          <TabsList className="mb-6 hidden sm:inline-flex">
-            <TabsTrigger value="stats">{t('Thống kê')}</TabsTrigger>
-            <TabsTrigger value="bookings">{t('Lịch hẹn')}</TabsTrigger>
-            <TabsTrigger value="sales"><DollarSign className="h-4 w-4 mr-1" /> {t('Thanh toán')}</TabsTrigger>
-            <TabsTrigger value="services">{t('Dịch vụ')}</TabsTrigger>
-            <TabsTrigger value="therapists">{t('Thợ')}</TabsTrigger>
-            <TabsTrigger value="settings"><Settings className="h-4 w-4 mr-1" /> {t('Cài đặt')}</TabsTrigger>
+          <TabsList className="mb-6 hidden sm:inline-flex h-11 bg-muted/50 p-1 rounded-xl gap-1">
+            <TabsTrigger value="stats" className="rounded-lg px-4 text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground">{t('Thống kê')}</TabsTrigger>
+            <TabsTrigger value="bookings" className="rounded-lg px-4 text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground">{t('Lịch hẹn')}</TabsTrigger>
+            <TabsTrigger value="sales" className="rounded-lg px-4 text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground">{t('Thanh toán')}</TabsTrigger>
+            <TabsTrigger value="services" className="rounded-lg px-4 text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground">{t('Dịch vụ')}</TabsTrigger>
+            <TabsTrigger value="therapists" className="rounded-lg px-4 text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground">{t('Thợ')}</TabsTrigger>
+            <TabsTrigger value="settings" className="rounded-lg px-4 text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground">{t('Cài đặt')}</TabsTrigger>
           </TabsList>
 
           {/* Mobile bottom nav */}
-          <div className="fixed bottom-0 left-0 right-0 z-50 sm:hidden bg-card border-t safe-bottom">
+          <div className="fixed bottom-0 left-0 right-0 z-50 sm:hidden bg-card/95 backdrop-blur-md border-t border-border/40 safe-bottom">
             <TabsList className="w-full h-auto bg-transparent rounded-none grid grid-cols-6 gap-0 p-0">
               {[
                 { value: 'stats', icon: BarChart3, label: t('Thống kê') },
@@ -845,9 +847,10 @@ const AdminDashboard = () => {
                 { value: 'therapists', icon: Users, label: t('Thợ') },
                 { value: 'settings', icon: Settings, label: t('Cài đặt') },
               ].map(tab => (
-                <TabsTrigger key={tab.value} value={tab.value} className="flex-col gap-0.5 py-2 px-1 rounded-none data-[state=active]:bg-primary/10 data-[state=active]:shadow-none h-auto text-xs">
+                <TabsTrigger key={tab.value} value={tab.value} className="flex-col gap-1 py-2.5 px-1 rounded-none data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none h-auto text-xs text-muted-foreground transition-colors">
                   <tab.icon className="h-5 w-5" />
                   <span className="text-[10px] leading-tight">{tab.label}</span>
+                  <div className="h-1 w-1 rounded-full data-[state=active]:bg-primary bg-transparent" />
                 </TabsTrigger>
               ))}
             </TabsList>
