@@ -1,58 +1,84 @@
 
 
-## Spa Booking System — Gội Đầu Dưỡng Sinh
+# Dashboard Premium Polish Plan
 
-### Customer-Facing Pages
+## Overview
+Refine the existing admin dashboard (`BookingStats.tsx` + header/tabs in `AdminDashboard.tsx`) to achieve a Fresha-level premium aesthetic. No structural changes — only visual elevation.
 
-**1. Home / Landing Page**
-- Spa name, description, and atmosphere photos
-- Operating hours (9:00 AM – 6:00 PM)
-- "Book Now" call-to-action button
+## Changes
 
-**2. Service Catalog**
-- List of available treatments (e.g., gội đầu dưỡng sinh, massage đầu, etc.)
-- Each service shows: name, duration, price, short description
+### 1. BookingStats.tsx — KPI Cards & Chart Polish
 
-**3. Booking Page**
-- Step-by-step booking flow:
-  1. Select a service
-  2. Pick a date
-  3. Choose available time slot (30-min or 1-hour slots from 9AM–6PM)
-  4. Select therapist (or "any available")
-  5. Enter name & phone number
-  6. Confirm booking
-- Shows only available slots based on therapist schedules and existing bookings
+**KPI Cards (Revenue, Bookings, Value)**
+- Extract the 3 inline stats into standalone cards with individual borders, soft shadows, and more padding
+- Make numbers larger (`text-3xl font-semibold`) with serif font for the figures
+- Add trend indicator arrows (TrendingUp/TrendingDown icons with muted green/red + percentage text)
+- Add soft icon accent in each card (DollarSign, CalendarCheck, TrendingUp) with `bg-primary/5` circular background
+- Increase card padding to `p-5`
 
-**4. Booking Confirmation**
-- Summary of booking details with a confirmation message
+**Chart Section**
+- Add rounded bar radius `[6,6,0,0]`
+- Use softer grid lines (`stroke-muted/40`, `strokeDasharray: "4 4"`)
+- Add subtle gradient fill on bars via `<defs><linearGradient>`
+- Improve tooltip with rounded corners, subtle shadow, no harsh border
+- Add a small trend summary line above the chart ("Revenue up 12% vs last period")
 
-### Admin Dashboard (protected by login)
+**Upcoming Appointments**
+- Better visual hierarchy: time as bold anchor on left, client name prominent, service as muted subtext
+- Use soft `border-b border-border/50` separators instead of bg-muted blocks
+- Add subtle left accent bar on each row (`border-l-2 border-primary/30`)
+- Status badges with softer styling (muted backgrounds, no heavy borders)
 
-**5. Admin Login**
-- Simple email/password authentication via Supabase Auth
+**Activity Timeline**
+- Convert to vertical timeline with a thin left line (`border-l`) and dot markers
+- Emphasize date as a pill-style label
+- Use soft tag badges (Booked = muted green bg, Completed = muted primary bg, Cancelled = muted red bg)
 
-**6. Bookings Management**
-- Calendar/list view of all upcoming bookings
-- Filter by date, therapist
-- Cancel or reschedule bookings
-- View customer contact info
+**Today's Appointments**
+- Time as the visual anchor on left in a styled pill
+- Better hierarchy: name > service > therapist
+- Subtle hover lift effect
 
-**7. Therapist Management**
-- Add/edit 2 therapists (name, working days)
-- Set availability and days off
+**Top Services**
+- Add horizontal progress bars (relative to max count) with `bg-primary/20` track and `bg-primary` fill
+- Show change indicator vs last month (arrow + count)
+- Remove harsh grid layout, use stacked rows
 
-**8. Service Management**
-- Add/edit/remove services with name, duration, price, and description
+**Top Team Members**
+- Replace number circles with initial-based avatars (`bg-primary/10` with first letter)
+- Highlight #1 performer with a subtle crown icon or gold accent ring
+- Add a thin progress bar showing relative revenue share
 
-### Database (Supabase)
-- **services** — treatment catalog
-- **therapists** — staff profiles and availability
-- **bookings** — customer reservations linked to service + therapist + time slot
-- **user_roles** — admin role management
-- Row-level security for admin-only operations
+### 2. AdminDashboard.tsx — Header & Tab Navigation
 
-### Design
-- Clean, calming aesthetic (soft greens/earth tones) fitting a wellness spa
-- Mobile-friendly for customers booking on their phones
-- Vietnamese language as primary UI language
+**Header**
+- Increase header height slightly, add more vertical padding
+- Use the brand logo instead of Leaf icon
+- Refine logout button styling (ghost, smaller, more subtle)
+
+**Desktop Tabs**
+- Replace default TabsList with a custom pill-style or underline-style nav
+- Active state: soft pill background with `bg-primary/10 text-primary` or underline
+- Increase spacing between tab items
+- Remove icons from tab labels for cleaner look (keep text only)
+
+**Mobile Bottom Nav**
+- Increase icon size slightly and add active indicator dot below active icon
+- Use `bg-card/95 backdrop-blur-sm` for frosted glass effect
+- Better padding and safe area handling
+
+### 3. index.css — Micro-interactions & Global Polish
+
+- Add transition utilities for card hover effects:
+  ```css
+  .card-hover { transition: transform 200ms ease, box-shadow 200ms ease; }
+  .card-hover:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+  ```
+- Ensure all Card components use `shadow-sm` baseline with `hover:shadow-md` transition
+
+### Technical Approach
+- All changes in `src/components/BookingStats.tsx`, `src/pages/AdminDashboard.tsx`, and `src/index.css`
+- No new components or dependencies needed
+- Uses existing Recharts, Lucide icons, and Tailwind classes
+- Maintains all existing data logic and queries untouched
 
