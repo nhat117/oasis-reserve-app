@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      return new Response(JSON.stringify({ admins, caller_role: isAdmin ? 'admin' : 'employee' }), {
+      return new Response(JSON.stringify({ admins, caller_role: isAdmin ? 'admin' : 'employee', ts: Date.now() }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
