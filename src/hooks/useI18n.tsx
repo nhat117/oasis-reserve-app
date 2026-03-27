@@ -57,10 +57,6 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Load cached translations from DB on lang change
   useEffect(() => {
-    if (lang === 'vi') {
-      setTranslations({});
-      return;
-    }
     const load = async () => {
       const { data } = await supabase
         .from('translations')
