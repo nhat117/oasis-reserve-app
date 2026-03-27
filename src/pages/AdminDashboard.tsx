@@ -850,6 +850,7 @@ const AdminDashboard = () => {
       const payload = {
         name: therapistName,
         phone: therapistPhone || null,
+        email: therapistEmail || null,
         start_hour: parseInt(therapistStartHour),
         end_hour: parseInt(therapistEndHour),
         break_start: therapistBreakStart ? parseInt(therapistBreakStart) : null,
