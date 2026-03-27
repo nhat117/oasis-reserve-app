@@ -1505,7 +1505,8 @@ const AdminDashboard = () => {
                               </div>
                             </div>
                             <div className="text-xs text-muted-foreground space-y-0.5">
-                              <p>{s.sale_date} · {s.bookings?.customer_name || '—'}</p>
+                              <p>{s.sale_date} · {s.customer_name || s.bookings?.customer_name || '—'}</p>
+                              <p className="font-mono">{s.customer_phone || s.bookings?.customer_phone || ''}</p>
                               <p>{s.bookings?.services?.name || '—'}</p>
                               {s.notes && <p className="truncate">{s.notes}</p>}
                             </div>
