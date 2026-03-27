@@ -9,7 +9,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowLeft, ArrowRight, CalendarIcon, Check } from 'lucide-react';
-import logoImg from '@/assets/logo.png';
+import { useLogo } from '@/hooks/useLogo';
 import { format, addMinutes, isBefore, isToday, startOfDay } from 'date-fns';
 import { vi as viLocale, enAU } from 'date-fns/locale';
 import { cn } from '@/lib/utils';

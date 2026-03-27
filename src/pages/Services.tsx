@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, ArrowRight, Clock } from 'lucide-react';
-import logoImg from '@/assets/logo.png';
+import { useLogo } from '@/hooks/useLogo';
 import { Skeleton } from '@/components/ui/skeleton';
 import { LanguageSwitcher, useI18n } from '@/hooks/useI18n';
 
