@@ -778,7 +778,7 @@ const AdminDashboard = () => {
       }).eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-bookings'] }); toast({ title: t('Đã dời lịch hẹn') }); },
+    onSuccess: () => { logActivity('reschedule_booking', 'Rescheduled a booking'); queryClient.invalidateQueries({ queryKey: ['admin-bookings'] }); toast({ title: t('Đã dời lịch hẹn') }); },
   });
 
   // Create booking from admin
