@@ -561,7 +561,7 @@ const Booking = () => {
               />
             </div>
             <div>
-              <p className="text-[10px] sm:text-xs tracking-[0.2em] uppercase text-muted-foreground mb-3">{t('Email (không bắt buộc)')}</p>
+              <p className="text-[10px] sm:text-xs tracking-[0.2em] uppercase text-muted-foreground mb-3">Email <span className="text-destructive">*</span></p>
               <Input
                 type="email"
                 value={customerEmail}
