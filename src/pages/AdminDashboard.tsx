@@ -2064,30 +2064,37 @@ const AdminDashboard = () => {
             {/* Admin Accounts Management */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Admin Accounts</CardTitle>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-primary" />
+                  {t('Quản lý tài khoản')}
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Existing admin list */}
                 {adminAccounts && adminAccounts.length > 0 && (
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium">Current Admins</Label>
+                    <Label className="text-sm font-medium">{t('Tài khoản hiện tại')}</Label>
                     <div className="space-y-2">
                       {adminAccounts.map(admin => (
                         <div key={admin.id} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium truncate">{admin.email}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium truncate">{admin.email}</p>
+                              <Badge variant={admin.role === 'admin' ? 'default' : 'secondary'} className="text-[10px] shrink-0">
+                                {admin.role === 'admin' ? 'Admin' : 'Employee'}
+                              </Badge>
+                            </div>
                             <p className="text-xs text-muted-foreground">
-                              {admin.is_current ? '(You)' : `Added ${new Date(admin.created_at).toLocaleDateString()}`}
+                              {admin.is_current ? `(${t('Bạn')})` : `${t('Tạo')} ${new Date(admin.created_at).toLocaleDateString()}`}
                             </p>
                           </div>
-                          {!admin.is_current && (
+                          {!admin.is_current && isAdmin && (
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-destructive hover:text-destructive shrink-0"
                               disabled={deletingAdminId === admin.id}
                               onClick={async () => {
-                                if (!confirm(`Remove admin account ${admin.email}? This cannot be undone.`)) return;
+                                if (!confirm(`${t('Xoá tài khoản')} ${admin.email}?`)) return;
                                 setDeletingAdminId(admin.id);
                                 try {
                                   const { data: { session: s } } = await supabase.auth.getSession();
@@ -2095,19 +2102,17 @@ const AdminDashboard = () => {
                                     `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-admins`,
                                     {
                                       method: 'DELETE',
-                                      headers: {
-                                        'Content-Type': 'application/json',
-                                        'Authorization': `Bearer ${s?.access_token}`,
-                                      },
+                                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${s?.access_token}` },
                                       body: JSON.stringify({ user_id: admin.id }),
                                     }
                                   );
                                   const result = await res.json();
                                   if (!res.ok) throw new Error(result.error || 'Failed');
-                                  toast({ title: 'Admin removed', description: admin.email });
+                                  logActivity('delete_account', `Deleted: ${admin.email} (${admin.role})`);
+                                  toast({ title: t('Đã xoá tài khoản'), description: admin.email });
                                   refetchAdmins();
                                 } catch (err: any) {
-                                  toast({ title: 'Error', description: err.message, variant: 'destructive' });
+                                  toast({ title: t('Lỗi'), description: err.message, variant: 'destructive' });
                                 } finally {
                                   setDeletingAdminId(null);
                                 }
@@ -2122,63 +2127,66 @@ const AdminDashboard = () => {
                   </div>
                 )}
 
-                {/* Create new admin */}
-                <div className="border-t pt-4 space-y-3">
-                  <Label className="text-sm font-medium">Create New Admin</Label>
-                  <div>
-                    <Label className="text-xs">Email</Label>
-                    <Input
-                      type="email"
-                      value={newAdminEmail}
-                      onChange={e => setNewAdminEmail(e.target.value)}
-                      placeholder="admin@example.com"
-                      className="mt-1"
-                    />
+                {isAdmin && (
+                  <div className="border-t pt-4 space-y-3">
+                    <Label className="text-sm font-medium">{t('Tạo tài khoản mới')}</Label>
+                    <div>
+                      <Label className="text-xs">{t('Loại tài khoản')}</Label>
+                      <div className="flex gap-2 mt-1">
+                        <Button type="button" variant={newAdminRole === 'employee' ? 'default' : 'outline'} size="sm" className="flex-1" onClick={() => setNewAdminRole('employee')}>
+                          Employee
+                        </Button>
+                        <Button type="button" variant={newAdminRole === 'admin' ? 'default' : 'outline'} size="sm" className="flex-1" onClick={() => setNewAdminRole('admin')}>
+                          Admin
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {newAdminRole === 'employee'
+                          ? t('Employee: có thể xem và tạo, không thể xoá hoặc xem nhật ký')
+                          : t('Admin: toàn quyền quản lý hệ thống')}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Email</Label>
+                      <Input type="email" value={newAdminEmail} onChange={e => setNewAdminEmail(e.target.value)} placeholder="staff@example.com" className="mt-1" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">{t('Mật khẩu')}</Label>
+                      <Input type="password" value={newAdminPassword} onChange={e => setNewAdminPassword(e.target.value)} placeholder={t('Tối thiểu 6 ký tự')} className="mt-1" />
+                    </div>
+                    <Button
+                      size="sm"
+                      disabled={creatingAdmin || !newAdminEmail.trim() || newAdminPassword.length < 6}
+                      onClick={async () => {
+                        setCreatingAdmin(true);
+                        try {
+                          const { data: { session: s } } = await supabase.auth.getSession();
+                          const res = await fetch(
+                            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-admin`,
+                            {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${s?.access_token}` },
+                              body: JSON.stringify({ email: newAdminEmail.trim(), password: newAdminPassword, role: newAdminRole }),
+                            }
+                          );
+                          const result = await res.json();
+                          if (!res.ok) throw new Error(result.error || 'Failed');
+                          logActivity('create_account', `Created ${newAdminRole}: ${newAdminEmail}`);
+                          toast({ title: t('Đã tạo tài khoản'), description: `${newAdminRole === 'admin' ? 'Admin' : 'Employee'}: ${newAdminEmail}` });
+                          setNewAdminEmail('');
+                          setNewAdminPassword('');
+                          refetchAdmins();
+                        } catch (err: any) {
+                          toast({ title: t('Lỗi'), description: err.message, variant: 'destructive' });
+                        } finally {
+                          setCreatingAdmin(false);
+                        }
+                      }}
+                    >
+                      {creatingAdmin ? t('Đang tạo...') : t('Tạo tài khoản')}
+                    </Button>
                   </div>
-                  <div>
-                    <Label className="text-xs">Password</Label>
-                    <Input
-                      type="password"
-                      value={newAdminPassword}
-                      onChange={e => setNewAdminPassword(e.target.value)}
-                      placeholder="Min 6 characters"
-                      className="mt-1"
-                    />
-                  </div>
-                  <Button
-                    size="sm"
-                    disabled={creatingAdmin || !newAdminEmail.trim() || newAdminPassword.length < 6}
-                    onClick={async () => {
-                      setCreatingAdmin(true);
-                      try {
-                        const { data: { session: s } } = await supabase.auth.getSession();
-                        const res = await fetch(
-                          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-admin`,
-                          {
-                            method: 'POST',
-                            headers: {
-                              'Content-Type': 'application/json',
-                              'Authorization': `Bearer ${s?.access_token}`,
-                            },
-                            body: JSON.stringify({ email: newAdminEmail.trim(), password: newAdminPassword }),
-                          }
-                        );
-                        const result = await res.json();
-                        if (!res.ok) throw new Error(result.error || 'Failed');
-                        toast({ title: 'Admin account created', description: `Welcome email sent to ${newAdminEmail}` });
-                        setNewAdminEmail('');
-                        setNewAdminPassword('');
-                        refetchAdmins();
-                      } catch (err: any) {
-                        toast({ title: 'Error', description: err.message, variant: 'destructive' });
-                      } finally {
-                        setCreatingAdmin(false);
-                      }
-                    }}
-                  >
-                    {creatingAdmin ? 'Creating...' : 'Create Admin Account'}
-                  </Button>
-                </div>
+                )}
               </CardContent>
             </Card>
 
