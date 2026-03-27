@@ -84,6 +84,7 @@ const AdminDashboard = () => {
   // Create admin state
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [newAdminPassword, setNewAdminPassword] = useState('');
+  const [newAdminRole, setNewAdminRole] = useState<'admin' | 'employee'>('employee');
   const [creatingAdmin, setCreatingAdmin] = useState(false);
   const [deletingAdminId, setDeletingAdminId] = useState<string | null>(null);
 
