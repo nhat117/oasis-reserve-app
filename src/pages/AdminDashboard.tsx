@@ -749,7 +749,7 @@ const AdminDashboard = () => {
       const { error } = await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-bookings'] }); toast({ title: t('Đã huỷ lịch hẹn') }); },
+    onSuccess: (_d, id) => { logActivity('cancel_booking', `Booking ID: ${id}`); queryClient.invalidateQueries({ queryKey: ['admin-bookings'] }); toast({ title: t('Đã huỷ lịch hẹn') }); },
   });
 
   const deleteBooking = useMutation({
