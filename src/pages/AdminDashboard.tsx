@@ -199,6 +199,8 @@ const AdminDashboard = () => {
         payment_method: salePaymentMethod,
         notes: saleNotes || null,
         sale_date: format(new Date(), 'yyyy-MM-dd'),
+        customer_phone: saleCustomerPhone || null,
+        customer_name: saleCustomerName || null,
       };
       if (saleType === 'booking' && saleBookingId && saleBookingId !== 'none') payload.booking_id = saleBookingId;
       const { error } = await supabase.from('sales').insert(payload);
