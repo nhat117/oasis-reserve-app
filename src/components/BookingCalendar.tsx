@@ -28,7 +28,7 @@ export interface Booking {
 interface BookingCalendarProps {
   bookings: Booking[];
   onCancel: (id: string) => void;
-  onDelete: (id: string) => void;
+  onDelete?: (id: string) => void;
   onReschedule: (id: string, newDate: string, newStartTime: string, newEndTime: string) => void;
   onDateSelect?: (date: string, startTime?: string) => void;
 }
@@ -206,13 +206,15 @@ export function BookingCalendar({ bookings, onCancel, onDelete, onReschedule, on
                     onClick={() => { onCancel(selectedBooking.id); setDialogOpen(false); }}>
                     {t('Huỷ lịch hẹn')}
                   </Button>
-                  <Button variant="destructive" size="sm" className="flex-1"
-                    onClick={() => { onDelete(selectedBooking.id); setDialogOpen(false); }}>
-                    {t('Xoá')}
-                  </Button>
+                  {onDelete && (
+                    <Button variant="destructive" size="sm" className="flex-1"
+                      onClick={() => { onDelete(selectedBooking.id); setDialogOpen(false); }}>
+                      {t('Xoá')}
+                    </Button>
+                  )}
                 </div>
               )}
-              {selectedBooking.status === 'cancelled' && (
+              {selectedBooking.status === 'cancelled' && onDelete && (
                 <Button variant="destructive" size="sm" className="w-full"
                   onClick={() => { onDelete(selectedBooking.id); setDialogOpen(false); }}>
                   {t('Xoá lịch hẹn')}
