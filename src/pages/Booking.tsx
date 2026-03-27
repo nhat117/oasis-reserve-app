@@ -313,7 +313,7 @@ const Booking = () => {
       <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 sm:gap-3">
-            <img src={logoImg} alt="Royal Head Spa" className="h-10 w-10 sm:h-14 sm:w-14 object-contain" />
+            <img src={logoImg} alt="Royal Head Spa" className="h-14 w-14 sm:h-20 sm:w-20 object-contain" />
             <span className="text-xs sm:text-sm tracking-[0.2em] sm:tracking-[0.25em] uppercase text-foreground font-light">Royal Head Spa</span>
           </Link>
           <LanguageSwitcher />
