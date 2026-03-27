@@ -59,7 +59,7 @@ serve(async (req) => {
     }
 
     const langName = lang === "en" ? "English" : lang === "vi" ? "Vietnamese" : lang;
-    const prompt = `Translate the following Vietnamese UI text strings to ${langName}. Return a JSON object mapping each original Vietnamese string to its ${langName} translation. Keep it natural and concise for a spa booking app UI. Strings to translate:\n${JSON.stringify(missing)}`;
+    const prompt = `Translate the following UI text strings to ${langName}. The strings may be in any language. Return a JSON object mapping each original string to its ${langName} translation. Keep it natural and concise for a spa booking app UI. If a string is already in ${langName}, return it unchanged. Strings to translate:\n${JSON.stringify(missing)}`;
 
     const aiResp = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
       method: "POST",

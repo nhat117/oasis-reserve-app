@@ -96,7 +96,6 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
   }, [pendingKeys, lang]);
 
   const t = useCallback((key: string): string => {
-    if (lang === 'vi') return key;
     if (translations[key]) return translations[key];
     if (!requestedRef.current.has(key)) {
       requestedRef.current.add(key);
