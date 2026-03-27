@@ -900,7 +900,8 @@ const AdminDashboard = () => {
       const { error } = await supabase.from('therapists').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_d, id) => {
+      logActivity('delete_therapist', `Therapist ID: ${id}`);
       queryClient.invalidateQueries({ queryKey: ['admin-therapists'] });
       toast({ title: t('Đã xoá thợ') });
     },
