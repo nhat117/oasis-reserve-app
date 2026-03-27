@@ -181,7 +181,7 @@ const AdminDashboard = () => {
         .select('*, bookings(customer_name, customer_phone, booking_date, start_time, services(name))')
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data;
+      return data as any[];
     },
   });
 
