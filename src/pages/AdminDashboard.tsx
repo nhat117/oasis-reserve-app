@@ -551,7 +551,7 @@ const AdminDashboard = () => {
 
   const deleteDiscount = useMutation({
     mutationFn: async (id: string) => { if (!isAdmin) throw new Error('Admin only'); const { error } = await supabase.from('discount_codes').delete().eq('id', id); if (error) throw error; },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['discount-codes'] }); toast({ title: t('Đã xoá') }); },
+    onSuccess: (_d, id) => { logActivity('delete_discount_code', `Code ID: ${id}`); queryClient.invalidateQueries({ queryKey: ['discount-codes'] }); toast({ title: t('Đã xoá') }); },
   });
 
   const toggleDiscountActive = useMutation({
