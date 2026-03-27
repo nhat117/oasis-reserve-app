@@ -1605,8 +1605,9 @@ const AdminDashboard = () => {
                         <TableCell>{s.duration_minutes} {t('phút')}</TableCell>
                         <TableCell>{formatPrice(s.price)}</TableCell>
                         <TableCell><Badge variant={s.is_active ? 'default' : 'secondary'}>{s.is_active ? t('Hoạt động') : t('Tắt')}</Badge></TableCell>
-                        <TableCell>
+                        <TableCell className="space-x-1">
                           <Button variant="ghost" size="sm" onClick={() => openServiceEdit(s)}><Pencil className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="sm" className="text-destructive" onClick={() => { if (confirm(t('Xoá dịch vụ này?'))) deleteService.mutate(s.id); }}><Trash2 className="h-4 w-4" /></Button>
                         </TableCell>
                       </TableRow>
                     ))}
