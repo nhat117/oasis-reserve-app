@@ -215,6 +215,7 @@ const AdminDashboard = () => {
       setSaleBookingId('');
       setSaleServiceId('');
       setSaleCustomerName('');
+      setSaleCustomerPhone('');
       setSaleAmount('');
       setSalePaymentMethod('cash');
       setSaleNotes('');
