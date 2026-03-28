@@ -1345,11 +1345,11 @@ const AdminDashboard = () => {
                       <TabsTrigger
                         value={item.value}
                         className={cn(
-                          "group relative w-full justify-start gap-3 rounded-lg py-2.5 text-[13px] font-medium text-[#8b7355] hover:text-[#5a3d2e] hover:bg-[#f0e8dd] transition-all data-[state=active]:bg-[#ede4d8] data-[state=active]:text-[#5a3d2e] data-[state=active]:shadow-none data-[state=active]:font-semibold",
+                          "group relative w-full justify-start gap-3 rounded-lg py-2.5 text-[13px] font-medium text-[#8b7355] hover:text-[#5a3d2e] hover:bg-[#f0e8dd] transition-all data-[state=active]:bg-[#ede4d8] data-[state=active]:text-[#5a3d2e] data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-[#ddd2c4] data-[state=active]:font-semibold",
                           sidebarOpen ? "px-3" : "px-0 justify-center"
                         )}
                       >
-                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-[#6b4c3b] opacity-0 transition-all group-data-[state=active]:opacity-100" />
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full bg-[#6b4c3b] opacity-0 transition-all group-data-[state=active]:opacity-100" />
                         <item.icon className="h-[18px] w-[18px] shrink-0 transition-transform group-data-[state=active]:scale-110" />
                         {sidebarOpen && <span className="whitespace-nowrap">{item.label}</span>}
                       </TabsTrigger>
@@ -1626,9 +1626,9 @@ const AdminDashboard = () => {
               ) : (
                 <>
                   {/* Desktop rows */}
-                  <div className="hidden sm:block">
+                  <div className="hidden sm:block rounded-xl border border-[#ebe3d9]/50 bg-white overflow-hidden">
                     {/* Column headers */}
-                    <div className="grid grid-cols-[1fr_auto_auto_auto] gap-6 px-5 py-2.5 text-[11px] font-medium tracking-wider uppercase text-muted-foreground/50">
+                    <div className="grid grid-cols-[1fr_auto_auto_auto] gap-6 px-5 py-3 text-[11px] font-medium tracking-wider uppercase text-muted-foreground/50 border-b border-[#ebe3d9]/30 bg-[#faf8f5]/50">
                       <span>{t('Khách hàng')}</span>
                       <span className="w-16 text-center">{t('Lần ghé')}</span>
                       <span className="w-32">{t('Hạng thành viên')}</span>
@@ -2135,9 +2135,9 @@ const AdminDashboard = () => {
                     </div>
 
                     {/* Desktop row layout */}
-                    <div className="hidden sm:block">
+                    <div className="hidden sm:block rounded-xl border border-[#ebe3d9]/50 bg-white overflow-hidden">
                       {/* Column headers */}
-                      <div className="grid grid-cols-[1fr_1fr_auto_auto_44px] gap-4 px-5 py-2.5 text-[11px] font-medium tracking-wider uppercase text-muted-foreground/60">
+                      <div className="grid grid-cols-[1fr_1fr_auto_auto_44px] gap-4 px-5 py-3 text-[11px] font-medium tracking-wider uppercase text-muted-foreground/60 border-b border-[#ebe3d9]/30 bg-[#faf8f5]/50">
                         <span>{t('Khách hàng')}</span>
                         <span>{t('Dịch vụ')}</span>
                         <span className="text-right w-24">{t('Số tiền')}</span>
@@ -2290,11 +2290,11 @@ const AdminDashboard = () => {
                   <p className="text-sm font-medium">{t('Chưa có dịch vụ')}</p>
                 </div>
               ) : (
-                <div className="space-y-1.5">
+                <div className="rounded-xl border border-[#ebe3d9]/50 bg-white overflow-hidden divide-y divide-[#ebe3d9]/20">
                   {services.map(s => (
                     <div
                       key={s.id}
-                      className="group flex items-center justify-between px-5 py-4 rounded-xl transition-colors hover:bg-[#f7f2ec]/60"
+                      className="group flex items-center justify-between px-5 py-4 transition-colors hover:bg-[#f7f2ec]/40"
                     >
                       {/* Left: name + details */}
                       <div className="min-w-0 flex-1">
@@ -2341,134 +2341,17 @@ const AdminDashboard = () => {
           </TabsContent>
 
           {/* Therapists Tab */}
-          <TabsContent value="therapists" className="space-y-6">
-            {/* Unavailability — compact add form + per-therapist summary */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">{t('Ngày nghỉ / Không khả dụng')}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex flex-wrap gap-2">
-                  <Select value={unavailTherapist} onValueChange={setUnavailTherapist}>
-                    <SelectTrigger className="w-[160px]"><SelectValue placeholder={t('Chọn thợ')} /></SelectTrigger>
-                    <SelectContent>
-                      {therapists?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className={cn(!unavailDate && "text-muted-foreground")}>
-                        <CalendarOff className="h-4 w-4 mr-1" />
-                        {unavailDate ? format(unavailDate, 'dd/MM/yyyy') : t('Chọn ngày')}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={unavailDate} onSelect={setUnavailDate} className="p-3 pointer-events-auto" />
-                    </PopoverContent>
-                  </Popover>
-                  <Button size="sm" disabled={!unavailTherapist || !unavailDate}
-                    onClick={() => {
-                      if (unavailTherapist && unavailDate) {
-                        addUnavailability.mutate({ therapistId: unavailTherapist, date: format(unavailDate, 'yyyy-MM-dd') });
-                        setUnavailDate(undefined);
-                      }
-                    }}>
-                    <Plus className="h-4 w-4 mr-1" /> {t('Thêm ngày nghỉ')}
-                  </Button>
+          <TabsContent value="therapists">
+            <div className="space-y-8">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-[#3d2b1f] tracking-tight">{t('Nhân viên & Lịch nghỉ')}</h2>
+                  <p className="text-sm text-muted-foreground/70 mt-0.5">{therapists?.length || 0} {t('nhân viên')}</p>
                 </div>
-                {/* Per-therapist summary chips */}
-                {therapists && unavailabilities && (
-                  <div className="flex flex-wrap gap-2">
-                    {therapists.map(th => {
-                      const todayStr = format(new Date(), 'yyyy-MM-dd');
-                      const count = unavailabilities.filter((u: any) => u.therapist_id === th.id && u.unavailable_date >= todayStr).length;
-                      if (!count) return null;
-                      return (
-                        <button
-                          key={th.id}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border/60 text-xs hover:bg-muted/50 transition-colors"
-                          onClick={() => { setViewingTherapist(th); setUnavailMonthFilter(format(new Date(), 'yyyy-MM')); setTherapistInfoDialog(true); }}
-                        >
-                          <span className="font-medium">{th.name}</span>
-                          <Badge variant="secondary" className="h-5 min-w-[20px] px-1.5 text-[10px]">{count}</Badge>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground">{t('Bấm vào tên thợ trong bảng bên dưới để xem chi tiết ngày nghỉ')}</p>
-              </CardContent>
-            </Card>
-
-            {/* Shop Holidays & Early Close */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">{t('Ngày nghỉ tiệm / Đóng cửa sớm')}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex flex-wrap gap-2 items-end">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className={cn(!holidayDate && "text-muted-foreground")}>
-                        <CalendarOff className="h-4 w-4 mr-1" />
-                        {holidayDate ? format(holidayDate, 'dd/MM/yyyy') : t('Chọn ngày')}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={holidayDate} onSelect={setHolidayDate} className="p-3 pointer-events-auto" />
-                    </PopoverContent>
-                  </Popover>
-                  <div className="flex items-center gap-1">
-                    <Label className="text-xs whitespace-nowrap">{t('Đóng cửa sớm lúc')}</Label>
-                    <Select value={earlyCloseHour} onValueChange={setEarlyCloseHour}>
-                      <SelectTrigger className="w-[90px] h-8"><SelectValue placeholder={t('Không')} /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">{t('Nghỉ cả ngày')}</SelectItem>
-                        {Array.from({ length: 13 }, (_, i) => i + 10).map(h => (
-                          <SelectItem key={h} value={String(h)}>{h}:00</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button size="sm" disabled={!holidayDate}
-                    onClick={() => {
-                      if (holidayDate) {
-                        addHoliday.mutate({
-                          date: format(holidayDate, 'yyyy-MM-dd'),
-                          earlyCloseHour: earlyCloseHour !== 'none' ? parseInt(earlyCloseHour) : undefined,
-                        });
-                        setHolidayDate(undefined);
-                        setEarlyCloseHour('none');
-                      }
-                    }}>
-                    <Plus className="h-4 w-4 mr-1" /> {t('Thêm')}
-                  </Button>
-                </div>
-                {shopHolidays && shopHolidays.length > 0 && (
-                  <div className="space-y-1">
-                    {shopHolidays.filter((h: any) => h.holiday_date >= format(new Date(), 'yyyy-MM-dd')).map((h: any) => (
-                      <div key={h.id} className="flex items-center justify-between py-1.5 px-3 bg-destructive/10 rounded text-sm">
-                        <span>
-                          <strong>{h.holiday_date}</strong>
-                          {h.early_close_hour ? ` — ${t('Đóng cửa lúc')} ${h.early_close_hour}:00` : ` — ${t('Nghỉ cả ngày')}`}
-                        </span>
-                        <AdminOnlyButton variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeHoliday.mutate(h.id)}>
-                          <X className="h-3 w-3" />
-                        </AdminOnlyButton>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Therapist list */}
-            <Card>
-              <CardHeader className="flex-row items-center justify-between space-y-0">
-                <CardTitle>{t('Danh sách thợ')}</CardTitle>
                 <Dialog open={therapistDialog} onOpenChange={setTherapistDialog}>
                   <DialogTrigger asChild>
-                    <Button size="sm" onClick={() => openTherapistEdit()}><Plus className="h-4 w-4 mr-1" /> {t('Thêm')}</Button>
+                    <Button size="sm" className="w-full sm:w-auto h-9 px-4" onClick={() => openTherapistEdit()}><Plus className="h-4 w-4 mr-1.5" /> {t('Thêm nhân viên')}</Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
@@ -2493,49 +2376,283 @@ const AdminDashboard = () => {
                     </div>
                   </DialogContent>
                 </Dialog>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t('Tên')}</TableHead>
-                      <TableHead>{t('Email')}</TableHead>
-                      <TableHead>{t('SĐT')}</TableHead>
-                      <TableHead>{t('Giờ làm việc')}</TableHead>
-                      <TableHead>{t('Trạng thái')}</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {therapists?.map(th => (
-                      <TableRow key={th.id}>
-                        <TableCell className="font-medium">
+              </div>
+
+              {/* Scheduling section — Day off + Shop holidays merged */}
+              <div className="rounded-xl border border-[#ebe3d9]/40 bg-white overflow-hidden">
+                {/* Day off controls */}
+                <div className="p-5 sm:p-6">
+                  <p className="text-[13px] font-semibold text-[#3d2b1f] mb-3">{t('Ngày nghỉ nhân viên')}</p>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+                    <Select value={unavailTherapist} onValueChange={setUnavailTherapist}>
+                      <SelectTrigger className="w-full sm:w-[160px] h-9 text-sm bg-[#faf8f5] border-[#ebe3d9]/50"><SelectValue placeholder={t('Chọn thợ')} /></SelectTrigger>
+                      <SelectContent>
+                        {therapists?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className={cn("h-9 text-sm", !unavailDate && "text-muted-foreground")}>
+                          <CalendarOff className="h-3.5 w-3.5 mr-1.5" />
+                          {unavailDate ? format(unavailDate, 'dd/MM/yyyy') : t('Chọn ngày')}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={unavailDate} onSelect={setUnavailDate} className="p-3 pointer-events-auto" />
+                      </PopoverContent>
+                    </Popover>
+                    <Button size="sm" className="h-9" disabled={!unavailTherapist || !unavailDate}
+                      onClick={() => {
+                        if (unavailTherapist && unavailDate) {
+                          addUnavailability.mutate({ therapistId: unavailTherapist, date: format(unavailDate, 'yyyy-MM-dd') });
+                          setUnavailDate(undefined);
+                        }
+                      }}>
+                      <Plus className="h-3.5 w-3.5 mr-1" /> {t('Thêm ngày nghỉ')}
+                    </Button>
+                  </div>
+                  {/* Staff day-off pills */}
+                  {therapists && unavailabilities && (
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {therapists.map(th => {
+                        const todayStr = format(new Date(), 'yyyy-MM-dd');
+                        const count = unavailabilities.filter((u: any) => u.therapist_id === th.id && u.unavailable_date >= todayStr).length;
+                        if (!count) return null;
+                        return (
                           <button
-                            className="text-left hover:text-[#6b4c3b] hover:underline underline-offset-2 transition-colors"
-                            onClick={() => { setViewingTherapist(th); setTherapistInfoDialog(true); }}
-                          >{th.name}</button>
-                        </TableCell>
-                        <TableCell className="text-sm">{(th as any).email || '—'}</TableCell>
-                        <TableCell>{th.phone || '—'}</TableCell>
-                        <TableCell className="text-sm">
-                          {th.start_hour}:00 – {th.end_hour}:00
-                          {th.break_start != null && th.break_end != null && (
-                            <span className="text-muted-foreground ml-1">({th.break_start}:00–{th.break_end}:00)</span>
-                          )}
-                        </TableCell>
-                        <TableCell><Badge variant={th.is_active ? 'default' : 'secondary'}>{th.is_active ? t('Hoạt động') : t('Tắt')}</Badge></TableCell>
-                        <TableCell className="space-x-1">
-                          <Button variant="ghost" size="sm" onClick={() => openTherapistEdit(th)}><Pencil className="h-4 w-4" /></Button>
-                          <AdminOnlyButton variant="ghost" size="sm" className="text-destructive" onClick={() => { if (confirm(t('Xoá thợ này?'))) deleteTherapist.mutate(th.id); }}>
-                            <Trash2 className="h-4 w-4" />
+                            key={th.id}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#faf8f5] border border-[#ebe3d9]/60 text-xs text-[#6b5c4c] hover:bg-[#f0e8dd] transition-colors"
+                            onClick={() => { setViewingTherapist(th); setUnavailMonthFilter(format(new Date(), 'yyyy-MM')); setTherapistInfoDialog(true); }}
+                          >
+                            <span className="font-medium">{th.name}</span>
+                            <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-[#ede4d8] text-[10px] font-semibold text-[#5a3d2e]">{count}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Divider */}
+                <div className="border-t border-[#ebe3d9]/30" />
+
+                {/* Shop holidays */}
+                <div className="p-5 sm:p-6">
+                  <p className="text-[13px] font-semibold text-[#3d2b1f] mb-3">{t('Ngày nghỉ tiệm / Đóng cửa sớm')}</p>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className={cn("h-9 text-sm", !holidayDate && "text-muted-foreground")}>
+                          <CalendarOff className="h-3.5 w-3.5 mr-1.5" />
+                          {holidayDate ? format(holidayDate, 'dd/MM/yyyy') : t('Chọn ngày')}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={holidayDate} onSelect={setHolidayDate} className="p-3 pointer-events-auto" />
+                      </PopoverContent>
+                    </Popover>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground/70 whitespace-nowrap">{t('Đóng cửa sớm lúc')}</span>
+                      <Select value={earlyCloseHour} onValueChange={setEarlyCloseHour}>
+                        <SelectTrigger className="w-[100px] h-9 text-sm bg-[#faf8f5] border-[#ebe3d9]/50"><SelectValue placeholder={t('Không')} /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">{t('Nghỉ cả ngày')}</SelectItem>
+                          {Array.from({ length: 13 }, (_, i) => i + 10).map(h => (
+                            <SelectItem key={h} value={String(h)}>{h}:00</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button size="sm" className="h-9" disabled={!holidayDate}
+                      onClick={() => {
+                        if (holidayDate) {
+                          addHoliday.mutate({
+                            date: format(holidayDate, 'yyyy-MM-dd'),
+                            earlyCloseHour: earlyCloseHour !== 'none' ? parseInt(earlyCloseHour) : undefined,
+                          });
+                          setHolidayDate(undefined);
+                          setEarlyCloseHour('none');
+                        }
+                      }}>
+                      <Plus className="h-3.5 w-3.5 mr-1" /> {t('Thêm')}
+                    </Button>
+                  </div>
+                  {shopHolidays && shopHolidays.length > 0 && (
+                    <div className="space-y-1.5 mt-3">
+                      {shopHolidays.filter((h: any) => h.holiday_date >= format(new Date(), 'yyyy-MM-dd')).map((h: any) => (
+                        <div key={h.id} className="flex items-center justify-between py-2.5 px-4 bg-red-50/60 rounded-lg text-sm border border-red-100/50">
+                          <span className="text-[13px]">
+                            <span className="font-medium text-[#3d2b1f]">{h.holiday_date}</span>
+                            <span className="text-muted-foreground ml-2">
+                              {h.early_close_hour ? `${t('Đóng cửa lúc')} ${h.early_close_hour}:00` : t('Nghỉ cả ngày')}
+                            </span>
+                          </span>
+                          <AdminOnlyButton variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/40 hover:text-destructive" onClick={() => removeHoliday.mutate(h.id)}>
+                            <X className="h-3.5 w-3.5" />
                           </AdminOnlyButton>
-                        </TableCell>
-                      </TableRow>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Staff list */}
+              {!therapists?.length ? (
+                <div className="text-center py-20 text-muted-foreground">
+                  <Users className="h-10 w-10 mx-auto mb-3 opacity-15" />
+                  <p className="text-sm font-medium">{t('Chưa có nhân viên')}</p>
+                </div>
+              ) : (
+                <>
+                  {/* Desktop rows */}
+                  <div className="hidden sm:block rounded-xl border border-[#ebe3d9]/50 bg-white overflow-hidden">
+                    <div className="grid grid-cols-[1fr_1fr_auto_auto_44px] gap-4 px-5 py-3 text-[11px] font-medium tracking-wider uppercase text-muted-foreground/50 border-b border-[#ebe3d9]/30 bg-[#faf8f5]/50">
+                      <span>{t('Nhân viên')}</span>
+                      <span>{t('Giờ làm việc')}</span>
+                      <span className="w-24">{t('Trạng thái')}</span>
+                      <span className="w-16"></span>
+                      <span></span>
+                    </div>
+                    <div className="divide-y divide-[#ebe3d9]/20">
+                      {therapists.map(th => (
+                        <div
+                          key={th.id}
+                          className="group grid grid-cols-[1fr_1fr_auto_auto_44px] gap-4 items-center px-5 py-4 rounded-xl transition-colors hover:bg-[#f7f2ec]/60"
+                        >
+                          {/* Name + contact stacked */}
+                          <div className="flex items-center gap-3.5 min-w-0">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#ede4d8] to-[#e0d4c4] flex items-center justify-center text-[13px] font-semibold text-[#6b5c4c] shrink-0">
+                              {(th.name || '?').charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <button
+                                className="text-[14px] font-medium text-[#3d2b1f] truncate block text-left hover:text-[#6b4c3b] transition-colors"
+                                onClick={() => { setViewingTherapist(th); setTherapistInfoDialog(true); }}
+                              >{th.name}</button>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                {(th as any).email && <span className="text-[11px] text-muted-foreground/60 truncate">{(th as any).email}</span>}
+                                {th.phone && <span className="text-[11px] text-muted-foreground/50 font-mono">{th.phone}</span>}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Working hours */}
+                          <div className="min-w-0">
+                            <p className="text-[13px] text-[#5a4a3a]">
+                              {th.start_hour}:00 – {th.end_hour}:00
+                            </p>
+                            {th.break_start != null && th.break_end != null && (
+                              <p className="text-[11px] text-muted-foreground/50 mt-0.5">{t('Nghỉ trưa')} {th.break_start}:00–{th.break_end}:00</p>
+                            )}
+                          </div>
+
+                          {/* Status badge */}
+                          <div className="w-24">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium ${
+                              th.is_active
+                                ? 'bg-emerald-50 text-emerald-600'
+                                : 'bg-gray-100 text-gray-400'
+                            }`}>
+                              {th.is_active ? t('Hoạt động') : t('Tắt')}
+                            </span>
+                          </div>
+
+                          {/* Day off count */}
+                          <div className="w-16 flex justify-center">
+                            {(() => {
+                              const todayStr = format(new Date(), 'yyyy-MM-dd');
+                              const count = (unavailabilities || []).filter((u: any) => u.therapist_id === th.id && u.unavailable_date >= todayStr).length;
+                              return count > 0 ? (
+                                <button
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50/80 text-amber-700/80 text-[10px] font-medium border border-amber-200/40 hover:bg-amber-100/60 transition-colors"
+                                  onClick={() => { setViewingTherapist(th); setUnavailMonthFilter(format(new Date(), 'yyyy-MM')); setTherapistInfoDialog(true); }}
+                                >
+                                  <CalendarOff className="h-3 w-3" /> {count}
+                                </button>
+                              ) : null;
+                            })()}
+                          </div>
+
+                          {/* Actions — visible on hover */}
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/50 hover:text-[#3d2b1f]" onClick={() => openTherapistEdit(th)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            {isAdmin && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/40 hover:text-muted-foreground">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-36">
+                                  <DropdownMenuItem className="text-destructive text-xs" onClick={() => { if (confirm(t('Xoá thợ này?'))) deleteTherapist.mutate(th.id); }}>
+                                    <Trash2 className="h-3.5 w-3.5 mr-2" /> {t('Xóa')}
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Mobile cards */}
+                  <div className="sm:hidden space-y-2">
+                    {therapists.map(th => (
+                      <div key={th.id} className="bg-white rounded-xl border border-[#ebe3d9]/40 p-4 transition-colors hover:border-[#d4c9bc]">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#ede4d8] to-[#e0d4c4] flex items-center justify-center text-[13px] font-semibold text-[#6b5c4c] shrink-0">
+                              {(th.name || '?').charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <button
+                                className="text-[14px] font-medium text-[#3d2b1f] truncate block text-left"
+                                onClick={() => { setViewingTherapist(th); setTherapistInfoDialog(true); }}
+                              >{th.name}</button>
+                              <p className="text-[11px] text-muted-foreground/60 mt-0.5">{th.start_hour}:00 – {th.end_hour}:00</p>
+                            </div>
+                          </div>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium shrink-0 ${
+                            th.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-400'
+                          }`}>
+                            {th.is_active ? t('Hoạt động') : t('Tắt')}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between mt-3 ml-[52px]">
+                          <div className="flex items-center gap-2">
+                            {(th as any).email && <span className="text-[11px] text-muted-foreground/60 truncate">{(th as any).email}</span>}
+                            {th.phone && <span className="text-[11px] text-muted-foreground/50 font-mono">{th.phone}</span>}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/50" onClick={() => openTherapistEdit(th)}>
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                            {isAdmin && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/40">
+                                    <MoreHorizontal className="h-3.5 w-3.5" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem className="text-destructive text-xs" onClick={() => { if (confirm(t('Xoá thợ này?'))) deleteTherapist.mutate(th.id); }}>
+                                    <Trash2 className="h-3.5 w-3.5 mr-2" /> {t('Xóa')}
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+                  </div>
+                </>
+              )}
+            </div>
           </TabsContent>
 
           {/* Therapist Info Dialog */}
