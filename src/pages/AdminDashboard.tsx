@@ -1589,7 +1589,7 @@ const AdminDashboard = () => {
 
         {/* Main content area */}
         <main className={cn("min-h-screen transition-all duration-300 ease-in-out", sidebarOpen ? "sm:ml-[220px]" : "sm:ml-[68px]")}>
-          <div className="px-4 sm:px-8 py-6 pb-24 sm:pb-8 max-w-[1400px]">
+          <div className="px-4 sm:px-8 py-6 pb-24 sm:pb-8">
 
           {/* Stats Tab */}
           <TabsContent value="stats">
