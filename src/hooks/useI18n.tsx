@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { EN_TRANSLATIONS } from '@/lib/i18n-en';
 
 type Lang = 'vi' | 'en';
 
@@ -55,8 +56,9 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
     return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(amount);
   }, []);
 
-  // Load cached translations from DB on lang change
+  // Load cached translations from DB on lang change (only for English, for API-translated keys)
   useEffect(() => {
+    if (lang === 'vi') { setTranslations({}); return; }
     const load = async () => {
       const { data } = await supabase
         .from('translations')
@@ -71,9 +73,9 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
     load();
   }, [lang]);
 
-  // Batch translate missing keys
+  // Batch translate missing keys (only for English, only for keys not in built-in dictionary)
   useEffect(() => {
-    if (pendingKeys.size === 0) return;
+    if (pendingKeys.size === 0 || lang === 'vi') return;
     const timer = setTimeout(async () => {
       const keys = Array.from(pendingKeys);
       setPendingKeys(new Set());
@@ -96,10 +98,15 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
   }, [pendingKeys, lang]);
 
   const t = useCallback((key: string): string => {
+    // Vietnamese: return key as-is (keys are Vietnamese)
+    if (lang === 'vi') return key;
+    // English: check built-in dictionary first
+    if (EN_TRANSLATIONS[key]) return EN_TRANSLATIONS[key];
+    // Then check API-fetched translations
     if (translations[key]) return translations[key];
+    // Only call API for keys NOT in built-in dictionary
     if (!requestedRef.current.has(key)) {
       requestedRef.current.add(key);
-      // Defer state update to avoid setState during render
       queueMicrotask(() => {
         setPendingKeys(prev => new Set(prev).add(key));
       });
