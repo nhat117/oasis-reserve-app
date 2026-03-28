@@ -1,12 +1,11 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
 import { ArrowLeft, ArrowRight, Clock } from 'lucide-react';
-import { useLogo } from '@/hooks/useLogo';
 import { Skeleton } from '@/components/ui/skeleton';
-import { LanguageSwitcher, useI18n } from '@/hooks/useI18n';
+import { useI18n } from '@/hooks/useI18n';
 import { useReveal } from '@/hooks/useReveal';
+import Header from '@/components/Header';
 
 const SERVICE_STOCK_IMAGES = [
   'https://images.pexels.com/photos/3997993/pexels-photo-3997993.jpeg?auto=compress&cs=tinysrgb&w=800',
@@ -18,7 +17,6 @@ const SERVICE_STOCK_IMAGES = [
 ];
 
 const Services = () => {
-  const logoImg = useLogo();
   const { formatPrice, t } = useI18n();
   useReveal();
   const { data: services, isLoading } = useQuery({
@@ -32,23 +30,7 @@ const Services = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 py-2.5 sm:py-3 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 sm:gap-3">
-            <img src={logoImg} alt="Spa" className="h-10 w-10 sm:h-14 sm:w-14 object-contain" />
-            <span className="text-xs sm:text-sm tracking-[0.2em] sm:tracking-[0.25em] uppercase text-foreground font-light">Oasis Reserve</span>
-          </Link>
-          <div className="flex items-center gap-4 sm:gap-6">
-            <LanguageSwitcher />
-            <Link to="/booking">
-              <Button size="sm" className="text-xs tracking-[0.15em] uppercase rounded-none px-4 sm:px-6 h-9">
-                {t('Đặt lịch')}
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <div className="pt-20 sm:pt-24 pb-16 sm:pb-24 max-w-4xl mx-auto px-4 sm:px-6 md:px-10">
         <Link to="/" className="inline-flex items-center gap-1.5 text-xs tracking-[0.1em] uppercase text-muted-foreground hover:text-foreground transition-colors mb-8 sm:mb-12">

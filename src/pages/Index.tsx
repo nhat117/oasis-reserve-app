@@ -4,9 +4,10 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { LanguageSwitcher, useI18n } from '@/hooks/useI18n';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, Menu, X, Play, Pause, Clock } from 'lucide-react';
+import { ArrowRight, Play, Pause, Clock } from 'lucide-react';
 import { useLogo } from '@/hooks/useLogo';
 import { useReveal } from '@/hooks/useReveal';
+import Header from '@/components/Header';
 import heroImg from '@/assets/hero-luxury.jpg';
 import detail1Img from '@/assets/spa-detail-1.jpg';
 import detail2Img from '@/assets/spa-detail-2.jpg';
@@ -33,7 +34,6 @@ const Index = () => {
   const { t } = useI18n();
   const logoImg = useLogo();
   useReveal();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [videoPlaying, setVideoPlaying] = useState(true);
   const [videoLoaded, setVideoLoaded] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -127,58 +127,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 py-2.5 sm:py-3 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 sm:gap-3">
-            <img src={logoImg} alt={spaName} className="h-10 w-10 sm:h-14 sm:w-14 object-contain" />
-            <span className="text-xs sm:text-sm tracking-[0.2em] sm:tracking-[0.25em] uppercase text-foreground font-light">{spaName}</span>
-          </Link>
-
-          {/* Desktop nav */}
-          <nav className="hidden md:flex items-center gap-6">
-            <LanguageSwitcher />
-            <Link to="/services" className="text-xs tracking-[0.15em] uppercase text-muted-foreground hover:text-foreground transition-colors duration-300">
-              {t('Dịch vụ')}
-            </Link>
-            <Link to="/booking">
-              <Button size="sm" className="text-xs tracking-[0.15em] uppercase rounded-none px-6 h-9">
-                {t('Đặt lịch')}
-              </Button>
-            </Link>
-          </nav>
-
-          {/* Mobile menu button */}
-          <button
-            className="md:hidden p-2 text-foreground"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label="Menu"
-          >
-            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
-        </div>
-
-        {/* Mobile menu */}
-        {mobileMenuOpen && (
-          <div className="md:hidden bg-background/95 backdrop-blur-md border-t border-border/40 px-4 py-6 space-y-4">
-            <Link
-              to="/services"
-              className="block text-sm tracking-[0.15em] uppercase text-muted-foreground hover:text-foreground transition-colors"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              {t('Dịch vụ')}
-            </Link>
-            <Link to="/booking" onClick={() => setMobileMenuOpen(false)}>
-              <Button size="sm" className="text-xs tracking-[0.15em] uppercase rounded-none px-6 h-9 w-full">
-                {t('Đặt lịch')}
-              </Button>
-            </Link>
-            <div className="pt-2">
-              <LanguageSwitcher />
-            </div>
-          </div>
-        )}
-      </header>
+      <Header />
 
       {/* Hero */}
       <section className="relative h-[100svh] flex items-center justify-center overflow-hidden">
