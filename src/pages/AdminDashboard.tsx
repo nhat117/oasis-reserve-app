@@ -1598,122 +1598,148 @@ const AdminDashboard = () => {
 
           {/* Customers Tab */}
           <TabsContent value="customers">
-            <Card>
-              <CardHeader className="space-y-2 sm:space-y-0 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
                 <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <UserCheck className="h-5 w-5 text-primary/70" />
-                    {t('Khách hàng')}
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground mt-1">{filteredCustomers.length} {t('khách hàng')}</p>
+                  <h2 className="text-xl font-semibold text-[#3d2b1f] tracking-tight">{t('Khách hàng')}</h2>
+                  <p className="text-sm text-muted-foreground/70 mt-0.5">{filteredCustomers.length} {t('khách hàng')}</p>
                 </div>
-                <div className="relative w-full sm:w-[250px]">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <div className="relative w-full sm:w-[280px]">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
                   <Input
                     placeholder={t('Tìm theo tên hoặc SĐT...')}
                     value={customerSearch}
                     onChange={e => setCustomerSearch(e.target.value)}
-                    className="pl-9"
+                    className="pl-9 h-10 text-sm bg-[#faf8f5] border-[#ebe3d9]/50 rounded-xl focus:bg-white"
                   />
                 </div>
-              </CardHeader>
-              <CardContent>
-                {filteredCustomers.length === 0 ? (
-                  <div className="text-center py-10 text-muted-foreground">
-                    <UserCheck className="h-10 w-10 mx-auto mb-3 opacity-20" />
-                    <p className="text-sm font-medium">{t('Chưa có khách hàng')}</p>
-                    <p className="text-xs mt-1">{t('Khách hàng sẽ được theo dõi tự động khi hoàn thành lịch hẹn')}</p>
-                  </div>
-                ) : (
-                  <>
-                    {/* Desktop table */}
-                    <div className="hidden sm:block overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>{t('Khách hàng')}</TableHead>
-                            <TableHead>{t('Số điện thoại')}</TableHead>
-                            <TableHead className="text-center">{t('Lần ghé')}</TableHead>
-                            <TableHead>{t('Hạng thành viên')}</TableHead>
-                            <TableHead>{t('Giảm giá')}</TableHead>
-                            <TableHead>{t('Cập nhật')}</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filteredCustomers.map(g => (
-                            <TableRow key={g.id}>
-                              <TableCell className="font-medium">{g.customer_name || '—'}</TableCell>
-                              <TableCell className="font-mono text-sm">{g.customer_phone}</TableCell>
-                              <TableCell className="text-center">
-                                <Badge variant="secondary" className="tabular-nums">{g.visit_count}</Badge>
-                              </TableCell>
-                              <TableCell>
-                                {(g as any).membership_tiers ? (
-                                  <Badge className="bg-amber-50 text-amber-700 border-amber-200 border">
-                                    <Crown className="h-3 w-3 mr-1" />
-                                    {(g as any).membership_tiers.name}
-                                  </Badge>
-                                ) : (
-                                  <span className="text-xs text-muted-foreground">{t('Chưa có')}</span>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                {(g as any).membership_tiers?.discount_percent ? (
-                                  <span className="text-sm font-medium text-emerald-600">{(g as any).membership_tiers.discount_percent}%</span>
-                                ) : '—'}
-                              </TableCell>
-                              <TableCell className="text-xs text-muted-foreground">
-                                {new Date(g.updated_at).toLocaleDateString()}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+              </div>
+
+              {/* Customer list */}
+              {filteredCustomers.length === 0 ? (
+                <div className="text-center py-20 text-muted-foreground">
+                  <UserCheck className="h-10 w-10 mx-auto mb-3 opacity-15" />
+                  <p className="text-sm font-medium">{t('Chưa có khách hàng')}</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">{t('Khách hàng sẽ được theo dõi tự động khi hoàn thành lịch hẹn')}</p>
+                </div>
+              ) : (
+                <>
+                  {/* Desktop rows */}
+                  <div className="hidden sm:block">
+                    {/* Column headers */}
+                    <div className="grid grid-cols-[1fr_auto_auto_auto] gap-6 px-5 py-2.5 text-[11px] font-medium tracking-wider uppercase text-muted-foreground/50">
+                      <span>{t('Khách hàng')}</span>
+                      <span className="w-16 text-center">{t('Lần ghé')}</span>
+                      <span className="w-32">{t('Hạng thành viên')}</span>
+                      <span className="w-20 text-right">{t('Cập nhật')}</span>
                     </div>
 
-                    {/* Mobile cards */}
-                    <div className="sm:hidden space-y-2">
-                      {filteredCustomers.map(g => (
-                        <div key={g.id} className="p-3 rounded-xl border border-border/50 hover:bg-muted/30 transition-colors">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-9 h-9 rounded-full bg-primary/5 flex items-center justify-center text-sm font-semibold text-primary shrink-0">
+                    <div className="space-y-1">
+                      {filteredCustomers.map(g => {
+                        const tier = (g as any).membership_tiers;
+                        return (
+                          <div
+                            key={g.id}
+                            className="group grid grid-cols-[1fr_auto_auto_auto] gap-6 items-center px-5 py-4 rounded-xl transition-colors hover:bg-[#f7f2ec]/60"
+                          >
+                            {/* Avatar + name + phone stacked */}
+                            <div className="flex items-center gap-3.5 min-w-0">
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#ede4d8] to-[#e0d4c4] flex items-center justify-center text-[13px] font-semibold text-[#6b5c4c] shrink-0">
                                 {(g.customer_name || '?').charAt(0).toUpperCase()}
                               </div>
-                              <div>
-                                <p className="text-sm font-semibold">{g.customer_name || '—'}</p>
-                                <p className="text-xs text-muted-foreground font-mono">{g.customer_phone}</p>
+                              <div className="min-w-0">
+                                <p className="text-[14px] font-medium text-[#3d2b1f] truncate">{g.customer_name || '—'}</p>
+                                <p className="text-[12px] text-muted-foreground/60 font-mono mt-0.5">{g.customer_phone}</p>
                               </div>
                             </div>
-                            <Badge variant="secondary" className="tabular-nums">{g.visit_count} {t('lần')}</Badge>
+
+                            {/* Visit count */}
+                            <div className="w-16 flex justify-center">
+                              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#f0ebe4] text-[12px] font-medium text-[#6b5c4c] tabular-nums">
+                                {g.visit_count}
+                              </span>
+                            </div>
+
+                            {/* Membership tier + discount */}
+                            <div className="w-32">
+                              {tier ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-50/80 text-amber-700/90 border border-amber-200/50">
+                                    <Crown className="h-3 w-3" />
+                                    {tier.name}
+                                  </span>
+                                  {tier.discount_percent > 0 && (
+                                    <span className="text-[11px] font-medium text-emerald-600/80">-{tier.discount_percent}%</span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-[11px] text-muted-foreground/40">—</span>
+                              )}
+                            </div>
+
+                            {/* Last updated */}
+                            <div className="w-20 text-right">
+                              <span className="text-[11px] text-muted-foreground/40">{new Date(g.updated_at).toLocaleDateString()}</span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 mt-2 pl-[46px]">
-                            {(g as any).membership_tiers ? (
-                              <Badge className="bg-amber-50 text-amber-700 border-amber-200 border text-[10px]">
-                                <Crown className="h-2.5 w-2.5 mr-0.5" />
-                                {(g as any).membership_tiers.name} · {(g as any).membership_tiers.discount_percent}% {t('giảm')}
-                              </Badge>
-                            ) : (
-                              <span className="text-[10px] text-muted-foreground">{t('Chưa có hạng')}</span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
+                  </div>
+
+                  {/* Mobile cards */}
+                  <div className="sm:hidden space-y-2">
+                    {filteredCustomers.map(g => {
+                      const tier = (g as any).membership_tiers;
+                      return (
+                        <div key={g.id} className="bg-white rounded-xl border border-[#ebe3d9]/40 p-4 transition-colors hover:border-[#d4c9bc]">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#ede4d8] to-[#e0d4c4] flex items-center justify-center text-[13px] font-semibold text-[#6b5c4c] shrink-0">
+                                {(g.customer_name || '?').charAt(0).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-[14px] font-medium text-[#3d2b1f] truncate">{g.customer_name || '—'}</p>
+                                <p className="text-[12px] text-muted-foreground/60 font-mono mt-0.5">{g.customer_phone}</p>
+                              </div>
+                            </div>
+                            <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#f0ebe4] text-[12px] font-medium text-[#6b5c4c] tabular-nums shrink-0">
+                              {g.visit_count}
+                            </span>
+                          </div>
+                          {tier && (
+                            <div className="flex items-center gap-2 mt-3 ml-[52px]">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50/80 text-amber-700/90 border border-amber-200/50">
+                                <Crown className="h-2.5 w-2.5" />
+                                {tier.name}
+                              </span>
+                              {tier.discount_percent > 0 && (
+                                <span className="text-[10px] font-medium text-emerald-600/80">-{tier.discount_percent}% {t('giảm')}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
           </TabsContent>
 
           {/* Bookings Tab */}
           <TabsContent value="bookings">
-            <Card>
-              <CardHeader className="space-y-2 sm:space-y-0 sm:flex-row sm:items-center sm:justify-between">
-                <CardTitle>{t('Lịch hẹn')}</CardTitle>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-[#3d2b1f] tracking-tight">{t('Lịch hẹn')}</h2>
+                  <p className="text-sm text-muted-foreground/70 mt-0.5">{t('Quản lý lịch hẹn và đặt chỗ')}</p>
+                </div>
+                <div className="flex items-center gap-2.5">
                   <Select value={filterTherapist} onValueChange={setFilterTherapist}>
-                    <SelectTrigger className="w-full sm:w-[150px]"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-[160px] h-9 text-sm bg-[#faf8f5] border-[#ebe3d9]/50"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">{t('Tất cả thợ')}</SelectItem>
                       {therapists?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
@@ -1721,7 +1747,7 @@ const AdminDashboard = () => {
                   </Select>
                   <Dialog open={bookingDialog} onOpenChange={(open) => { setBookingDialog(open); if (!open) resetBookingForm(); }}>
                     <DialogTrigger asChild>
-                      <Button size="sm" className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-1" /> {t('Tạo lịch')}</Button>
+                      <Button size="sm" className="h-9 px-4"><Plus className="h-4 w-4 mr-1.5" /> {t('Tạo lịch')}</Button>
                     </DialogTrigger>
                     <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[90vh] overflow-y-auto">
                       <DialogHeader>
@@ -1824,8 +1850,9 @@ const AdminDashboard = () => {
                     </DialogContent>
                   </Dialog>
                 </div>
-              </CardHeader>
-              <CardContent>
+              </div>
+              {/* Calendar */}
+              <div className="rounded-xl border border-[#ebe3d9]/40 bg-white overflow-hidden">
                 <BookingCalendar
                   bookings={(bookings as any) || []}
                   onCancel={(id) => cancelBooking.mutate(id)}
@@ -1839,8 +1866,8 @@ const AdminDashboard = () => {
                     setBookingDialog(true);
                   }}
                 />
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </TabsContent>
 
           {/* Sales Tab */}
@@ -2193,12 +2220,16 @@ const AdminDashboard = () => {
 
           {/* Services Tab */}
           <TabsContent value="services">
-            <Card>
-              <CardHeader className="flex-row items-center justify-between space-y-0">
-                <CardTitle>{t('Quản lý dịch vụ')}</CardTitle>
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-[#3d2b1f] tracking-tight">{t('Quản lý dịch vụ')}</h2>
+                  <p className="text-sm text-muted-foreground/70 mt-0.5">{services?.length || 0} {t('dịch vụ')}</p>
+                </div>
                 <Dialog open={serviceDialog} onOpenChange={setServiceDialog}>
                   <DialogTrigger asChild>
-                    <Button size="sm" onClick={() => openServiceEdit()}><Plus className="h-4 w-4 mr-1" /> {t('Thêm')}</Button>
+                    <Button size="sm" className="w-full sm:w-auto h-9 px-4" onClick={() => openServiceEdit()}><Plus className="h-4 w-4 mr-1.5" /> {t('Thêm dịch vụ')}</Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
@@ -2250,37 +2281,63 @@ const AdminDashboard = () => {
                     </div>
                   </DialogContent>
                 </Dialog>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t('Tên')}</TableHead>
-                      <TableHead>{t('Thời gian')}</TableHead>
-                      <TableHead>{t('Giá')}</TableHead>
-                      <TableHead>{t('Trạng thái')}</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {services?.map(s => (
-                      <TableRow key={s.id}>
-                        <TableCell className="font-medium">{s.name}</TableCell>
-                        <TableCell>{s.duration_minutes} {t('phút')}</TableCell>
-                        <TableCell>{formatPrice(s.price)}</TableCell>
-                        <TableCell><Badge variant={s.is_active ? 'default' : 'secondary'}>{s.is_active ? t('Hoạt động') : t('Tắt')}</Badge></TableCell>
-                        <TableCell className="space-x-1">
-                          <Button variant="ghost" size="sm" onClick={() => openServiceEdit(s)}><Pencil className="h-4 w-4" /></Button>
-                          <AdminOnlyButton variant="ghost" size="sm" className="text-destructive" onClick={() => { if (confirm(t('Xoá dịch vụ này?'))) deleteService.mutate(s.id); }}>
-                            <Trash2 className="h-4 w-4" />
-                          </AdminOnlyButton>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+              </div>
+
+              {/* Service list */}
+              {!services?.length ? (
+                <div className="text-center py-20 text-muted-foreground">
+                  <Scissors className="h-10 w-10 mx-auto mb-3 opacity-15" />
+                  <p className="text-sm font-medium">{t('Chưa có dịch vụ')}</p>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {services.map(s => (
+                    <div
+                      key={s.id}
+                      className="group flex items-center justify-between px-5 py-4 rounded-xl transition-colors hover:bg-[#f7f2ec]/60"
+                    >
+                      {/* Left: name + details */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2.5">
+                          <p className="text-[14px] font-medium text-[#3d2b1f] truncate">{s.name}</p>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                            s.is_active
+                              ? 'bg-emerald-50 text-emerald-600'
+                              : 'bg-gray-100 text-gray-400'
+                          }`}>
+                            {s.is_active ? t('Hoạt động') : t('Tắt')}
+                          </span>
+                        </div>
+                        <p className="text-[12px] text-muted-foreground/60 mt-0.5">
+                          {s.duration_minutes} {t('phút')} · {formatPrice(s.price)}
+                        </p>
+                      </div>
+
+                      {/* Right: actions */}
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/50 hover:text-[#3d2b1f]" onClick={() => openServiceEdit(s)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        {isAdmin && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/40 hover:text-muted-foreground">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-36">
+                              <DropdownMenuItem className="text-destructive text-xs" onClick={() => { if (confirm(t('Xoá dịch vụ này?'))) deleteService.mutate(s.id); }}>
+                                <Trash2 className="h-3.5 w-3.5 mr-2" /> {t('Xóa')}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </TabsContent>
 
           {/* Therapists Tab */}
