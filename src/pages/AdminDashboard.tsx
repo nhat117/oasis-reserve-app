@@ -16,7 +16,7 @@ import { BookingCalendar } from '@/components/BookingCalendar';
 import { LogoUpload as LogoUploadComponent } from '@/components/LogoUpload';
 import { Textarea } from '@/components/ui/textarea';
 import { BookingStats } from '@/components/BookingStats';
-import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -67,7 +67,7 @@ const AdminDashboard = () => {
     if (!isStaff) return;
     const channel = supabase
       .channel('new-bookings')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bookings' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bookings' }, async (payload) => {
         const b = payload.new as any;
         toast({
           title: t('Lịch hẹn mới!'),
@@ -75,6 +75,11 @@ const AdminDashboard = () => {
         });
         queryClient.invalidateQueries({ queryKey: ['admin-bookings'] });
         queryClient.invalidateQueries({ queryKey: ['stats-bookings'] });
+
+        // Trigger SMS notification to shop owner
+        try {
+          await supabase.functions.invoke('notify-new-booking', { body: { record: b } });
+        } catch (_) { /* silent — notification is best-effort */ }
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -112,6 +117,7 @@ const AdminDashboard = () => {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [spaName, setSpaName] = useState('Oasis Reserve');
+  const [settingsModal, setSettingsModal] = useState<string | null>(null);
 
   // Service form state
   const [serviceDialog, setServiceDialog] = useState(false);
@@ -223,6 +229,10 @@ const AdminDashboard = () => {
   const [reminderSmsEnabled, setReminderSmsEnabled] = useState(false);
   const [reminder1stHours, setReminder1stHours] = useState('24');
   const [reminder2ndHours, setReminder2ndHours] = useState('1');
+
+  // New booking SMS notification state
+  const [notifySmsEnabled, setNotifySmsEnabled] = useState(false);
+  const [notifyPhone, setNotifyPhone] = useState('');
 
   // Membership & discount state
   const [membershipDialog, setMembershipDialog] = useState(false);
@@ -383,11 +393,12 @@ const AdminDashboard = () => {
   });
 
   const [smsNumber, setSmsNumber] = useState('');
+  useEffect(() => { if (twilioNumber) setSmsNumber(twilioNumber); }, [twilioNumber]);
 
   const saveSmsNumber = useMutation({
-    mutationFn: async (num: string) => {
+    mutationFn: async () => {
       requireAdmin();
-      const { error } = await supabase.from('app_settings').upsert({ key: 'twilio_from_number', value: num });
+      const { error } = await supabase.from('app_settings').upsert({ key: 'twilio_from_number', value: smsNumber });
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['twilio-number-setting'] }); toast({ title: t('Đã lưu số SMS') }); },
@@ -580,12 +591,12 @@ const AdminDashboard = () => {
     onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
 
-  // Reminder settings
+  // Reminder & notification settings
   const { data: reminderSettings } = useQuery({
     queryKey: ['reminder-settings'],
     queryFn: async () => {
       const { data, error } = await supabase.from('app_settings').select('key, value')
-        .in('key', ['reminder_email_enabled', 'reminder_sms_enabled', 'reminder_1st_hours', 'reminder_2nd_hours']);
+        .in('key', ['reminder_email_enabled', 'reminder_sms_enabled', 'reminder_1st_hours', 'reminder_2nd_hours', 'notify_sms_enabled', 'notify_phone']);
       if (error) throw error;
       const map: Record<string, string> = {};
       data?.forEach(r => { map[r.key] = r.value; });
@@ -599,6 +610,8 @@ const AdminDashboard = () => {
       setReminderSmsEnabled(reminderSettings['reminder_sms_enabled'] === 'true');
       setReminder1stHours(reminderSettings['reminder_1st_hours'] || '24');
       setReminder2ndHours(reminderSettings['reminder_2nd_hours'] || '1');
+      setNotifySmsEnabled(reminderSettings['notify_sms_enabled'] === 'true');
+      setNotifyPhone(reminderSettings['notify_phone'] || '');
     }
   }, [reminderSettings]);
 
@@ -610,6 +623,8 @@ const AdminDashboard = () => {
         { key: 'reminder_sms_enabled', value: String(reminderSmsEnabled) },
         { key: 'reminder_1st_hours', value: reminder1stHours },
         { key: 'reminder_2nd_hours', value: reminder2ndHours },
+        { key: 'notify_sms_enabled', value: String(notifySmsEnabled) },
+        { key: 'notify_phone', value: notifyPhone },
       ];
       for (const row of rows) {
         const { error } = await supabase.from('app_settings').upsert(row);
@@ -2266,369 +2281,402 @@ const AdminDashboard = () => {
 
           {/* Settings Tab */}
           {isAdmin && (
-          <TabsContent value="settings" className="space-y-6">
-            {/* Shop Info */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">{t('Thông tin tiệm')}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label>{t('Tên tiệm')}</Label>
-                  <Input value={spaName} onChange={e => setSpaName(e.target.value)} className="mt-1" placeholder="Oasis Reserve" />
+          <TabsContent value="settings" className="space-y-2">
+            {/* Settings menu rows */}
+            {[
+              { key: 'shop', icon: Store, label: t('Thông tin tiệm'), desc: t('Tên, địa chỉ, giờ mở cửa, ngày lễ') },
+              { key: 'display', icon: Palette, label: t('Hiển thị & Giao diện'), desc: t('Logo, hero, thợ ngẫu nhiên, phụ phí thẻ') },
+              { key: 'accounts', icon: Users, label: t('Quản lý tài khoản'), desc: `${adminAccounts?.length || 0} ${t('tài khoản')}` },
+              { key: 'notifications', icon: Bell, label: t('Thông báo & Nhắc lịch'), desc: t('SMS, WhatsApp, email nhắc lịch') },
+              { key: 'email', icon: Mail, label: t('Cài đặt email'), desc: resendSettings?.['resend_api_key'] ? t('Đã cấu hình') : t('Chưa cấu hình') },
+              { key: 'translation', icon: Languages, label: t('Cài đặt dịch thuật'), desc: openaiSettings?.['openai_api_key'] ? t('Đã cấu hình') : t('Chưa cấu hình') },
+              { key: 'membership', icon: Crown, label: t('Hạng thành viên'), desc: `${membershipTiers?.length || 0} ${t('hạng')}` },
+              { key: 'discounts', icon: Tag, label: t('Mã giảm giá'), desc: `${discountCodes?.length || 0} ${t('mã')}` },
+              ...(isAdmin ? [{ key: 'logs', icon: FileText, label: t('Nhật ký hoạt động'), desc: t('Tải xuống CSV') }] : []),
+              { key: 'software', icon: Info, label: t('Thông tin phần mềm'), desc: 'v1.0.0 · Olive Marketing' },
+              ...(isAdmin ? [{ key: 'danger', icon: AlertTriangle, label: t('Vùng nguy hiểm'), desc: t('Xoá tất cả dữ liệu') }] : []),
+            ].map(item => (
+              <button
+                key={item.key}
+                type="button"
+                className={cn(
+                  'w-full flex items-center gap-4 p-4 rounded-lg border text-left transition-colors hover:bg-muted/50',
+                  item.key === 'danger' ? 'border-destructive/30 hover:bg-destructive/5' : 'border-border/60'
+                )}
+                onClick={() => setSettingsModal(item.key)}
+              >
+                <item.icon className={cn('h-5 w-5 shrink-0', item.key === 'danger' ? 'text-destructive' : 'text-muted-foreground')} />
+                <div className="flex-1 min-w-0">
+                  <p className={cn('text-sm font-medium', item.key === 'danger' && 'text-destructive')}>{item.label}</p>
+                  <p className="text-xs text-muted-foreground truncate">{item.desc}</p>
                 </div>
-                <div>
-                  <Label>{t('Số điện thoại tiệm')}</Label>
-                  <Input value={shopPhone} onChange={e => setShopPhone(e.target.value)} className="mt-1" placeholder="+84 123 456 789" />
-                </div>
-                <div>
-                  <Label>{t('Địa chỉ')}</Label>
-                  <Input value={shopAddress} onChange={e => setShopAddress(e.target.value)} className="mt-1" placeholder={t('Nhập địa chỉ tiệm')} />
-                </div>
-                <div>
-                  <Label>{t('Ngày mở cửa')}</Label>
-                  <div className="flex flex-wrap gap-1.5 mt-1.5">
-                    {[
-                      { day: 1, label: t('T2') },
-                      { day: 2, label: t('T3') },
-                      { day: 3, label: t('T4') },
-                      { day: 4, label: t('T5') },
-                      { day: 5, label: t('T6') },
-                      { day: 6, label: t('T7') },
-                      { day: 7, label: t('CN') },
-                    ].map(({ day, label }) => (
-                      <button
-                        key={day}
-                        type="button"
-                        className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                          openDays.includes(day)
-                            ? 'bg-[#6b4c3b] text-white border-[#6b4c3b]'
-                            : 'bg-white text-muted-foreground border-border hover:border-[#8b7355]'
-                        }`}
-                        onClick={() => setOpenDays(prev =>
-                          prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day].sort()
-                        )}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+                <ChevronRight className="h-4 w-4 text-muted-foreground/50 shrink-0" />
+              </button>
+            ))}
+
+            {/* ── Shop Info Modal ── */}
+            <Dialog open={settingsModal === 'shop'} onOpenChange={(open) => !open && setSettingsModal(null)}>
+              <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>{t('Thông tin tiệm')}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-2">
                   <div>
-                    <Label>{t('Giờ mở cửa')}</Label>
-                    <Input type="time" value={openTime} onChange={e => setOpenTime(e.target.value)} className="mt-1" />
+                    <Label>{t('Tên tiệm')}</Label>
+                    <Input value={spaName} onChange={e => setSpaName(e.target.value)} className="mt-1" placeholder="Oasis Reserve" />
                   </div>
                   <div>
-                    <Label>{t('Giờ đóng cửa')}</Label>
-                    <Input type="time" value={closeTime} onChange={e => setCloseTime(e.target.value)} className="mt-1" />
+                    <Label>{t('Số điện thoại tiệm')}</Label>
+                    <Input value={shopPhone} onChange={e => setShopPhone(e.target.value)} className="mt-1" placeholder="+84 123 456 789" />
                   </div>
-                </div>
-                <div>
-                  <Label>{t('Bang/Tiểu bang')}</Label>
-                  <select
-                    value={shopState}
-                    onChange={e => setShopState(e.target.value)}
-                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  >
-                    {['NSW', 'VIC', 'QLD', 'SA', 'WA', 'TAS', 'NT', 'ACT'].map(s => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-muted-foreground mt-1">{t('Dùng để hiển thị ngày lễ công cộng')}</p>
-                </div>
-                <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium">{t('Hiển thị "Đóng cửa" ngày lễ')}</p>
-                    <p className="text-xs text-muted-foreground">{t('Tự động hiển thị trạng thái đóng cửa vào ngày lễ công cộng')}</p>
+                    <Label>{t('Địa chỉ')}</Label>
+                    <Input value={shopAddress} onChange={e => setShopAddress(e.target.value)} className="mt-1" placeholder={t('Nhập địa chỉ tiệm')} />
                   </div>
-                  <Switch checked={showHolidayClosed} onCheckedChange={setShowHolidayClosed} />
-                </div>
-                <Button size="sm" onClick={() => saveShopInfo.mutate()}>{t('Lưu thông tin')}</Button>
-              </CardContent>
-            </Card>
-
-
-            {/* Random therapist toggle */}
-            <Card>
-              <CardContent className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-sm">{t('Tự động chọn thợ ngẫu nhiên')}</p>
-                  <p className="text-xs text-muted-foreground">{t('Cho phép khách chọn "bất kỳ thợ trống" khi đặt lịch')}</p>
-                </div>
-                <Switch checked={randomEnabled !== false} onCheckedChange={(v) => toggleRandom.mutate(v)} />
-              </CardContent>
-            </Card>
-
-
-            {/* Card Surcharge Settings */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">{t('Phụ phí thẻ tín dụng')}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div>
-                  <Label>{t('Phần trăm phụ phí (%)')}</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="20"
-                    step="0.1"
-                    value={cardSurchargePercent}
-                    onChange={e => setCardSurchargePercent(e.target.value)}
-                    className="mt-1 w-[120px]"
-                    placeholder="0"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">{t('Phụ phí sẽ được tự động cộng thêm khi khách thanh toán bằng thẻ')}</p>
-                </div>
-                <Button size="sm" onClick={() => saveCardSurcharge.mutate()}>{t('Lưu')}</Button>
-              </CardContent>
-            </Card>
-
-            {/* Logo Upload */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">{t('Logo cửa hàng')}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <LogoUploadComponent t={t} />
-              </CardContent>
-            </Card>
-
-            {/* Hero Media Settings */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">{t('Hero trang chủ')}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label>{t('Chế độ hiển thị')}</Label>
-                  <div className="flex gap-2 mt-1.5">
-                    <Button type="button" variant={heroMode === 'video' ? 'default' : 'outline'} size="sm" className="flex-1" onClick={() => setHeroMode('video')}>
-                      Video
-                    </Button>
-                    <Button type="button" variant={heroMode === 'image' ? 'default' : 'outline'} size="sm" className="flex-1" onClick={() => setHeroMode('image')}>
-                      {t('Hình ảnh')}
-                    </Button>
-                  </div>
-                </div>
-                <div>
-                  <Label>{heroMode === 'video' ? t('Upload video') : t('Upload hình ảnh')}</Label>
-                  <div className="mt-1.5 space-y-2">
-                    {heroMediaPreview && (
-                      <div className="relative w-full h-32 rounded-lg overflow-hidden border border-[#ebe3d9]">
-                        {heroMode === 'video' && (heroMediaPreview.match(/\.(mp4|webm|mov)/) || heroMediaFile?.type.startsWith('video')) ? (
-                          <video src={heroMediaPreview} className="w-full h-full object-cover" muted />
-                        ) : (
-                          <img src={heroMediaPreview} alt="Hero preview" className="w-full h-full object-cover" />
-                        )}
+                  <div>
+                    <Label>{t('Ngày mở cửa')}</Label>
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {[
+                        { day: 1, label: t('T2') },
+                        { day: 2, label: t('T3') },
+                        { day: 3, label: t('T4') },
+                        { day: 4, label: t('T5') },
+                        { day: 5, label: t('T6') },
+                        { day: 6, label: t('T7') },
+                        { day: 7, label: t('CN') },
+                      ].map(({ day, label }) => (
                         <button
+                          key={day}
                           type="button"
-                          onClick={() => { setHeroMediaFile(null); setHeroMediaPreview(null); setHeroMediaPath(''); }}
-                          className="absolute top-1 right-1 h-6 w-6 rounded-full bg-black/50 text-white flex items-center justify-center text-xs hover:bg-black/70"
-                        >×</button>
+                          className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                            openDays.includes(day)
+                              ? 'bg-[#6b4c3b] text-white border-[#6b4c3b]'
+                              : 'bg-white text-muted-foreground border-border hover:border-[#8b7355]'
+                          }`}
+                          onClick={() => setOpenDays(prev =>
+                            prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day].sort()
+                          )}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>{t('Giờ mở cửa')}</Label>
+                      <Input type="time" value={openTime} onChange={e => setOpenTime(e.target.value)} className="mt-1" />
+                    </div>
+                    <div>
+                      <Label>{t('Giờ đóng cửa')}</Label>
+                      <Input type="time" value={closeTime} onChange={e => setCloseTime(e.target.value)} className="mt-1" />
+                    </div>
+                  </div>
+                  <div>
+                    <Label>{t('Bang/Tiểu bang')}</Label>
+                    <select
+                      value={shopState}
+                      onChange={e => setShopState(e.target.value)}
+                      className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      {['NSW', 'VIC', 'QLD', 'SA', 'WA', 'TAS', 'NT', 'ACT'].map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-muted-foreground mt-1">{t('Dùng để hiển thị ngày lễ công cộng')}</p>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">{t('Hiển thị "Đóng cửa" ngày lễ')}</p>
+                      <p className="text-xs text-muted-foreground">{t('Tự động hiển thị trạng thái đóng cửa vào ngày lễ công cộng')}</p>
+                    </div>
+                    <Switch checked={showHolidayClosed} onCheckedChange={setShowHolidayClosed} />
+                  </div>
+                  <Button size="sm" onClick={() => { saveShopInfo.mutate(); setSettingsModal(null); }}>{t('Lưu thông tin')}</Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* ── Display & Appearance Modal ── */}
+            <Dialog open={settingsModal === 'display'} onOpenChange={(open) => !open && setSettingsModal(null)}>
+              <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>{t('Hiển thị & Giao diện')}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-6 pt-2">
+                  {/* Random therapist */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-sm">{t('Tự động chọn thợ ngẫu nhiên')}</p>
+                      <p className="text-xs text-muted-foreground">{t('Cho phép khách chọn "bất kỳ thợ trống" khi đặt lịch')}</p>
+                    </div>
+                    <Switch checked={randomEnabled !== false} onCheckedChange={(v) => toggleRandom.mutate(v)} />
+                  </div>
+                  <div className="border-t border-border/40" />
+
+                  {/* Card surcharge */}
+                  <div className="space-y-3">
+                    <p className="font-medium text-sm">{t('Phụ phí thẻ tín dụng')}</p>
+                    <div>
+                      <Label>{t('Phần trăm phụ phí (%)')}</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="20"
+                        step="0.1"
+                        value={cardSurchargePercent}
+                        onChange={e => setCardSurchargePercent(e.target.value)}
+                        className="mt-1 w-[120px]"
+                        placeholder="0"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">{t('Phụ phí sẽ được tự động cộng thêm khi khách thanh toán bằng thẻ')}</p>
+                    </div>
+                    <Button size="sm" onClick={() => saveCardSurcharge.mutate()}>{t('Lưu')}</Button>
+                  </div>
+                  <div className="border-t border-border/40" />
+
+                  {/* Logo */}
+                  <div className="space-y-3">
+                    <p className="font-medium text-sm">{t('Logo cửa hàng')}</p>
+                    <LogoUploadComponent t={t} />
+                  </div>
+                  <div className="border-t border-border/40" />
+
+                  {/* Hero media */}
+                  <div className="space-y-4">
+                    <p className="font-medium text-sm">{t('Hero trang chủ')}</p>
+                    <div>
+                      <Label>{t('Chế độ hiển thị')}</Label>
+                      <div className="flex gap-2 mt-1.5">
+                        <Button type="button" variant={heroMode === 'video' ? 'default' : 'outline'} size="sm" className="flex-1" onClick={() => setHeroMode('video')}>
+                          Video
+                        </Button>
+                        <Button type="button" variant={heroMode === 'image' ? 'default' : 'outline'} size="sm" className="flex-1" onClick={() => setHeroMode('image')}>
+                          {t('Hình ảnh')}
+                        </Button>
                       </div>
-                    )}
-                    <input
-                      ref={heroMediaRef}
-                      type="file"
-                      accept={heroMode === 'video' ? 'video/*' : 'image/*'}
-                      className="hidden"
-                      onChange={e => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          setHeroMediaFile(file);
-                          setHeroMediaPreview(URL.createObjectURL(file));
+                    </div>
+                    <div>
+                      <Label>{heroMode === 'video' ? t('Upload video') : t('Upload hình ảnh')}</Label>
+                      <div className="mt-1.5 space-y-2">
+                        {heroMediaPreview && (
+                          <div className="relative w-full h-32 rounded-lg overflow-hidden border border-[#ebe3d9]">
+                            {heroMode === 'video' && (heroMediaPreview.match(/\.(mp4|webm|mov)/) || heroMediaFile?.type.startsWith('video')) ? (
+                              <video src={heroMediaPreview} className="w-full h-full object-cover" muted />
+                            ) : (
+                              <img src={heroMediaPreview} alt="Hero preview" className="w-full h-full object-cover" />
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => { setHeroMediaFile(null); setHeroMediaPreview(null); setHeroMediaPath(''); }}
+                              className="absolute top-1 right-1 h-6 w-6 rounded-full bg-black/50 text-white flex items-center justify-center text-xs hover:bg-black/70"
+                            >×</button>
+                          </div>
+                        )}
+                        <input
+                          ref={heroMediaRef}
+                          type="file"
+                          accept={heroMode === 'video' ? 'video/*' : 'image/*'}
+                          className="hidden"
+                          onChange={e => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setHeroMediaFile(file);
+                              setHeroMediaPreview(URL.createObjectURL(file));
+                            }
+                          }}
+                        />
+                        <Button type="button" variant="outline" size="sm" onClick={() => heroMediaRef.current?.click()}>
+                          {heroMediaPreview ? t('Đổi file') : t('Chọn file')}
+                        </Button>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      disabled={savingHero}
+                      onClick={async () => {
+                        setSavingHero(true);
+                        try {
+                          let path = heroMediaPath;
+                          if (heroMediaFile) {
+                            const ext = heroMediaFile.name.split('.').pop();
+                            const newPath = `hero-${Date.now()}.${ext}`;
+                            if (path) await supabase.storage.from('hero-media').remove([path]);
+                            const { error: uploadErr } = await supabase.storage.from('hero-media').upload(newPath, heroMediaFile, { upsert: true });
+                            if (uploadErr) throw uploadErr;
+                            path = newPath;
+                            setHeroMediaPath(path);
+                          }
+                          await supabase.from('app_settings').upsert({ key: 'hero_mode', value: heroMode });
+                          await supabase.from('app_settings').upsert({ key: 'hero_media_path', value: path });
+                          toast({ title: t('Đã lưu hero') });
+                          setHeroMediaFile(null);
+                        } catch (err: any) {
+                          toast({ title: t('Lỗi'), description: err.message, variant: 'destructive' });
+                        } finally {
+                          setSavingHero(false);
                         }
                       }}
-                    />
-                    <Button type="button" variant="outline" size="sm" onClick={() => heroMediaRef.current?.click()}>
-                      {heroMediaPreview ? t('Đổi file') : t('Chọn file')}
+                    >
+                      {savingHero ? t('Đang lưu...') : t('Lưu hero')}
                     </Button>
+                    <p className="text-xs text-muted-foreground">{t('Nếu không upload, hệ thống sẽ dùng ảnh/video mặc định')}</p>
                   </div>
                 </div>
-                <Button
-                  size="sm"
-                  disabled={savingHero}
-                  onClick={async () => {
-                    setSavingHero(true);
-                    try {
-                      let path = heroMediaPath;
-                      if (heroMediaFile) {
-                        const ext = heroMediaFile.name.split('.').pop();
-                        const newPath = `hero-${Date.now()}.${ext}`;
-                        if (path) await supabase.storage.from('hero-media').remove([path]);
-                        const { error: uploadErr } = await supabase.storage.from('hero-media').upload(newPath, heroMediaFile, { upsert: true });
-                        if (uploadErr) throw uploadErr;
-                        path = newPath;
-                        setHeroMediaPath(path);
-                      }
-                      await supabase.from('app_settings').upsert({ key: 'hero_mode', value: heroMode });
-                      await supabase.from('app_settings').upsert({ key: 'hero_media_path', value: path });
-                      toast({ title: t('Đã lưu hero') });
-                      setHeroMediaFile(null);
-                    } catch (err: any) {
-                      toast({ title: t('Lỗi'), description: err.message, variant: 'destructive' });
-                    } finally {
-                      setSavingHero(false);
-                    }
-                  }}
-                >
-                  {savingHero ? t('Đang lưu...') : t('Lưu hero')}
-                </Button>
-                <p className="text-xs text-muted-foreground">{t('Nếu không upload, hệ thống sẽ dùng ảnh/video mặc định')}</p>
-              </CardContent>
-            </Card>
+              </DialogContent>
+            </Dialog>
 
-            {/* Admin Accounts Management */}
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">{t('Quản lý tài khoản')}</CardTitle>
-                  {isAdmin && (
-                    <Dialog open={accountDialog} onOpenChange={(open) => { setAccountDialog(open); if (!open) { setNewAdminEmail(''); setNewAdminPassword(''); setNewAdminRole('employee'); } }}>
-                      <DialogTrigger asChild>
-                        <Button size="sm" variant="outline">
-                          <Plus className="h-3.5 w-3.5 mr-1" /> {t('Tạo tài khoản')}
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>{t('Tạo tài khoản mới')}</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4 pt-2">
-                          <div>
-                            <Label className="text-sm">{t('Loại tài khoản')}</Label>
-                            <div className="flex gap-2 mt-1.5">
-                              <Button type="button" variant={newAdminRole === 'employee' ? 'default' : 'outline'} size="sm" className="flex-1" onClick={() => setNewAdminRole('employee')}>
-                                Employee
-                              </Button>
-                              <Button type="button" variant={newAdminRole === 'admin' ? 'default' : 'outline'} size="sm" className="flex-1" onClick={() => setNewAdminRole('admin')}>
-                                Admin
-                              </Button>
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-1.5">
-                              {newAdminRole === 'employee'
-                                ? t('Employee: có thể xem và tạo, không thể xoá hoặc xem nhật ký')
-                                : t('Admin: toàn quyền quản lý hệ thống')}
-                            </p>
-                          </div>
-                          <div>
-                            <Label className="text-sm">Email</Label>
-                            <Input type="email" value={newAdminEmail} onChange={e => setNewAdminEmail(e.target.value)} placeholder="staff@example.com" className="mt-1" />
-                          </div>
-                          <div>
-                            <Label className="text-sm">{t('Mật khẩu')}</Label>
-                            <Input type="password" value={newAdminPassword} onChange={e => setNewAdminPassword(e.target.value)} placeholder={t('Tối thiểu 6 ký tự')} className="mt-1" />
-                          </div>
-                          <Button
-                            className="w-full"
-                            disabled={creatingAdmin || !newAdminEmail.trim() || newAdminPassword.length < 6}
-                            onClick={async () => {
-                              setCreatingAdmin(true);
-                              try {
-                                const { data: { session: s } } = await supabase.auth.getSession();
-                                if (!s?.access_token) throw new Error('Session expired. Please log out and log back in.');
-                                const res = await fetch(
-                                  `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-admin`,
-                                  {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${s.access_token}` },
-                                    body: JSON.stringify({ email: newAdminEmail.trim(), password: newAdminPassword, role: newAdminRole }),
-                                  }
-                                );
-                                const result = await res.json();
-                                if (!res.ok) throw new Error(result.error || 'Failed');
-                                logActivity('create_account', `Created ${newAdminRole}: ${newAdminEmail}`);
-                                toast({ title: t('Đã tạo tài khoản'), description: `${newAdminRole === 'admin' ? 'Admin' : 'Employee'}: ${newAdminEmail}` });
-                                setNewAdminEmail('');
-                                setNewAdminPassword('');
-                                setAccountDialog(false);
-                                refetchAdmins();
-                              } catch (err: any) {
-                                toast({ title: t('Lỗi'), description: err.message, variant: 'destructive' });
-                              } finally {
-                                setCreatingAdmin(false);
-                              }
-                            }}
-                          >
-                            {creatingAdmin ? t('Đang tạo...') : t('Tạo tài khoản')}
-                          </Button>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {adminAccounts && adminAccounts.length > 0 && adminAccounts.map(admin => (
-                  <div key={admin.id} className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:bg-muted/30 transition-colors">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium truncate">{admin.email}</p>
-                        <Badge variant={admin.role === 'admin' ? 'default' : 'secondary'} className="text-[10px] shrink-0">
-                          {admin.role === 'admin' ? 'Admin' : 'Employee'}
-                        </Badge>
-                        {admin.is_current && <span className="text-[10px] text-muted-foreground">({t('Bạn')})</span>}
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {t('Tạo')} {new Date(admin.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
+            {/* ── Accounts Modal ── */}
+            <Dialog open={settingsModal === 'accounts'} onOpenChange={(open) => !open && setSettingsModal(null)}>
+              <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <div className="flex items-center justify-between">
+                    <DialogTitle>{t('Quản lý tài khoản')}</DialogTitle>
                     {isAdmin && (
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => { setEditingAccount(admin); setEditAccountPassword(''); setEditAccountDialog(true); }}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        {!admin.is_current && (
+                      <Button size="sm" variant="outline" onClick={() => setAccountDialog(true)}>
+                        <Plus className="h-3.5 w-3.5 mr-1" /> {t('Tạo tài khoản')}
+                      </Button>
+                    )}
+                  </div>
+                </DialogHeader>
+                <div className="space-y-2 pt-2">
+                  {adminAccounts && adminAccounts.length > 0 && adminAccounts.map(admin => (
+                    <div key={admin.id} className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:bg-muted/30 transition-colors">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium truncate">{admin.email}</p>
+                          <Badge variant={admin.role === 'admin' ? 'default' : 'secondary'} className="text-[10px] shrink-0">
+                            {admin.role === 'admin' ? 'Admin' : 'Employee'}
+                          </Badge>
+                          {admin.is_current && <span className="text-[10px] text-muted-foreground">({t('Bạn')})</span>}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {t('Tạo')} {new Date(admin.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      {isAdmin && (
+                        <div className="flex items-center gap-1 shrink-0">
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive"
-                            disabled={deletingAdminId === admin.id}
-                            onClick={async () => {
-                              if (!confirm(`${t('Xoá tài khoản')} ${admin.email}?`)) return;
-                              setDeletingAdminId(admin.id);
-                              try {
-                                const { data: { session: s } } = await supabase.auth.getSession();
-                                if (!s?.access_token) throw new Error('Session expired. Please log out and log back in.');
-                                const res = await fetch(
-                                  `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-admins`,
-                                  {
-                                    method: 'DELETE',
-                                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${s.access_token}` },
-                                    body: JSON.stringify({ user_id: admin.id }),
-                                  }
-                                );
-                                const result = await res.json();
-                                if (!res.ok) throw new Error(result.error || 'Failed');
-                                logActivity('delete_account', `Deleted: ${admin.email} (${admin.role})`);
-                                toast({ title: t('Đã xoá tài khoản'), description: admin.email });
-                                refetchAdmins();
-                              } catch (err: any) {
-                                const msg = err.message === 'Failed to fetch'
-                                  ? t('Không thể kết nối đến server. Vui lòng kiểm tra kết nối hoặc deploy lại edge function.')
-                                  : err.message;
-                                toast({ title: t('Lỗi'), description: msg, variant: 'destructive' });
-                              } finally {
-                                setDeletingAdminId(null);
-                              }
-                            }}
+                            className="h-8 w-8"
+                            onClick={() => { setEditingAccount(admin); setEditAccountPassword(''); setEditAccountDialog(true); }}
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                        )}
-                      </div>
-                    )}
+                          {!admin.is_current && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              disabled={deletingAdminId === admin.id}
+                              onClick={async () => {
+                                if (!confirm(`${t('Xoá tài khoản')} ${admin.email}?`)) return;
+                                setDeletingAdminId(admin.id);
+                                try {
+                                  const { data: { session: s } } = await supabase.auth.getSession();
+                                  if (!s?.access_token) throw new Error('Session expired. Please log out and log back in.');
+                                  const res = await fetch(
+                                    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-admins`,
+                                    {
+                                      method: 'DELETE',
+                                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${s.access_token}` },
+                                      body: JSON.stringify({ user_id: admin.id }),
+                                    }
+                                  );
+                                  const result = await res.json();
+                                  if (!res.ok) throw new Error(result.error || 'Failed');
+                                  logActivity('delete_account', `Deleted: ${admin.email} (${admin.role})`);
+                                  toast({ title: t('Đã xoá tài khoản'), description: admin.email });
+                                  refetchAdmins();
+                                } catch (err: any) {
+                                  const msg = err.message === 'Failed to fetch'
+                                    ? t('Không thể kết nối đến server. Vui lòng kiểm tra kết nối hoặc deploy lại edge function.')
+                                    : err.message;
+                                  toast({ title: t('Lỗi'), description: msg, variant: 'destructive' });
+                                } finally {
+                                  setDeletingAdminId(null);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* Create Account Dialog (nested) */}
+            <Dialog open={accountDialog} onOpenChange={(open) => { setAccountDialog(open); if (!open) { setNewAdminEmail(''); setNewAdminPassword(''); setNewAdminRole('employee'); } }}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{t('Tạo tài khoản mới')}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-2">
+                  <div>
+                    <Label className="text-sm">{t('Loại tài khoản')}</Label>
+                    <div className="flex gap-2 mt-1.5">
+                      <Button type="button" variant={newAdminRole === 'employee' ? 'default' : 'outline'} size="sm" className="flex-1" onClick={() => setNewAdminRole('employee')}>
+                        Employee
+                      </Button>
+                      <Button type="button" variant={newAdminRole === 'admin' ? 'default' : 'outline'} size="sm" className="flex-1" onClick={() => setNewAdminRole('admin')}>
+                        Admin
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1.5">
+                      {newAdminRole === 'employee'
+                        ? t('Employee: có thể xem và tạo, không thể xoá hoặc xem nhật ký')
+                        : t('Admin: toàn quyền quản lý hệ thống')}
+                    </p>
                   </div>
-                ))}
-              </CardContent>
-            </Card>
+                  <div>
+                    <Label className="text-sm">Email</Label>
+                    <Input type="email" value={newAdminEmail} onChange={e => setNewAdminEmail(e.target.value)} placeholder="staff@example.com" className="mt-1" />
+                  </div>
+                  <div>
+                    <Label className="text-sm">{t('Mật khẩu')}</Label>
+                    <Input type="password" value={newAdminPassword} onChange={e => setNewAdminPassword(e.target.value)} placeholder={t('Tối thiểu 6 ký tự')} className="mt-1" />
+                  </div>
+                  <Button
+                    className="w-full"
+                    disabled={creatingAdmin || !newAdminEmail.trim() || newAdminPassword.length < 6}
+                    onClick={async () => {
+                      setCreatingAdmin(true);
+                      try {
+                        const { data: { session: s } } = await supabase.auth.getSession();
+                        if (!s?.access_token) throw new Error('Session expired. Please log out and log back in.');
+                        const res = await fetch(
+                          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-admin`,
+                          {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${s.access_token}` },
+                            body: JSON.stringify({ email: newAdminEmail.trim(), password: newAdminPassword, role: newAdminRole }),
+                          }
+                        );
+                        const result = await res.json();
+                        if (!res.ok) throw new Error(result.error || 'Failed');
+                        logActivity('create_account', `Created ${newAdminRole}: ${newAdminEmail}`);
+                        toast({ title: t('Đã tạo tài khoản'), description: `${newAdminRole === 'admin' ? 'Admin' : 'Employee'}: ${newAdminEmail}` });
+                        setNewAdminEmail('');
+                        setNewAdminPassword('');
+                        setAccountDialog(false);
+                        refetchAdmins();
+                      } catch (err: any) {
+                        toast({ title: t('Lỗi'), description: err.message, variant: 'destructive' });
+                      } finally {
+                        setCreatingAdmin(false);
+                      }
+                    }}
+                  >
+                    {creatingAdmin ? t('Đang tạo...') : t('Tạo tài khoản')}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
 
             {/* Edit Account Dialog */}
             <Dialog open={editAccountDialog} onOpenChange={(open) => { setEditAccountDialog(open); if (!open) { setEditingAccount(null); setEditAccountPassword(''); } }}>
@@ -2695,278 +2743,285 @@ const AdminDashboard = () => {
               </DialogContent>
             </Dialog>
 
-
-            {/* Resend Email Settings */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">{t('Cài đặt email')} (Resend)</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label>{t('Resend API Key')}</Label>
-                  <Input
-                    type="password"
-                    value={resendApiKey}
-                    onChange={e => setResendApiKey(e.target.value)}
-                    placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                    className="mt-1 font-mono text-sm"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {t('Lấy API key tại')} <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary underline">resend.com/api-keys</a>
-                  </p>
-                </div>
-                <div>
-                  <Label>{t('Email gửi từ')} ({t('From address')})</Label>
-                  <Input
-                    value={resendFromEmail}
-                    onChange={e => setResendFromEmail(e.target.value)}
-                    placeholder="noreply@yourdomain.com"
-                    className="mt-1"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {t('Dùng')} <code className="text-xs">onboarding@resend.dev</code> {t('để test, hoặc domain đã xác minh trên Resend')}
-                  </p>
-                </div>
-                <Button size="sm" onClick={() => saveResendSettings.mutate()} disabled={!resendApiKey.trim()}>
-                  {t('Lưu cài đặt email')}
-                </Button>
-                {resendSettings?.['resend_api_key'] && (
-                  <div className="bg-muted rounded-lg p-3 text-sm space-y-1">
-                    <p className="text-muted-foreground">{t('Resend API key đã được cấu hình')}</p>
-                    <p className="text-muted-foreground">{t('Email gửi từ')}: <strong>{resendSettings['resend_from_email'] || 'onboarding@resend.dev'}</strong></p>
+            {/* ── Email Settings Modal ── */}
+            <Dialog open={settingsModal === 'email'} onOpenChange={(open) => !open && setSettingsModal(null)}>
+              <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>{t('Cài đặt email')} (Resend)</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-2">
+                  <div>
+                    <Label>{t('Resend API Key')}</Label>
+                    <Input
+                      type="password"
+                      value={resendApiKey}
+                      onChange={e => setResendApiKey(e.target.value)}
+                      placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                      className="mt-1 font-mono text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {t('Lấy API key tại')} <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary underline">resend.com/api-keys</a>
+                    </p>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* OpenAI Translation Settings */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">{t('Cài đặt dịch thuật')} (OpenAI)</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label>{t('OpenAI API Key')}</Label>
-                  <Input
-                    type="password"
-                    value={openaiApiKey}
-                    onChange={e => setOpenaiApiKey(e.target.value)}
-                    placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx"
-                    className="mt-1 font-mono text-sm"
-                  />
-                </div>
-                <div>
-                  <Label>{t('Model')}</Label>
-                  <Input
-                    value={openaiModel}
-                    onChange={e => setOpenaiModel(e.target.value)}
-                    placeholder="gpt-4o-mini"
-                    className="mt-1 font-mono text-sm"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">{t('VD: gpt-4o-mini, gpt-4o, gpt-3.5-turbo')}</p>
-                </div>
-                <div>
-                  <Label>{t('Base URL')}</Label>
-                  <Input
-                    value={openaiBaseUrl}
-                    onChange={e => setOpenaiBaseUrl(e.target.value)}
-                    placeholder="https://api.openai.com/v1"
-                    className="mt-1 font-mono text-sm"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">{t('Để trống nếu dùng OpenAI mặc định')}</p>
-                </div>
-                <Button size="sm" onClick={() => saveOpenaiSettings.mutate()} disabled={!openaiApiKey.trim()}>
-                  {t('Lưu cài đặt dịch thuật')}
-                </Button>
-                {openaiSettings?.['openai_api_key'] && (
-                  <div className="bg-muted rounded-lg p-3 text-sm">
-                    <p className="text-muted-foreground">{t('API key đã được cấu hình')}</p>
-                    {openaiSettings['openai_base_url'] && (
-                      <p className="text-muted-foreground">Base URL: <strong>{openaiSettings['openai_base_url']}</strong></p>
-                    )}
-                    <p className="text-muted-foreground">Model: <strong>{openaiSettings['openai_model'] || 'gpt-4o-mini'}</strong></p>
+                  <div>
+                    <Label>{t('Email gửi từ')} ({t('From address')})</Label>
+                    <Input
+                      value={resendFromEmail}
+                      onChange={e => setResendFromEmail(e.target.value)}
+                      placeholder="noreply@yourdomain.com"
+                      className="mt-1"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {t('Dùng')} <code className="text-xs">onboarding@resend.dev</code> {t('để test, hoặc domain đã xác minh trên Resend')}
+                    </p>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* ── Membership Tiers ── */}
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">{t('Hạng thành viên')}</CardTitle>
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">{t('Bật/Tắt')}</span>
-                      <Switch checked={membershipEnabled === true} onCheckedChange={(v) => toggleMembership.mutate(v)} />
+                  <Button size="sm" onClick={() => { saveResendSettings.mutate(); setSettingsModal(null); }} disabled={!resendApiKey.trim()}>
+                    {t('Lưu cài đặt email')}
+                  </Button>
+                  {resendSettings?.['resend_api_key'] && (
+                    <div className="bg-muted rounded-lg p-3 text-sm space-y-1">
+                      <p className="text-muted-foreground">{t('Resend API key đã được cấu hình')}</p>
+                      <p className="text-muted-foreground">{t('Email gửi từ')}: <strong>{resendSettings['resend_from_email'] || 'onboarding@resend.dev'}</strong></p>
                     </div>
-                    <Dialog open={membershipDialog} onOpenChange={setMembershipDialog}>
-                      <DialogTrigger asChild>
-                        <Button size="sm" variant="outline" onClick={() => { setEditingTier(null); setTierName(''); setTierMinVisits('0'); setTierDiscountPercent('0'); }}>
-                          <Plus className="h-3.5 w-3.5 mr-1" /> {t('Thêm')}
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>{editingTier ? t('Sửa hạng thành viên') : t('Thêm hạng thành viên')}</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-3 pt-2">
-                          <div>
-                            <Label>{t('Tên hạng')}</Label>
-                            <Input value={tierName} onChange={e => setTierName(e.target.value)} placeholder="VIP Gold" className="mt-1" />
-                          </div>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <Label>{t('Số lần ghé tối thiểu')}</Label>
-                              <Input type="number" min="0" value={tierMinVisits} onChange={e => setTierMinVisits(e.target.value)} className="mt-1" />
-                            </div>
-                            <div>
-                              <Label>{t('Giảm giá (%)')}</Label>
-                              <Input type="number" min="0" max="100" step="0.5" value={tierDiscountPercent} onChange={e => setTierDiscountPercent(e.target.value)} className="mt-1" />
-                            </div>
-                          </div>
-                          <Button onClick={() => saveTier.mutate()} disabled={!tierName.trim()}>{editingTier ? t('Cập nhật') : t('Tạo')}</Button>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
+                  )}
                 </div>
-              </CardHeader>
-              <CardContent>
-                {!membershipTiers?.length ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">{t('Chưa có hạng thành viên nào')}</p>
-                ) : (
-                  <div className="space-y-2">
-                    {membershipTiers.map(tier => (
-                      <div key={tier.id} className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:bg-muted/30 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <Switch checked={tier.is_active} onCheckedChange={(v) => toggleTierActive.mutate({ id: tier.id, active: v })} />
-                          <div>
-                            <p className="text-sm font-semibold">{tier.name}</p>
-                            <p className="text-xs text-muted-foreground">{tier.min_visits}+ {t('lần ghé')} · {tier.discount_percent}% {t('giảm')}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
-                            setEditingTier(tier); setTierName(tier.name); setTierMinVisits(String(tier.min_visits)); setTierDiscountPercent(String(tier.discount_percent)); setMembershipDialog(true);
-                          }}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { if (confirm(t('Xoá hạng này?'))) deleteTier.mutate(tier.id); }}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+              </DialogContent>
+            </Dialog>
 
-            {/* ── Discount Codes ── */}
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">{t('Mã giảm giá')}</CardTitle>
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">{t('Bật/Tắt')}</span>
-                      <Switch checked={discountCodesEnabled === true} onCheckedChange={(v) => toggleDiscountCodes.mutate(v)} />
+            {/* ── Translation Settings Modal ── */}
+            <Dialog open={settingsModal === 'translation'} onOpenChange={(open) => !open && setSettingsModal(null)}>
+              <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>{t('Cài đặt dịch thuật')} (OpenAI)</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-2">
+                  <div>
+                    <Label>{t('OpenAI API Key')}</Label>
+                    <Input
+                      type="password"
+                      value={openaiApiKey}
+                      onChange={e => setOpenaiApiKey(e.target.value)}
+                      placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx"
+                      className="mt-1 font-mono text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label>{t('Model')}</Label>
+                    <Input
+                      value={openaiModel}
+                      onChange={e => setOpenaiModel(e.target.value)}
+                      placeholder="gpt-4o-mini"
+                      className="mt-1 font-mono text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">{t('VD: gpt-4o-mini, gpt-4o, gpt-3.5-turbo')}</p>
+                  </div>
+                  <div>
+                    <Label>{t('Base URL')}</Label>
+                    <Input
+                      value={openaiBaseUrl}
+                      onChange={e => setOpenaiBaseUrl(e.target.value)}
+                      placeholder="https://api.openai.com/v1"
+                      className="mt-1 font-mono text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">{t('Để trống nếu dùng OpenAI mặc định')}</p>
+                  </div>
+                  <Button size="sm" onClick={() => { saveOpenaiSettings.mutate(); setSettingsModal(null); }} disabled={!openaiApiKey.trim()}>
+                    {t('Lưu cài đặt dịch thuật')}
+                  </Button>
+                  {openaiSettings?.['openai_api_key'] && (
+                    <div className="bg-muted rounded-lg p-3 text-sm">
+                      <p className="text-muted-foreground">{t('API key đã được cấu hình')}</p>
+                      {openaiSettings['openai_base_url'] && (
+                        <p className="text-muted-foreground">Base URL: <strong>{openaiSettings['openai_base_url']}</strong></p>
+                      )}
+                      <p className="text-muted-foreground">Model: <strong>{openaiSettings['openai_model'] || 'gpt-4o-mini'}</strong></p>
                     </div>
-                    <Dialog open={discountDialog} onOpenChange={setDiscountDialog}>
-                      <DialogTrigger asChild>
-                        <Button size="sm" variant="outline" onClick={() => {
-                          setEditingDiscount(null); setDiscountCode(''); setDiscountPercent('0'); setDiscountAmount('0'); setDiscountValidFrom(''); setDiscountValidTo(''); setDiscountMaxUses('');
-                        }}>
-                          <Plus className="h-3.5 w-3.5 mr-1" /> {t('Thêm')}
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>{editingDiscount ? t('Sửa mã giảm giá') : t('Thêm mã giảm giá')}</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-3 pt-2">
-                          <div>
-                            <Label>{t('Mã')}</Label>
-                            <Input value={discountCode} onChange={e => setDiscountCode(e.target.value.toUpperCase())} placeholder="WELCOME10" className="mt-1 font-mono" />
-                          </div>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <Label>{t('Giảm giá (%)')}</Label>
-                              <Input type="number" min="0" max="100" value={discountPercent} onChange={e => setDiscountPercent(e.target.value)} className="mt-1" />
-                            </div>
-                            <div>
-                              <Label>{t('Giảm cố định (A$)')}</Label>
-                              <Input type="number" min="0" value={discountAmount} onChange={e => setDiscountAmount(e.target.value)} className="mt-1" />
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <Label>{t('Từ ngày')}</Label>
-                              <Input type="date" value={discountValidFrom} onChange={e => setDiscountValidFrom(e.target.value)} className="mt-1" />
-                            </div>
-                            <div>
-                              <Label>{t('Đến ngày')}</Label>
-                              <Input type="date" value={discountValidTo} onChange={e => setDiscountValidTo(e.target.value)} className="mt-1" />
-                            </div>
-                          </div>
-                          <div>
-                            <Label>{t('Giới hạn sử dụng')} ({t('để trống = không giới hạn')})</Label>
-                            <Input type="number" min="0" value={discountMaxUses} onChange={e => setDiscountMaxUses(e.target.value)} className="mt-1" placeholder={t('Không giới hạn')} />
-                          </div>
-                          <Button onClick={() => saveDiscount.mutate()} disabled={!discountCode.trim()}>{editingDiscount ? t('Cập nhật') : t('Tạo')}</Button>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
+                  )}
                 </div>
-              </CardHeader>
-              <CardContent>
-                {!discountCodes?.length ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">{t('Chưa có mã giảm giá nào')}</p>
-                ) : (
-                  <div className="space-y-2">
-                    {discountCodes.map(dc => (
-                      <div key={dc.id} className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:bg-muted/30 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <Switch checked={dc.is_active} onCheckedChange={(v) => toggleDiscountActive.mutate({ id: dc.id, active: v })} />
-                          <div>
-                            <p className="text-sm font-mono font-semibold">{dc.code}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {Number(dc.discount_percent) > 0 && `${dc.discount_percent}%`}
-                              {Number(dc.discount_percent) > 0 && Number(dc.discount_amount) > 0 && ' + '}
-                              {Number(dc.discount_amount) > 0 && `A$ ${dc.discount_amount}`}
-                              {dc.max_uses && ` · ${dc.current_uses}/${dc.max_uses} ${t('đã dùng')}`}
-                              {dc.valid_to && ` · ${t('hết hạn')} ${dc.valid_to}`}
-                            </p>
+              </DialogContent>
+            </Dialog>
+
+            {/* ── Membership Tiers Modal ── */}
+            <Dialog open={settingsModal === 'membership'} onOpenChange={(open) => !open && setSettingsModal(null)}>
+              <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <div className="flex items-center justify-between">
+                    <DialogTitle>{t('Hạng thành viên')}</DialogTitle>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">{t('Bật/Tắt')}</span>
+                        <Switch checked={membershipEnabled === true} onCheckedChange={(v) => toggleMembership.mutate(v)} />
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => { setEditingTier(null); setTierName(''); setTierMinVisits('0'); setTierDiscountPercent('0'); setMembershipDialog(true); }}>
+                        <Plus className="h-3.5 w-3.5 mr-1" /> {t('Thêm')}
+                      </Button>
+                    </div>
+                  </div>
+                </DialogHeader>
+                <div className="pt-2">
+                  {!membershipTiers?.length ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">{t('Chưa có hạng thành viên nào')}</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {membershipTiers.map(tier => (
+                        <div key={tier.id} className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:bg-muted/30 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <Switch checked={tier.is_active} onCheckedChange={(v) => toggleTierActive.mutate({ id: tier.id, active: v })} />
+                            <div>
+                              <p className="text-sm font-semibold">{tier.name}</p>
+                              <p className="text-xs text-muted-foreground">{tier.min_visits}+ {t('lần ghé')} · {tier.discount_percent}% {t('giảm')}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
+                              setEditingTier(tier); setTierName(tier.name); setTierMinVisits(String(tier.min_visits)); setTierDiscountPercent(String(tier.discount_percent)); setMembershipDialog(true);
+                            }}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { if (confirm(t('Xoá hạng này?'))) deleteTier.mutate(tier.id); }}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
-                            setEditingDiscount(dc); setDiscountCode(dc.code); setDiscountPercent(String(dc.discount_percent)); setDiscountAmount(String(dc.discount_amount));
-                            setDiscountValidFrom(dc.valid_from || ''); setDiscountValidTo(dc.valid_to || ''); setDiscountMaxUses(dc.max_uses ? String(dc.max_uses) : ''); setDiscountDialog(true);
-                          }}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { if (confirm(t('Xoá mã này?'))) deleteDiscount.mutate(dc.id); }}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
 
-            {/* ── Activity Logs (Admin only) ── */}
-            {isAdmin && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">{t('Nhật ký hoạt động')}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground mb-3">{t('Tất cả hoạt động được ghi lại tự động. Tải xuống để xem chi tiết.')}</p>
+            {/* Add/Edit Membership Tier Dialog */}
+            <Dialog open={membershipDialog} onOpenChange={setMembershipDialog}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{editingTier ? t('Sửa hạng thành viên') : t('Thêm hạng thành viên')}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3 pt-2">
+                  <div>
+                    <Label>{t('Tên hạng')}</Label>
+                    <Input value={tierName} onChange={e => setTierName(e.target.value)} placeholder="VIP Gold" className="mt-1" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>{t('Số lần ghé tối thiểu')}</Label>
+                      <Input type="number" min="0" value={tierMinVisits} onChange={e => setTierMinVisits(e.target.value)} className="mt-1" />
+                    </div>
+                    <div>
+                      <Label>{t('Giảm giá (%)')}</Label>
+                      <Input type="number" min="0" max="100" step="0.5" value={tierDiscountPercent} onChange={e => setTierDiscountPercent(e.target.value)} className="mt-1" />
+                    </div>
+                  </div>
+                  <Button onClick={() => saveTier.mutate()} disabled={!tierName.trim()}>{editingTier ? t('Cập nhật') : t('Tạo')}</Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* ── Discount Codes Modal ── */}
+            <Dialog open={settingsModal === 'discounts'} onOpenChange={(open) => !open && setSettingsModal(null)}>
+              <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <div className="flex items-center justify-between">
+                    <DialogTitle>{t('Mã giảm giá')}</DialogTitle>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">{t('Bật/Tắt')}</span>
+                        <Switch checked={discountCodesEnabled === true} onCheckedChange={(v) => toggleDiscountCodes.mutate(v)} />
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => {
+                        setEditingDiscount(null); setDiscountCode(''); setDiscountPercent('0'); setDiscountAmount('0'); setDiscountValidFrom(''); setDiscountValidTo(''); setDiscountMaxUses(''); setDiscountDialog(true);
+                      }}>
+                        <Plus className="h-3.5 w-3.5 mr-1" /> {t('Thêm')}
+                      </Button>
+                    </div>
+                  </div>
+                </DialogHeader>
+                <div className="pt-2">
+                  {!discountCodes?.length ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">{t('Chưa có mã giảm giá nào')}</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {discountCodes.map(dc => (
+                        <div key={dc.id} className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:bg-muted/30 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <Switch checked={dc.is_active} onCheckedChange={(v) => toggleDiscountActive.mutate({ id: dc.id, active: v })} />
+                            <div>
+                              <p className="text-sm font-mono font-semibold">{dc.code}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {Number(dc.discount_percent) > 0 && `${dc.discount_percent}%`}
+                                {Number(dc.discount_percent) > 0 && Number(dc.discount_amount) > 0 && ' + '}
+                                {Number(dc.discount_amount) > 0 && `A$ ${dc.discount_amount}`}
+                                {dc.max_uses && ` · ${dc.current_uses}/${dc.max_uses} ${t('đã dùng')}`}
+                                {dc.valid_to && ` · ${t('hết hạn')} ${dc.valid_to}`}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
+                              setEditingDiscount(dc); setDiscountCode(dc.code); setDiscountPercent(String(dc.discount_percent)); setDiscountAmount(String(dc.discount_amount));
+                              setDiscountValidFrom(dc.valid_from || ''); setDiscountValidTo(dc.valid_to || ''); setDiscountMaxUses(dc.max_uses ? String(dc.max_uses) : ''); setDiscountDialog(true);
+                            }}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { if (confirm(t('Xoá mã này?'))) deleteDiscount.mutate(dc.id); }}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* Add/Edit Discount Code Dialog */}
+            <Dialog open={discountDialog} onOpenChange={setDiscountDialog}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{editingDiscount ? t('Sửa mã giảm giá') : t('Thêm mã giảm giá')}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3 pt-2">
+                  <div>
+                    <Label>{t('Mã')}</Label>
+                    <Input value={discountCode} onChange={e => setDiscountCode(e.target.value.toUpperCase())} placeholder="WELCOME10" className="mt-1 font-mono" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>{t('Giảm giá (%)')}</Label>
+                      <Input type="number" min="0" max="100" value={discountPercent} onChange={e => setDiscountPercent(e.target.value)} className="mt-1" />
+                    </div>
+                    <div>
+                      <Label>{t('Giảm cố định (A$)')}</Label>
+                      <Input type="number" min="0" value={discountAmount} onChange={e => setDiscountAmount(e.target.value)} className="mt-1" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>{t('Từ ngày')}</Label>
+                      <Input type="date" value={discountValidFrom} onChange={e => setDiscountValidFrom(e.target.value)} className="mt-1" />
+                    </div>
+                    <div>
+                      <Label>{t('Đến ngày')}</Label>
+                      <Input type="date" value={discountValidTo} onChange={e => setDiscountValidTo(e.target.value)} className="mt-1" />
+                    </div>
+                  </div>
+                  <div>
+                    <Label>{t('Giới hạn sử dụng')} ({t('để trống = không giới hạn')})</Label>
+                    <Input type="number" min="0" value={discountMaxUses} onChange={e => setDiscountMaxUses(e.target.value)} className="mt-1" placeholder={t('Không giới hạn')} />
+                  </div>
+                  <Button onClick={() => saveDiscount.mutate()} disabled={!discountCode.trim()}>{editingDiscount ? t('Cập nhật') : t('Tạo')}</Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* ── Activity Logs Modal ── */}
+            <Dialog open={settingsModal === 'logs'} onOpenChange={(open) => !open && setSettingsModal(null)}>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>{t('Nhật ký hoạt động')}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3 pt-2">
+                  <p className="text-sm text-muted-foreground">{t('Tất cả hoạt động được ghi lại tự động. Tải xuống để xem chi tiết.')}</p>
                   <Button
                     size="sm"
                     variant="outline"
@@ -2989,44 +3044,175 @@ const AdminDashboard = () => {
                   >
                     <Download className="h-3.5 w-3.5 mr-1" /> {t('Tải CSV')}
                   </Button>
-                  {!activityLogs?.length && <p className="text-xs text-muted-foreground mt-2">{t('Chưa có nhật ký nào')}</p>}
-                </CardContent>
-              </Card>
-            )}
+                  {!activityLogs?.length && <p className="text-xs text-muted-foreground">{t('Chưa có nhật ký nào')}</p>}
+                </div>
+              </DialogContent>
+            </Dialog>
 
-            {/* ── Software Info ── */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">{t('Thông tin phần mềm')}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">{t('Phiên bản')}</span>
-                  <span className="text-sm font-mono">1.0.0</span>
+            {/* ── Software Info Modal ── */}
+            <Dialog open={settingsModal === 'software'} onOpenChange={(open) => !open && setSettingsModal(null)}>
+              <DialogContent className="max-w-sm">
+                <DialogHeader>
+                  <DialogTitle>{t('Thông tin phần mềm')}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">{t('Phiên bản')}</span>
+                    <span className="text-sm font-mono">1.0.0</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">{t('Nhà phát triển')}</span>
+                    <span className="text-sm font-medium">Olive Marketing</span>
+                  </div>
+                  <div className="text-center pt-3 border-t border-border/40">
+                    <p className="text-xs text-muted-foreground">
+                      Crafted with <span className="text-red-400">&#9829;</span> in Melbourne
+                    </p>
+                  </div>
+                  <div className="pt-2">
+                    <Link to="/software-terms" className="text-xs text-primary hover:underline">{t('Xem điều khoản phần mềm')}</Link>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">{t('Nhà phát triển')}</span>
-                  <span className="text-sm font-medium">Olive Marketing</span>
-                </div>
-                <div className="text-center pt-3 border-t border-border/40">
-                  <p className="text-xs text-muted-foreground">
-                    Crafted with <span className="text-red-400">&#9829;</span> in Melbourne
-                  </p>
-                </div>
-                <div className="pt-2">
-                  <Link to="/software-terms" className="text-xs text-primary hover:underline">{t('Xem điều khoản phần mềm')}</Link>
-                </div>
-              </CardContent>
-            </Card>
+              </DialogContent>
+            </Dialog>
 
-            {/* ── Danger Zone: Delete All Data (Admin only) ── */}
-            {isAdmin && (
-              <Card className="border-destructive/30">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base text-destructive">{t('Vùng nguy hiểm')}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground mb-4">{t('Xoá tất cả dữ liệu lịch hẹn, thanh toán, ngày nghỉ. Hành động không thể hoàn tác.')}</p>
+            {/* ── Notifications & Reminders Modal ── */}
+            <Dialog open={settingsModal === 'notifications'} onOpenChange={(open) => !open && setSettingsModal(null)}>
+              <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>{t('Thông báo & Nhắc lịch')}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-6 pt-2">
+                  {/* Twilio SMS */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                      <p className="font-medium text-sm">SMS (Twilio)</p>
+                    </div>
+                    <div>
+                      <Label>{t('Số điện thoại gửi SMS')} (Twilio)</Label>
+                      <Input
+                        value={smsNumber}
+                        onChange={e => setSmsNumber(e.target.value)}
+                        placeholder="+61 400 000 000"
+                        className="mt-1"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">{t('Số Twilio dùng để gửi SMS nhắc lịch cho khách')}</p>
+                    </div>
+                    <Button size="sm" onClick={() => saveSmsNumber.mutate()}>{t('Lưu số SMS')}</Button>
+                    {twilioNumber && (
+                      <div className="bg-muted rounded-lg p-3 text-sm">
+                        <p className="text-muted-foreground">{t('Số SMS hiện tại')}: <strong>{twilioNumber}</strong></p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="border-t border-border/40" />
+
+                  {/* WhatsApp */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-sm">{t('Gửi qua WhatsApp')}</p>
+                      <p className="text-xs text-muted-foreground">{t('Gửi thêm tin nhắn WhatsApp cùng với SMS')}</p>
+                    </div>
+                    <Switch checked={whatsappEnabled === true} onCheckedChange={(v) => toggleWhatsapp.mutate(v)} />
+                  </div>
+                  <div className="border-t border-border/40" />
+
+                  {/* Reminder toggles */}
+                  <div className="space-y-4">
+                    <p className="font-medium text-sm">{t('Nhắc lịch tự động')}</p>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm">{t('Nhắc qua Email')}</p>
+                        <p className="text-xs text-muted-foreground">{t('Gửi email nhắc lịch trước giờ hẹn')}</p>
+                      </div>
+                      <Switch checked={reminderEmailEnabled} onCheckedChange={setReminderEmailEnabled} />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm">{t('Nhắc qua SMS')}</p>
+                        <p className="text-xs text-muted-foreground">{t('Gửi SMS nhắc lịch trước giờ hẹn')}</p>
+                      </div>
+                      <Switch checked={reminderSmsEnabled} onCheckedChange={setReminderSmsEnabled} />
+                    </div>
+                  </div>
+                  <div className="border-t border-border/40" />
+
+                  {/* Reminder intervals */}
+                  <div className="space-y-3">
+                    <p className="font-medium text-sm">{t('Thời gian nhắc')}</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>{t('Nhắc lần 1 (giờ)')}</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="72"
+                          value={reminder1stHours}
+                          onChange={e => setReminder1stHours(e.target.value)}
+                          className="mt-1"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">{t('VD: 24 = nhắc trước 24 giờ')}</p>
+                      </div>
+                      <div>
+                        <Label>{t('Nhắc lần 2 (giờ)')}</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="24"
+                          value={reminder2ndHours}
+                          onChange={e => setReminder2ndHours(e.target.value)}
+                          className="mt-1"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">{t('VD: 1 = nhắc trước 1 giờ')}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-border/40" />
+
+                  {/* New booking SMS notification to owner */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Bell className="h-4 w-4 text-muted-foreground" />
+                      <p className="font-medium text-sm">{t('Thông báo lịch hẹn mới')}</p>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm">{t('SMS khi có lịch mới')}</p>
+                        <p className="text-xs text-muted-foreground">{t('Gửi SMS đến chủ tiệm khi khách đặt lịch mới')}</p>
+                      </div>
+                      <Switch checked={notifySmsEnabled} onCheckedChange={setNotifySmsEnabled} />
+                    </div>
+                    {notifySmsEnabled && (
+                      <div>
+                        <Label>{t('Số điện thoại nhận thông báo')}</Label>
+                        <Input
+                          value={notifyPhone}
+                          onChange={e => setNotifyPhone(e.target.value)}
+                          placeholder="+61 400 000 000"
+                          className="mt-1"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">{t('Số điện thoại chủ tiệm nhận SMS khi có lịch hẹn mới')}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <Button size="sm" onClick={() => { saveReminderSettings.mutate(); setSettingsModal(null); }}>
+                    {t('Lưu cài đặt thông báo')}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* ── Danger Zone Modal ── */}
+            <Dialog open={settingsModal === 'danger'} onOpenChange={(open) => !open && setSettingsModal(null)}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="text-destructive">{t('Vùng nguy hiểm')}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-2">
+                  <p className="text-sm text-muted-foreground">{t('Xoá tất cả dữ liệu lịch hẹn, thanh toán, ngày nghỉ. Hành động không thể hoàn tác.')}</p>
                   <Dialog open={deleteDialog} onOpenChange={setDeleteDialog}>
                     <DialogTrigger asChild>
                       <Button variant="destructive" size="sm">
@@ -3056,9 +3242,9 @@ const AdminDashboard = () => {
                       </div>
                     </DialogContent>
                   </Dialog>
-                </CardContent>
-              </Card>
-            )}
+                </div>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
           )}
           </div>
