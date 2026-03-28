@@ -134,6 +134,10 @@ export function BookingStats({ className }: StatsProps) {
     const todayNext = confirmed.filter(b => b.booking_date === todayStr)
       .sort((a, b) => a.start_time.localeCompare(b.start_time));
 
+    const todayBookings = active.filter(b => b.booking_date === todayStr);
+    const todayCustomers = todayBookings.length;
+    const todayRevenue = todayBookings.reduce((sum, b) => sum + ((b as any).services?.price || 0), 0);
+
     const monthStart = startOfMonth(today);
     const monthEnd = endOfMonth(today);
     const lastMonthStart = startOfMonth(subDays(monthStart, 1));
@@ -182,6 +186,8 @@ export function BookingStats({ className }: StatsProps) {
       upcomingBookings,
       recentActivity,
       todayNext,
+      todayCustomers,
+      todayRevenue,
       topServices,
       topTeam,
     };
@@ -266,6 +272,32 @@ export function BookingStats({ className }: StatsProps) {
             </Popover>
           </div>
         )}
+      </div>
+
+      {/* ── Today Highlight Cards ── */}
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <Card className="card-hover border-border/50">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center">
+                <Users className="h-4.5 w-4.5 text-primary" />
+              </div>
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{t('Khách hôm nay')}</p>
+            </div>
+            <p className="text-3xl font-semibold font-serif tracking-tight text-foreground">{stats.todayCustomers}</p>
+          </CardContent>
+        </Card>
+        <Card className="card-hover border-border/50">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center">
+                <DollarSign className="h-4.5 w-4.5 text-primary" />
+              </div>
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{t('Doanh thu hôm nay')}</p>
+            </div>
+            <p className="text-3xl font-semibold font-serif tracking-tight text-foreground">{formatPrice(stats.todayRevenue)}</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* ── KPI Cards ── */}
@@ -554,7 +586,7 @@ export function BookingStats({ className }: StatsProps) {
                         </div>
                         <span className="text-sm font-semibold tabular-nums text-foreground">{formatPrice(tm.revenue)}</span>
                       </div>
-                      <div className="h-1.5 w-full rounded-full bg-primary/10 overflow-hidden ml-[46px]">
+                      <div className="h-1.5 rounded-full bg-primary/10 overflow-hidden" style={{ marginLeft: '46px', maxWidth: 'calc(100% - 46px)' }}>
                         <div
                           className={cn("h-full rounded-full transition-all duration-500", i === 0 ? "bg-amber-400/70" : "bg-primary/40")}
                           style={{ width: `${(tm.revenue / maxTeamRevenue) * 100}%` }}

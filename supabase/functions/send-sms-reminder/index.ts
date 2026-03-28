@@ -12,6 +12,44 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Auth check: require admin or employee role
+  const authHeader = req.headers.get("authorization");
+  if (!authHeader) {
+    return new Response(JSON.stringify({ error: "Missing auth" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const authUrl = Deno.env.get("SUPABASE_URL")!;
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+  const callerClient = createClient(authUrl, anonKey, {
+    global: { headers: { Authorization: authHeader } },
+  });
+  const { data: { user: caller } } = await callerClient.auth.getUser();
+  if (!caller) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const { data: isAdmin } = await callerClient.rpc("has_role", {
+    _user_id: caller.id,
+    _role: "admin",
+  });
+  const { data: isEmployee } = await callerClient.rpc("has_role", {
+    _user_id: caller.id,
+    _role: "employee",
+  });
+
+  if (!isAdmin && !isEmployee) {
+    return new Response(JSON.stringify({ error: "Access denied" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 

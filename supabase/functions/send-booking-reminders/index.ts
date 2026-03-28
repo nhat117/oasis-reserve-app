@@ -10,6 +10,44 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders })
   }
 
+  // Auth check: require admin or employee role
+  const authHeader = req.headers.get('authorization')
+  if (!authHeader) {
+    return new Response(JSON.stringify({ error: 'Missing auth' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+
+  const authAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
+  const authUrl = Deno.env.get('SUPABASE_URL')!
+  const callerClient = createClient(authUrl, authAnonKey, {
+    global: { headers: { Authorization: authHeader } },
+  })
+  const { data: { user: caller } } = await callerClient.auth.getUser()
+  if (!caller) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+
+  const { data: isAdmin } = await callerClient.rpc('has_role', {
+    _user_id: caller.id,
+    _role: 'admin',
+  })
+  const { data: isEmployee } = await callerClient.rpc('has_role', {
+    _user_id: caller.id,
+    _role: 'employee',
+  })
+
+  if (!isAdmin && !isEmployee) {
+    return new Response(JSON.stringify({ error: 'Access denied' }), {
+      status: 403,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -16,7 +16,7 @@ import { BookingCalendar } from '@/components/BookingCalendar';
 import { LogoUpload as LogoUploadComponent } from '@/components/LogoUpload';
 import { Textarea } from '@/components/ui/textarea';
 import { BookingStats } from '@/components/BookingStats';
-import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, PanelLeftClose, PanelLeft } from 'lucide-react';
+import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -29,6 +29,29 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 
 const CURRENCIES = ['VND', 'USD', 'EUR', 'AUD'] as const;
 
+const resizeImage = (file: File, maxW = 800, maxH = 600, quality = 0.85): Promise<File> =>
+  new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > maxW || height > maxH) {
+        const ratio = Math.min(maxW / width, maxH / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => resolve(new File([blob!], file.name.replace(/\.\w+$/, '.webp'), { type: 'image/webp' })),
+        'image/webp',
+        quality
+      );
+    };
+    img.src = URL.createObjectURL(file);
+  });
+
 const AdminDashboard = () => {
   const { user, isAdmin, isEmployee, isStaff, userRole, loading, signOut, logActivity } = useAuth();
   const { toast } = useToast();
@@ -38,6 +61,24 @@ const AdminDashboard = () => {
   const requireAdmin = () => {
     if (!isAdmin) throw new Error('Admin only');
   };
+
+  // Real-time notification for new bookings
+  useEffect(() => {
+    if (!isStaff) return;
+    const channel = supabase
+      .channel('new-bookings')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bookings' }, (payload) => {
+        const b = payload.new as any;
+        toast({
+          title: t('Lịch hẹn mới!'),
+          description: `${b.customer_name} — ${b.booking_date} ${b.start_time}`,
+        });
+        queryClient.invalidateQueries({ queryKey: ['admin-bookings'] });
+        queryClient.invalidateQueries({ queryKey: ['stats-bookings'] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [isStaff]);
 
   const AdminOnlyButton = ({ children, onClick, variant = 'ghost', size = 'sm', className = '' }: {
     children: React.ReactNode;
@@ -79,9 +120,15 @@ const AdminDashboard = () => {
   const [serviceDesc, setServiceDesc] = useState('');
   const [serviceDuration, setServiceDuration] = useState('60');
   const [servicePrice, setServicePrice] = useState('0');
+  const [serviceImageFile, setServiceImageFile] = useState<File | null>(null);
+  const [serviceImagePreview, setServiceImagePreview] = useState<string | null>(null);
+  const serviceImageRef = useRef<HTMLInputElement>(null);
 
   // Therapist form state
   const [therapistDialog, setTherapistDialog] = useState(false);
+  const [therapistInfoDialog, setTherapistInfoDialog] = useState(false);
+  const [viewingTherapist, setViewingTherapist] = useState<any>(null);
+  const [unavailMonthFilter, setUnavailMonthFilter] = useState(format(new Date(), 'yyyy-MM'));
   const [editingTherapist, setEditingTherapist] = useState<any>(null);
   const [therapistName, setTherapistName] = useState('');
   const [therapistPhone, setTherapistPhone] = useState('');
@@ -124,6 +171,11 @@ const AdminDashboard = () => {
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [newAdminRole, setNewAdminRole] = useState<'admin' | 'employee'>('employee');
   const [creatingAdmin, setCreatingAdmin] = useState(false);
+  const [accountDialog, setAccountDialog] = useState(false);
+  const [editAccountDialog, setEditAccountDialog] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<any>(null);
+  const [editAccountPassword, setEditAccountPassword] = useState('');
+  const [savingPassword, setSavingPassword] = useState(false);
   const [deletingAdminId, setDeletingAdminId] = useState<string | null>(null);
 
   // Currency settings state
@@ -135,6 +187,18 @@ const AdminDashboard = () => {
   // Shop info state
   const [shopPhone, setShopPhone] = useState('');
   const [shopAddress, setShopAddress] = useState('');
+  const [openingHours, setOpeningHours] = useState('');
+  const [openDays, setOpenDays] = useState<number[]>([1, 2, 3, 4, 5, 6]); // Mon=1..Sun=7
+  const [openTime, setOpenTime] = useState('09:00');
+  const [closeTime, setCloseTime] = useState('18:00');
+  const [shopState, setShopState] = useState('VIC');
+  const [showHolidayClosed, setShowHolidayClosed] = useState(true);
+  const [heroMode, setHeroMode] = useState<'video' | 'image'>('video');
+  const [heroMediaFile, setHeroMediaFile] = useState<File | null>(null);
+  const [heroMediaPreview, setHeroMediaPreview] = useState<string | null>(null);
+  const [heroMediaPath, setHeroMediaPath] = useState('');
+  const [savingHero, setSavingHero] = useState(false);
+  const heroMediaRef = useRef<HTMLInputElement>(null);
 
   // Resend email state
   const [resendApiKey, setResendApiKey] = useState('');
@@ -366,7 +430,7 @@ const AdminDashboard = () => {
     queryKey: ['shop-info-settings'],
     queryFn: async () => {
       const { data, error } = await supabase.from('app_settings').select('key, value')
-        .in('key', ['shop_phone', 'shop_address']);
+        .in('key', ['shop_phone', 'shop_address', 'opening_hours', 'open_days', 'open_time', 'close_time', 'shop_state', 'show_holiday_closed', 'hero_mode', 'hero_media_path']);
       if (error) throw error;
       const map: Record<string, string> = {};
       data?.forEach(r => { map[r.key] = r.value; });
@@ -378,6 +442,18 @@ const AdminDashboard = () => {
     if (shopInfoSettings) {
       setShopPhone(shopInfoSettings['shop_phone'] || '');
       setShopAddress(shopInfoSettings['shop_address'] || '');
+      setOpeningHours(shopInfoSettings['opening_hours'] || '');
+      if (shopInfoSettings['open_days']) setOpenDays(JSON.parse(shopInfoSettings['open_days']));
+      if (shopInfoSettings['open_time']) setOpenTime(shopInfoSettings['open_time']);
+      if (shopInfoSettings['close_time']) setCloseTime(shopInfoSettings['close_time']);
+      if (shopInfoSettings['shop_state']) setShopState(shopInfoSettings['shop_state']);
+      if (shopInfoSettings['show_holiday_closed'] !== undefined) setShowHolidayClosed(shopInfoSettings['show_holiday_closed'] === 'true');
+      if (shopInfoSettings['hero_mode']) setHeroMode(shopInfoSettings['hero_mode'] as 'video' | 'image');
+      if (shopInfoSettings['hero_media_path']) {
+        setHeroMediaPath(shopInfoSettings['hero_media_path']);
+        const { data } = supabase.storage.from('hero-media').getPublicUrl(shopInfoSettings['hero_media_path']);
+        setHeroMediaPreview(data.publicUrl);
+      }
     }
   }, [shopInfoSettings]);
 
@@ -388,6 +464,12 @@ const AdminDashboard = () => {
         { key: 'spa_name', value: spaName },
         { key: 'shop_phone', value: shopPhone },
         { key: 'shop_address', value: shopAddress },
+        { key: 'opening_hours', value: openingHours },
+        { key: 'open_days', value: JSON.stringify(openDays) },
+        { key: 'open_time', value: openTime },
+        { key: 'close_time', value: closeTime },
+        { key: 'shop_state', value: shopState },
+        { key: 'show_holiday_closed', value: String(showHolidayClosed) },
       ];
       for (const row of rows) {
         const { error } = await supabase.from('app_settings').upsert(row);
@@ -920,7 +1002,22 @@ const AdminDashboard = () => {
   const saveService = useMutation({
     mutationFn: async () => {
       if (editingService) requireAdmin();
-      const payload = { name: serviceName, description: serviceDesc || null, duration_minutes: parseInt(serviceDuration), price: parseInt(servicePrice) };
+      let imagePath = editingService?.image_path || null;
+
+      // Upload image if a new file is selected
+      if (serviceImageFile) {
+        const ext = serviceImageFile.name.split('.').pop();
+        const path = `service-${Date.now()}.${ext}`;
+        // Remove old image if replacing
+        if (imagePath) {
+          await supabase.storage.from('service-images').remove([imagePath]);
+        }
+        const { error: uploadErr } = await supabase.storage.from('service-images').upload(path, serviceImageFile, { upsert: true });
+        if (uploadErr) throw uploadErr;
+        imagePath = path;
+      }
+
+      const payload = { name: serviceName, description: serviceDesc || null, duration_minutes: parseInt(serviceDuration), price: parseInt(servicePrice), image_path: imagePath };
       if (editingService) {
         const { error } = await supabase.from('services').update(payload).eq('id', editingService.id);
         if (error) throw error;
@@ -932,7 +1029,10 @@ const AdminDashboard = () => {
     onSuccess: () => {
       logActivity(editingService ? 'update_service' : 'create_service', `Service: ${serviceName}`);
       queryClient.invalidateQueries({ queryKey: ['admin-services'] });
+      queryClient.invalidateQueries({ queryKey: ['services'] });
       setServiceDialog(false);
+      setServiceImageFile(null);
+      setServiceImagePreview(null);
       toast({ title: editingService ? t('Đã cập nhật dịch vụ') : t('Đã thêm dịch vụ') });
     },
   });
@@ -1000,6 +1100,13 @@ const AdminDashboard = () => {
     setServiceDesc(service?.description || '');
     setServiceDuration(String(service?.duration_minutes || 60));
     setServicePrice(String(service?.price || 0));
+    setServiceImageFile(null);
+    if (service?.image_path) {
+      const { data } = supabase.storage.from('service-images').getPublicUrl(service.image_path);
+      setServiceImagePreview(data.publicUrl);
+    } else {
+      setServiceImagePreview(null);
+    }
     setServiceDialog(true);
   };
 
@@ -1156,20 +1263,22 @@ const AdminDashboard = () => {
           "hidden sm:flex fixed inset-y-0 left-0 z-40 flex-col bg-[#f9f5f0] border-r border-[#ebe3d9] transition-all duration-300 ease-in-out",
           sidebarOpen ? "w-[220px]" : "w-[68px]"
         )}>
+          {/* Floating toggle on sidebar edge */}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="absolute -right-3 top-7 z-50 h-6 w-6 rounded-full bg-white border border-[#ebe3d9] shadow-sm flex items-center justify-center text-[#8b7355] hover:text-[#5a3d2e] hover:bg-[#f7f2ec] transition-all hover:scale-110"
+          >
+            {sidebarOpen ? <ChevronLeft className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          </button>
+
           {/* Sidebar header / brand */}
-          <div className="px-3 py-4 border-b border-[#ebe3d9] flex items-center justify-between">
-            <Link to="/" className="flex items-center gap-2.5 overflow-hidden">
+          <div className={cn("border-b border-[#ebe3d9]", sidebarOpen ? "px-3 py-4" : "px-2 py-4 flex flex-col items-center")}>
+            <Link to="/" className={cn("flex items-center overflow-hidden", sidebarOpen ? "gap-2.5" : "justify-center")}>
               <div className="h-8 w-8 shrink-0 rounded-lg bg-gradient-to-br from-amber-700 to-yellow-800 flex items-center justify-center">
                 <Leaf className="h-4 w-4 text-white" />
               </div>
-              <span className={cn("font-semibold text-[15px] text-[#3d2b1f] tracking-tight whitespace-nowrap transition-opacity duration-200", sidebarOpen ? "opacity-100" : "opacity-0 w-0")}>{spaName}</span>
+              {sidebarOpen && <span className="font-semibold text-[15px] text-[#3d2b1f] tracking-tight whitespace-nowrap truncate">{spaName}</span>}
             </Link>
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="h-7 w-7 shrink-0 flex items-center justify-center rounded-md text-[#8b7355] hover:text-[#5a3d2e] hover:bg-[#ede4d8] transition-colors"
-            >
-              {sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
-            </button>
           </div>
 
           {/* Sidebar nav */}
@@ -1182,12 +1291,13 @@ const AdminDashboard = () => {
                       <TabsTrigger
                         value={item.value}
                         className={cn(
-                          "w-full justify-start gap-3 rounded-lg py-2.5 text-[13px] font-medium text-[#8b7355] hover:text-[#5a3d2e] hover:bg-[#f0e8dd] transition-all data-[state=active]:bg-[#ede4d8] data-[state=active]:text-[#5a3d2e] data-[state=active]:shadow-none data-[state=active]:font-semibold",
+                          "group relative w-full justify-start gap-3 rounded-lg py-2.5 text-[13px] font-medium text-[#8b7355] hover:text-[#5a3d2e] hover:bg-[#f0e8dd] transition-all data-[state=active]:bg-[#ede4d8] data-[state=active]:text-[#5a3d2e] data-[state=active]:shadow-none data-[state=active]:font-semibold",
                           sidebarOpen ? "px-3" : "px-0 justify-center"
                         )}
                       >
-                        <item.icon className="h-[18px] w-[18px] shrink-0" />
-                        <span className={cn("whitespace-nowrap transition-opacity duration-200", sidebarOpen ? "opacity-100" : "opacity-0 w-0 overflow-hidden")}>{item.label}</span>
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-[#6b4c3b] opacity-0 transition-all group-data-[state=active]:opacity-100" />
+                        <item.icon className="h-[18px] w-[18px] shrink-0 transition-transform group-data-[state=active]:scale-110" />
+                        {sidebarOpen && <span className="whitespace-nowrap">{item.label}</span>}
                       </TabsTrigger>
                     </TooltipTrigger>
                     {!sidebarOpen && (
@@ -1820,6 +1930,38 @@ const AdminDashboard = () => {
                         <div><Label>{t('Thời gian (phút)')}</Label><Input type="number" value={serviceDuration} onChange={e => setServiceDuration(e.target.value)} className="mt-1" /></div>
                         <div><Label>{t('Giá (AUD)')}</Label><Input type="number" value={servicePrice} onChange={e => setServicePrice(e.target.value)} className="mt-1" /></div>
                       </div>
+                      <div>
+                        <Label>{t('Hình ảnh')}</Label>
+                        <div className="mt-1 space-y-2">
+                          {serviceImagePreview && (
+                            <div className="relative w-full aspect-[4/3] rounded-lg overflow-hidden border border-[#ebe3d9]">
+                              <img src={serviceImagePreview} alt="Preview" className="w-full h-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => { setServiceImageFile(null); setServiceImagePreview(null); }}
+                                className="absolute top-1 right-1 h-6 w-6 rounded-full bg-black/50 text-white flex items-center justify-center text-xs hover:bg-black/70"
+                              >×</button>
+                            </div>
+                          )}
+                          <input
+                            ref={serviceImageRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async e => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const resized = await resizeImage(file);
+                                setServiceImageFile(resized);
+                                setServiceImagePreview(URL.createObjectURL(resized));
+                              }
+                            }}
+                          />
+                          <Button type="button" variant="outline" size="sm" onClick={() => serviceImageRef.current?.click()}>
+                            {serviceImagePreview ? t('Đổi ảnh') : t('Chọn ảnh')}
+                          </Button>
+                        </div>
+                      </div>
                       <Button className="w-full" onClick={() => saveService.mutate()} disabled={!serviceName.trim()}>
                         {editingService ? t('Cập nhật') : t('Thêm mới')}
                       </Button>
@@ -1861,7 +2003,7 @@ const AdminDashboard = () => {
 
           {/* Therapists Tab */}
           <TabsContent value="therapists" className="space-y-6">
-            {/* Unavailability */}
+            {/* Unavailability — compact add form + per-therapist summary */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">{t('Ngày nghỉ / Không khả dụng')}</CardTitle>
@@ -1895,18 +2037,27 @@ const AdminDashboard = () => {
                     <Plus className="h-4 w-4 mr-1" /> {t('Thêm ngày nghỉ')}
                   </Button>
                 </div>
-                {unavailabilities && unavailabilities.length > 0 && (
-                  <div className="space-y-1">
-                    {unavailabilities.filter(u => u.unavailable_date >= format(new Date(), 'yyyy-MM-dd')).map(u => (
-                      <div key={u.id} className="flex items-center justify-between py-1.5 px-3 bg-muted rounded text-sm">
-                        <span><strong>{(u as any).therapists?.name}</strong> — {u.unavailable_date}</span>
-                        <AdminOnlyButton variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeUnavailability.mutate(u.id)}>
-                          <X className="h-3 w-3" />
-                        </AdminOnlyButton>
-                      </div>
-                    ))}
+                {/* Per-therapist summary chips */}
+                {therapists && unavailabilities && (
+                  <div className="flex flex-wrap gap-2">
+                    {therapists.map(th => {
+                      const todayStr = format(new Date(), 'yyyy-MM-dd');
+                      const count = unavailabilities.filter((u: any) => u.therapist_id === th.id && u.unavailable_date >= todayStr).length;
+                      if (!count) return null;
+                      return (
+                        <button
+                          key={th.id}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border/60 text-xs hover:bg-muted/50 transition-colors"
+                          onClick={() => { setViewingTherapist(th); setUnavailMonthFilter(format(new Date(), 'yyyy-MM')); setTherapistInfoDialog(true); }}
+                        >
+                          <span className="font-medium">{th.name}</span>
+                          <Badge variant="secondary" className="h-5 min-w-[20px] px-1.5 text-[10px]">{count}</Badge>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
+                <p className="text-xs text-muted-foreground">{t('Bấm vào tên thợ trong bảng bên dưới để xem chi tiết ngày nghỉ')}</p>
               </CardContent>
             </Card>
 
@@ -1940,17 +2091,14 @@ const AdminDashboard = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Input placeholder={t('Lý do (tuỳ chọn)')} value={holidayReason} onChange={e => setHolidayReason(e.target.value)} className="w-[180px]" />
                   <Button size="sm" disabled={!holidayDate}
                     onClick={() => {
                       if (holidayDate) {
                         addHoliday.mutate({
                           date: format(holidayDate, 'yyyy-MM-dd'),
-                          reason: holidayReason || undefined,
                           earlyCloseHour: earlyCloseHour !== 'none' ? parseInt(earlyCloseHour) : undefined,
                         });
                         setHolidayDate(undefined);
-                        setHolidayReason('');
                         setEarlyCloseHour('none');
                       }
                     }}>
@@ -1964,7 +2112,6 @@ const AdminDashboard = () => {
                         <span>
                           <strong>{h.holiday_date}</strong>
                           {h.early_close_hour ? ` — ${t('Đóng cửa lúc')} ${h.early_close_hour}:00` : ` — ${t('Nghỉ cả ngày')}`}
-                          {h.reason ? ` (${h.reason})` : ''}
                         </span>
                         <AdminOnlyButton variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeHoliday.mutate(h.id)}>
                           <X className="h-3 w-3" />
@@ -2023,7 +2170,12 @@ const AdminDashboard = () => {
                   <TableBody>
                     {therapists?.map(th => (
                       <TableRow key={th.id}>
-                        <TableCell className="font-medium">{th.name}</TableCell>
+                        <TableCell className="font-medium">
+                          <button
+                            className="text-left hover:text-[#6b4c3b] hover:underline underline-offset-2 transition-colors"
+                            onClick={() => { setViewingTherapist(th); setTherapistInfoDialog(true); }}
+                          >{th.name}</button>
+                        </TableCell>
                         <TableCell className="text-sm">{(th as any).email || '—'}</TableCell>
                         <TableCell>{th.phone || '—'}</TableCell>
                         <TableCell className="text-sm">
@@ -2047,6 +2199,71 @@ const AdminDashboard = () => {
             </Card>
           </TabsContent>
 
+          {/* Therapist Info Dialog */}
+          <Dialog open={therapistInfoDialog} onOpenChange={setTherapistInfoDialog}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{viewingTherapist?.name}</DialogTitle>
+                <DialogDescription>{t('Thông tin và ngày nghỉ')}</DialogDescription>
+              </DialogHeader>
+              {viewingTherapist && (
+                <div className="space-y-4 pt-2">
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-muted-foreground text-xs">{t('Email')}</p>
+                      <p>{(viewingTherapist as any).email || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">{t('SĐT')}</p>
+                      <p>{viewingTherapist.phone || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">{t('Giờ làm việc')}</p>
+                      <p>{viewingTherapist.start_hour}:00 – {viewingTherapist.end_hour}:00</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">{t('Trạng thái')}</p>
+                      <Badge variant={viewingTherapist.is_active ? 'default' : 'secondary'}>
+                        {viewingTherapist.is_active ? t('Hoạt động') : t('Tắt')}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="border-t pt-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-medium">{t('Ngày nghỉ')}</p>
+                      <Input
+                        type="month"
+                        value={unavailMonthFilter}
+                        onChange={e => setUnavailMonthFilter(e.target.value)}
+                        className="w-[160px] h-8 text-xs"
+                      />
+                    </div>
+                    {(() => {
+                      const filtered = unavailabilities?.filter(
+                        (u: any) => u.therapist_id === viewingTherapist.id && u.unavailable_date.startsWith(unavailMonthFilter)
+                      ) || [];
+                      if (!filtered.length) return <p className="text-sm text-muted-foreground italic">{t('Không có ngày nghỉ trong tháng này')}</p>;
+                      return (
+                        <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
+                          {filtered.map((u: any) => (
+                            <div key={u.id} className="flex items-center justify-between py-1.5 px-3 bg-muted/50 rounded text-sm">
+                              <span>{u.unavailable_date}{u.reason ? ` — ${u.reason}` : ''}</span>
+                              {isAdmin && (
+                                <button className="text-destructive hover:text-destructive/80 ml-2 shrink-0" onClick={() => removeUnavailability.mutate(u.id)}>
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
+
           {/* Settings Tab */}
           {isAdmin && (
           <TabsContent value="settings" className="space-y-6">
@@ -2068,9 +2285,69 @@ const AdminDashboard = () => {
                   <Label>{t('Địa chỉ')}</Label>
                   <Input value={shopAddress} onChange={e => setShopAddress(e.target.value)} className="mt-1" placeholder={t('Nhập địa chỉ tiệm')} />
                 </div>
+                <div>
+                  <Label>{t('Ngày mở cửa')}</Label>
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    {[
+                      { day: 1, label: t('T2') },
+                      { day: 2, label: t('T3') },
+                      { day: 3, label: t('T4') },
+                      { day: 4, label: t('T5') },
+                      { day: 5, label: t('T6') },
+                      { day: 6, label: t('T7') },
+                      { day: 7, label: t('CN') },
+                    ].map(({ day, label }) => (
+                      <button
+                        key={day}
+                        type="button"
+                        className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                          openDays.includes(day)
+                            ? 'bg-[#6b4c3b] text-white border-[#6b4c3b]'
+                            : 'bg-white text-muted-foreground border-border hover:border-[#8b7355]'
+                        }`}
+                        onClick={() => setOpenDays(prev =>
+                          prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day].sort()
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>{t('Giờ mở cửa')}</Label>
+                    <Input type="time" value={openTime} onChange={e => setOpenTime(e.target.value)} className="mt-1" />
+                  </div>
+                  <div>
+                    <Label>{t('Giờ đóng cửa')}</Label>
+                    <Input type="time" value={closeTime} onChange={e => setCloseTime(e.target.value)} className="mt-1" />
+                  </div>
+                </div>
+                <div>
+                  <Label>{t('Bang/Tiểu bang')}</Label>
+                  <select
+                    value={shopState}
+                    onChange={e => setShopState(e.target.value)}
+                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    {['NSW', 'VIC', 'QLD', 'SA', 'WA', 'TAS', 'NT', 'ACT'].map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-1">{t('Dùng để hiển thị ngày lễ công cộng')}</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">{t('Hiển thị "Đóng cửa" ngày lễ')}</p>
+                    <p className="text-xs text-muted-foreground">{t('Tự động hiển thị trạng thái đóng cửa vào ngày lễ công cộng')}</p>
+                  </div>
+                  <Switch checked={showHolidayClosed} onCheckedChange={setShowHolidayClosed} />
+                </div>
                 <Button size="sm" onClick={() => saveShopInfo.mutate()}>{t('Lưu thông tin')}</Button>
               </CardContent>
             </Card>
+
 
             {/* Random therapist toggle */}
             <Card>
@@ -2083,125 +2360,341 @@ const AdminDashboard = () => {
               </CardContent>
             </Card>
 
-            {/* Currency Settings */}
+
+            {/* Card Surcharge Settings */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">{t('Cài đặt tiền tệ')}</CardTitle>
+                <CardTitle className="text-base">{t('Phụ phí thẻ tín dụng')}</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3">
                 <div>
-                  <Label>{t('Đơn vị tiền mặc định (cho khách English)')}</Label>
-                  <Select value={defaultCurrency} onValueChange={setDefaultCurrency}>
-                    <SelectTrigger className="mt-1 w-[120px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {CURRENCIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <Label className="text-xs">1 VNĐ → USD</Label>
-                    <Input type="text" value={exchangeUSD} onChange={e => setExchangeUSD(e.target.value)} className="mt-1" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">1 VNĐ → EUR</Label>
-                    <Input type="text" value={exchangeEUR} onChange={e => setExchangeEUR(e.target.value)} className="mt-1" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">1 VNĐ → AUD</Label>
-                    <Input type="text" value={exchangeAUD} onChange={e => setExchangeAUD(e.target.value)} className="mt-1" />
-                  </div>
-                </div>
-                <Button size="sm" onClick={() => saveCurrencySettings.mutate()}>{t('Lưu cài đặt tiền tệ')}</Button>
-              </CardContent>
-            </Card>
-
-            {/* SMS & WhatsApp Notification Settings */}
-            <Card>
-              <CardContent className="p-4 space-y-3">
-                <div>
-                  <p className="font-medium text-sm">{t('Nhắc lịch qua SMS & WhatsApp')}</p>
-                  <p className="text-xs text-muted-foreground">{t('Gửi SMS/WhatsApp nhắc khách hàng 1 tiếng trước lịch hẹn')}</p>
-                </div>
-                <div className="flex gap-2">
+                  <Label>{t('Phần trăm phụ phí (%)')}</Label>
                   <Input
-                    placeholder={twilioNumber || t("Số Twilio (vd: +84123456789)")}
-                    value={smsNumber}
-                    onChange={e => setSmsNumber(e.target.value)}
-                    className="flex-1"
+                    type="number"
+                    min="0"
+                    max="20"
+                    step="0.1"
+                    value={cardSurchargePercent}
+                    onChange={e => setCardSurchargePercent(e.target.value)}
+                    className="mt-1 w-[120px]"
+                    placeholder="0"
                   />
-                  <Button size="sm" disabled={!smsNumber.trim()} onClick={() => { saveSmsNumber.mutate(smsNumber.trim()); setSmsNumber(''); }}>
-                    {t('Lưu')}
-                  </Button>
+                  <p className="text-xs text-muted-foreground mt-1">{t('Phụ phí sẽ được tự động cộng thêm khi khách thanh toán bằng thẻ')}</p>
                 </div>
-                {twilioNumber && (
-                  <p className="text-xs text-muted-foreground">{t('Số hiện tại')}: <strong>{twilioNumber}</strong></p>
-                )}
-                <div className="flex items-center justify-between pt-2 border-t">
-                  <div>
-                    <p className="font-medium text-sm">WhatsApp</p>
-                    <p className="text-xs text-muted-foreground">{t('Gửi thêm nhắc nhở qua WhatsApp')}</p>
-                  </div>
-                  <Switch checked={whatsappEnabled === true} onCheckedChange={(v) => toggleWhatsapp.mutate(v)} />
-                </div>
+                <Button size="sm" onClick={() => saveCardSurcharge.mutate()}>{t('Lưu')}</Button>
               </CardContent>
             </Card>
 
-            {/* Auto Reminder Settings */}
+            {/* Logo Upload */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">{t('Nhắc lịch tự động')}</CardTitle>
+                <CardTitle className="text-base">{t('Logo cửa hàng')}</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-sm">{t('Nhắc qua Email')}</p>
-                    <p className="text-xs text-muted-foreground">{t('Gửi email nhắc lịch tự động cho khách có email')}</p>
-                  </div>
-                  <Switch checked={reminderEmailEnabled} onCheckedChange={setReminderEmailEnabled} />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-sm">{t('Nhắc qua SMS')}</p>
-                    <p className="text-xs text-muted-foreground">{t('Gửi SMS nhắc lịch tự động (cần cấu hình Twilio)')}</p>
-                  </div>
-                  <Switch checked={reminderSmsEnabled} onCheckedChange={setReminderSmsEnabled} />
-                </div>
-                <div className="border-t pt-3 space-y-3">
-                  <p className="text-sm font-medium">{t('Thời gian nhắc')}</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label className="text-xs">{t('Lần 1 (giờ trước lịch hẹn)')}</Label>
-                      <Select value={reminder1stHours} onValueChange={setReminder1stHours}>
-                        <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="48">48h (2 {t('ngày')})</SelectItem>
-                          <SelectItem value="24">24h (1 {t('ngày')})</SelectItem>
-                          <SelectItem value="12">12h</SelectItem>
-                          <SelectItem value="6">6h</SelectItem>
-                          <SelectItem value="3">3h</SelectItem>
-                          <SelectItem value="2">2h</SelectItem>
-                          <SelectItem value="0">{t('Tắt')}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label className="text-xs">{t('Lần 2 (giờ trước lịch hẹn)')}</Label>
-                      <Select value={reminder2ndHours} onValueChange={setReminder2ndHours}>
-                        <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="3">3h</SelectItem>
-                          <SelectItem value="2">2h</SelectItem>
-                          <SelectItem value="1">1h</SelectItem>
-                          <SelectItem value="0">{t('Tắt')}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </div>
-                <Button size="sm" onClick={() => saveReminderSettings.mutate()}>{t('Lưu cài đặt nhắc lịch')}</Button>
+              <CardContent>
+                <LogoUploadComponent t={t} />
               </CardContent>
             </Card>
+
+            {/* Hero Media Settings */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">{t('Hero trang chủ')}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label>{t('Chế độ hiển thị')}</Label>
+                  <div className="flex gap-2 mt-1.5">
+                    <Button type="button" variant={heroMode === 'video' ? 'default' : 'outline'} size="sm" className="flex-1" onClick={() => setHeroMode('video')}>
+                      Video
+                    </Button>
+                    <Button type="button" variant={heroMode === 'image' ? 'default' : 'outline'} size="sm" className="flex-1" onClick={() => setHeroMode('image')}>
+                      {t('Hình ảnh')}
+                    </Button>
+                  </div>
+                </div>
+                <div>
+                  <Label>{heroMode === 'video' ? t('Upload video') : t('Upload hình ảnh')}</Label>
+                  <div className="mt-1.5 space-y-2">
+                    {heroMediaPreview && (
+                      <div className="relative w-full h-32 rounded-lg overflow-hidden border border-[#ebe3d9]">
+                        {heroMode === 'video' && (heroMediaPreview.match(/\.(mp4|webm|mov)/) || heroMediaFile?.type.startsWith('video')) ? (
+                          <video src={heroMediaPreview} className="w-full h-full object-cover" muted />
+                        ) : (
+                          <img src={heroMediaPreview} alt="Hero preview" className="w-full h-full object-cover" />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => { setHeroMediaFile(null); setHeroMediaPreview(null); setHeroMediaPath(''); }}
+                          className="absolute top-1 right-1 h-6 w-6 rounded-full bg-black/50 text-white flex items-center justify-center text-xs hover:bg-black/70"
+                        >×</button>
+                      </div>
+                    )}
+                    <input
+                      ref={heroMediaRef}
+                      type="file"
+                      accept={heroMode === 'video' ? 'video/*' : 'image/*'}
+                      className="hidden"
+                      onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setHeroMediaFile(file);
+                          setHeroMediaPreview(URL.createObjectURL(file));
+                        }
+                      }}
+                    />
+                    <Button type="button" variant="outline" size="sm" onClick={() => heroMediaRef.current?.click()}>
+                      {heroMediaPreview ? t('Đổi file') : t('Chọn file')}
+                    </Button>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  disabled={savingHero}
+                  onClick={async () => {
+                    setSavingHero(true);
+                    try {
+                      let path = heroMediaPath;
+                      if (heroMediaFile) {
+                        const ext = heroMediaFile.name.split('.').pop();
+                        const newPath = `hero-${Date.now()}.${ext}`;
+                        if (path) await supabase.storage.from('hero-media').remove([path]);
+                        const { error: uploadErr } = await supabase.storage.from('hero-media').upload(newPath, heroMediaFile, { upsert: true });
+                        if (uploadErr) throw uploadErr;
+                        path = newPath;
+                        setHeroMediaPath(path);
+                      }
+                      await supabase.from('app_settings').upsert({ key: 'hero_mode', value: heroMode });
+                      await supabase.from('app_settings').upsert({ key: 'hero_media_path', value: path });
+                      toast({ title: t('Đã lưu hero') });
+                      setHeroMediaFile(null);
+                    } catch (err: any) {
+                      toast({ title: t('Lỗi'), description: err.message, variant: 'destructive' });
+                    } finally {
+                      setSavingHero(false);
+                    }
+                  }}
+                >
+                  {savingHero ? t('Đang lưu...') : t('Lưu hero')}
+                </Button>
+                <p className="text-xs text-muted-foreground">{t('Nếu không upload, hệ thống sẽ dùng ảnh/video mặc định')}</p>
+              </CardContent>
+            </Card>
+
+            {/* Admin Accounts Management */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">{t('Quản lý tài khoản')}</CardTitle>
+                  {isAdmin && (
+                    <Dialog open={accountDialog} onOpenChange={(open) => { setAccountDialog(open); if (!open) { setNewAdminEmail(''); setNewAdminPassword(''); setNewAdminRole('employee'); } }}>
+                      <DialogTrigger asChild>
+                        <Button size="sm" variant="outline">
+                          <Plus className="h-3.5 w-3.5 mr-1" /> {t('Tạo tài khoản')}
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>{t('Tạo tài khoản mới')}</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 pt-2">
+                          <div>
+                            <Label className="text-sm">{t('Loại tài khoản')}</Label>
+                            <div className="flex gap-2 mt-1.5">
+                              <Button type="button" variant={newAdminRole === 'employee' ? 'default' : 'outline'} size="sm" className="flex-1" onClick={() => setNewAdminRole('employee')}>
+                                Employee
+                              </Button>
+                              <Button type="button" variant={newAdminRole === 'admin' ? 'default' : 'outline'} size="sm" className="flex-1" onClick={() => setNewAdminRole('admin')}>
+                                Admin
+                              </Button>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1.5">
+                              {newAdminRole === 'employee'
+                                ? t('Employee: có thể xem và tạo, không thể xoá hoặc xem nhật ký')
+                                : t('Admin: toàn quyền quản lý hệ thống')}
+                            </p>
+                          </div>
+                          <div>
+                            <Label className="text-sm">Email</Label>
+                            <Input type="email" value={newAdminEmail} onChange={e => setNewAdminEmail(e.target.value)} placeholder="staff@example.com" className="mt-1" />
+                          </div>
+                          <div>
+                            <Label className="text-sm">{t('Mật khẩu')}</Label>
+                            <Input type="password" value={newAdminPassword} onChange={e => setNewAdminPassword(e.target.value)} placeholder={t('Tối thiểu 6 ký tự')} className="mt-1" />
+                          </div>
+                          <Button
+                            className="w-full"
+                            disabled={creatingAdmin || !newAdminEmail.trim() || newAdminPassword.length < 6}
+                            onClick={async () => {
+                              setCreatingAdmin(true);
+                              try {
+                                const { data: { session: s } } = await supabase.auth.getSession();
+                                if (!s?.access_token) throw new Error('Session expired. Please log out and log back in.');
+                                const res = await fetch(
+                                  `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-admin`,
+                                  {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${s.access_token}` },
+                                    body: JSON.stringify({ email: newAdminEmail.trim(), password: newAdminPassword, role: newAdminRole }),
+                                  }
+                                );
+                                const result = await res.json();
+                                if (!res.ok) throw new Error(result.error || 'Failed');
+                                logActivity('create_account', `Created ${newAdminRole}: ${newAdminEmail}`);
+                                toast({ title: t('Đã tạo tài khoản'), description: `${newAdminRole === 'admin' ? 'Admin' : 'Employee'}: ${newAdminEmail}` });
+                                setNewAdminEmail('');
+                                setNewAdminPassword('');
+                                setAccountDialog(false);
+                                refetchAdmins();
+                              } catch (err: any) {
+                                toast({ title: t('Lỗi'), description: err.message, variant: 'destructive' });
+                              } finally {
+                                setCreatingAdmin(false);
+                              }
+                            }}
+                          >
+                            {creatingAdmin ? t('Đang tạo...') : t('Tạo tài khoản')}
+                          </Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {adminAccounts && adminAccounts.length > 0 && adminAccounts.map(admin => (
+                  <div key={admin.id} className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:bg-muted/30 transition-colors">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium truncate">{admin.email}</p>
+                        <Badge variant={admin.role === 'admin' ? 'default' : 'secondary'} className="text-[10px] shrink-0">
+                          {admin.role === 'admin' ? 'Admin' : 'Employee'}
+                        </Badge>
+                        {admin.is_current && <span className="text-[10px] text-muted-foreground">({t('Bạn')})</span>}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {t('Tạo')} {new Date(admin.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    {isAdmin && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => { setEditingAccount(admin); setEditAccountPassword(''); setEditAccountDialog(true); }}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        {!admin.is_current && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            disabled={deletingAdminId === admin.id}
+                            onClick={async () => {
+                              if (!confirm(`${t('Xoá tài khoản')} ${admin.email}?`)) return;
+                              setDeletingAdminId(admin.id);
+                              try {
+                                const { data: { session: s } } = await supabase.auth.getSession();
+                                if (!s?.access_token) throw new Error('Session expired. Please log out and log back in.');
+                                const res = await fetch(
+                                  `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-admins`,
+                                  {
+                                    method: 'DELETE',
+                                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${s.access_token}` },
+                                    body: JSON.stringify({ user_id: admin.id }),
+                                  }
+                                );
+                                const result = await res.json();
+                                if (!res.ok) throw new Error(result.error || 'Failed');
+                                logActivity('delete_account', `Deleted: ${admin.email} (${admin.role})`);
+                                toast({ title: t('Đã xoá tài khoản'), description: admin.email });
+                                refetchAdmins();
+                              } catch (err: any) {
+                                const msg = err.message === 'Failed to fetch'
+                                  ? t('Không thể kết nối đến server. Vui lòng kiểm tra kết nối hoặc deploy lại edge function.')
+                                  : err.message;
+                                toast({ title: t('Lỗi'), description: msg, variant: 'destructive' });
+                              } finally {
+                                setDeletingAdminId(null);
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            {/* Edit Account Dialog */}
+            <Dialog open={editAccountDialog} onOpenChange={(open) => { setEditAccountDialog(open); if (!open) { setEditingAccount(null); setEditAccountPassword(''); } }}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{t('Chỉnh sửa tài khoản')}</DialogTitle>
+                </DialogHeader>
+                {editingAccount && (
+                  <div className="space-y-4 pt-2">
+                    <div>
+                      <Label className="text-sm">Email</Label>
+                      <p className="text-sm mt-1 text-muted-foreground">{editingAccount.email}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm">{t('Vai trò')}</Label>
+                      <p className="text-sm mt-1">
+                        <Badge variant={editingAccount.role === 'admin' ? 'default' : 'secondary'}>
+                          {editingAccount.role === 'admin' ? 'Admin' : 'Employee'}
+                        </Badge>
+                      </p>
+                    </div>
+                    <div className="border-t pt-4">
+                      <Label className="text-sm">{t('Đổi mật khẩu')}</Label>
+                      <Input
+                        type="password"
+                        value={editAccountPassword}
+                        onChange={e => setEditAccountPassword(e.target.value)}
+                        placeholder={t('Mật khẩu mới (tối thiểu 6 ký tự)')}
+                        className="mt-1"
+                      />
+                    </div>
+                    <Button
+                      className="w-full"
+                      disabled={savingPassword || editAccountPassword.length < 6}
+                      onClick={async () => {
+                        setSavingPassword(true);
+                        try {
+                          const { data: { session: s } } = await supabase.auth.getSession();
+                          if (!s?.access_token) throw new Error('Session expired.');
+                          const res = await fetch(
+                            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-admins`,
+                            {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${s.access_token}` },
+                              body: JSON.stringify({ user_id: editingAccount.id, password: editAccountPassword }),
+                            }
+                          );
+                          const result = await res.json();
+                          if (!res.ok) throw new Error(result.error || 'Failed');
+                          logActivity('update_password', `Changed password for: ${editingAccount.email}`);
+                          toast({ title: t('Đã đổi mật khẩu'), description: editingAccount.email });
+                          setEditAccountDialog(false);
+                        } catch (err: any) {
+                          toast({ title: t('Lỗi'), description: err.message, variant: 'destructive' });
+                        } finally {
+                          setSavingPassword(false);
+                        }
+                      }}
+                    >
+                      {savingPassword ? t('Đang lưu...') : t('Lưu mật khẩu')}
+                    </Button>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
+
 
             {/* Resend Email Settings */}
             <Card>
@@ -2241,177 +2734,6 @@ const AdminDashboard = () => {
                   <div className="bg-muted rounded-lg p-3 text-sm space-y-1">
                     <p className="text-muted-foreground">{t('Resend API key đã được cấu hình')}</p>
                     <p className="text-muted-foreground">{t('Email gửi từ')}: <strong>{resendSettings['resend_from_email'] || 'onboarding@resend.dev'}</strong></p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Card Surcharge Settings */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">{t('Phụ phí thẻ tín dụng')}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div>
-                  <Label>{t('Phần trăm phụ phí (%)')}</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="20"
-                    step="0.1"
-                    value={cardSurchargePercent}
-                    onChange={e => setCardSurchargePercent(e.target.value)}
-                    className="mt-1 w-[120px]"
-                    placeholder="0"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">{t('Phụ phí sẽ được tự động cộng thêm khi khách thanh toán bằng thẻ')}</p>
-                </div>
-                <Button size="sm" onClick={() => saveCardSurcharge.mutate()}>{t('Lưu')}</Button>
-              </CardContent>
-            </Card>
-
-            {/* Logo Upload */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Leaf className="h-4 w-4 text-primary" />
-                  {t('Logo cửa hàng')}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <LogoUploadComponent t={t} />
-              </CardContent>
-            </Card>
-
-            {/* Admin Accounts Management */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-primary" />
-                  {t('Quản lý tài khoản')}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {adminAccounts && adminAccounts.length > 0 && (
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">{t('Tài khoản hiện tại')}</Label>
-                    <div className="space-y-2">
-                      {adminAccounts.map(admin => (
-                        <div key={admin.id} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-medium truncate">{admin.email}</p>
-                              <Badge variant={admin.role === 'admin' ? 'default' : 'secondary'} className="text-[10px] shrink-0">
-                                {admin.role === 'admin' ? 'Admin' : 'Employee'}
-                              </Badge>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              {admin.is_current ? `(${t('Bạn')})` : `${t('Tạo')} ${new Date(admin.created_at).toLocaleDateString()}`}
-                            </p>
-                          </div>
-                          {!admin.is_current && isAdmin && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive shrink-0"
-                              disabled={deletingAdminId === admin.id}
-                              onClick={async () => {
-                                if (!confirm(`${t('Xoá tài khoản')} ${admin.email}?`)) return;
-                                setDeletingAdminId(admin.id);
-                                try {
-                                  const { data: { session: s } } = await supabase.auth.getSession();
-                                  if (!s?.access_token) throw new Error('Session expired. Please log out and log back in.');
-                                  const res = await fetch(
-                                    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-admins`,
-                                    {
-                                      method: 'DELETE',
-                                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${s.access_token}` },
-                                      body: JSON.stringify({ user_id: admin.id }),
-                                    }
-                                  );
-                                  const result = await res.json();
-                                  if (!res.ok) throw new Error(result.error || 'Failed');
-                                  logActivity('delete_account', `Deleted: ${admin.email} (${admin.role})`);
-                                  toast({ title: t('Đã xoá tài khoản'), description: admin.email });
-                                  refetchAdmins();
-                                } catch (err: any) {
-                                  const msg = err.message === 'Failed to fetch'
-                                    ? t('Không thể kết nối đến server. Vui lòng kiểm tra kết nối hoặc deploy lại edge function.')
-                                    : err.message;
-                                  toast({ title: t('Lỗi'), description: msg, variant: 'destructive' });
-                                } finally {
-                                  setDeletingAdminId(null);
-                                }
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {isAdmin && (
-                  <div className="border-t pt-4 space-y-3">
-                    <Label className="text-sm font-medium">{t('Tạo tài khoản mới')}</Label>
-                    <div>
-                      <Label className="text-xs">{t('Loại tài khoản')}</Label>
-                      <div className="flex gap-2 mt-1">
-                        <Button type="button" variant={newAdminRole === 'employee' ? 'default' : 'outline'} size="sm" className="flex-1" onClick={() => setNewAdminRole('employee')}>
-                          Employee
-                        </Button>
-                        <Button type="button" variant={newAdminRole === 'admin' ? 'default' : 'outline'} size="sm" className="flex-1" onClick={() => setNewAdminRole('admin')}>
-                          Admin
-                        </Button>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {newAdminRole === 'employee'
-                          ? t('Employee: có thể xem và tạo, không thể xoá hoặc xem nhật ký')
-                          : t('Admin: toàn quyền quản lý hệ thống')}
-                      </p>
-                    </div>
-                    <div>
-                      <Label className="text-xs">Email</Label>
-                      <Input type="email" value={newAdminEmail} onChange={e => setNewAdminEmail(e.target.value)} placeholder="staff@example.com" className="mt-1" />
-                    </div>
-                    <div>
-                      <Label className="text-xs">{t('Mật khẩu')}</Label>
-                      <Input type="password" value={newAdminPassword} onChange={e => setNewAdminPassword(e.target.value)} placeholder={t('Tối thiểu 6 ký tự')} className="mt-1" />
-                    </div>
-                    <Button
-                      size="sm"
-                      disabled={creatingAdmin || !newAdminEmail.trim() || newAdminPassword.length < 6}
-                      onClick={async () => {
-                        setCreatingAdmin(true);
-                        try {
-                          const { data: { session: s } } = await supabase.auth.getSession();
-                          if (!s?.access_token) throw new Error('Session expired. Please log out and log back in.');
-                          const res = await fetch(
-                            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-admin`,
-                            {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${s.access_token}` },
-                              body: JSON.stringify({ email: newAdminEmail.trim(), password: newAdminPassword, role: newAdminRole }),
-                            }
-                          );
-                          const result = await res.json();
-                          if (!res.ok) throw new Error(result.error || 'Failed');
-                          logActivity('create_account', `Created ${newAdminRole}: ${newAdminEmail}`);
-                          toast({ title: t('Đã tạo tài khoản'), description: `${newAdminRole === 'admin' ? 'Admin' : 'Employee'}: ${newAdminEmail}` });
-                          setNewAdminEmail('');
-                          setNewAdminPassword('');
-                          refetchAdmins();
-                        } catch (err: any) {
-                          toast({ title: t('Lỗi'), description: err.message, variant: 'destructive' });
-                        } finally {
-                          setCreatingAdmin(false);
-                        }
-                      }}
-                    >
-                      {creatingAdmin ? t('Đang tạo...') : t('Tạo tài khoản')}
-                    </Button>
                   </div>
                 )}
               </CardContent>
@@ -2472,10 +2794,7 @@ const AdminDashboard = () => {
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Crown className="h-4 w-4 text-primary" />
-                    {t('Hạng thành viên')}
-                  </CardTitle>
+                  <CardTitle className="text-base">{t('Hạng thành viên')}</CardTitle>
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">{t('Bật/Tắt')}</span>
@@ -2548,10 +2867,7 @@ const AdminDashboard = () => {
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Tag className="h-4 w-4 text-primary" />
-                    {t('Mã giảm giá')}
-                  </CardTitle>
+                  <CardTitle className="text-base">{t('Mã giảm giá')}</CardTitle>
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">{t('Bật/Tắt')}</span>
@@ -2647,10 +2963,7 @@ const AdminDashboard = () => {
             {isAdmin && (
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-primary" />
-                    {t('Nhật ký hoạt động')}
-                  </CardTitle>
+                  <CardTitle className="text-base">{t('Nhật ký hoạt động')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground mb-3">{t('Tất cả hoạt động được ghi lại tự động. Tải xuống để xem chi tiết.')}</p>
@@ -2681,14 +2994,36 @@ const AdminDashboard = () => {
               </Card>
             )}
 
+            {/* ── Software Info ── */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">{t('Thông tin phần mềm')}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">{t('Phiên bản')}</span>
+                  <span className="text-sm font-mono">1.0.0</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">{t('Nhà phát triển')}</span>
+                  <span className="text-sm font-medium">Olive Marketing</span>
+                </div>
+                <div className="text-center pt-3 border-t border-border/40">
+                  <p className="text-xs text-muted-foreground">
+                    Crafted with <span className="text-red-400">&#9829;</span> in Melbourne
+                  </p>
+                </div>
+                <div className="pt-2">
+                  <Link to="/software-terms" className="text-xs text-primary hover:underline">{t('Xem điều khoản phần mềm')}</Link>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* ── Danger Zone: Delete All Data (Admin only) ── */}
             {isAdmin && (
               <Card className="border-destructive/30">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2 text-destructive">
-                    <AlertTriangle className="h-4 w-4" />
-                    {t('Vùng nguy hiểm')}
-                  </CardTitle>
+                  <CardTitle className="text-base text-destructive">{t('Vùng nguy hiểm')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground mb-4">{t('Xoá tất cả dữ liệu lịch hẹn, thanh toán, ngày nghỉ. Hành động không thể hoàn tác.')}</p>

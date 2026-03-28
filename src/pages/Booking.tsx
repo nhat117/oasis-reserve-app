@@ -84,9 +84,45 @@ const Booking = () => {
     },
   });
 
+  // Fetch holiday settings and public holidays for the region
+  const { data: holidaySettings } = useQuery({
+    queryKey: ['holiday-booking-settings'],
+    queryFn: async () => {
+      const { data } = await supabase.from('app_settings').select('key, value').in('key', ['show_holiday_closed', 'shop_state', 'open_days']);
+      const map: Record<string, string> = {};
+      data?.forEach(r => { map[r.key] = r.value; });
+      return map;
+    },
+  });
+
+  const blockPublicHolidays = holidaySettings?.show_holiday_closed === 'true';
+  const shopState = holidaySettings?.shop_state || 'VIC';
+  const openDays: number[] = holidaySettings?.open_days ? JSON.parse(holidaySettings.open_days) : [1, 2, 3, 4, 5, 6];
+
+  const { data: publicHolidays } = useQuery({
+    queryKey: ['public-holidays-booking', shopState],
+    queryFn: async () => {
+      const year = new Date().getFullYear();
+      const res = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/AU`);
+      if (!res.ok) return [];
+      const holidays: Array<{ date: string; localName: string; name: string; counties: string[] | null }> = await res.json();
+      const stateCode = `AU-${shopState}`;
+      return holidays.filter(h => !h.counties || h.counties.includes(stateCode));
+    },
+    enabled: blockPublicHolidays,
+    staleTime: 24 * 60 * 60 * 1000,
+  });
+
+  const publicHolidayDates = useMemo(() => {
+    if (!publicHolidays) return new Set<string>();
+    return new Set(publicHolidays.map(h => h.date));
+  }, [publicHolidays]);
+
   const todayHoliday = selectedDate ? shopHolidays?.find((h: any) => h.holiday_date === format(selectedDate, 'yyyy-MM-dd')) : null;
   const isShopHoliday = todayHoliday && !todayHoliday.early_close_hour;
   const earlyCloseHour = todayHoliday?.early_close_hour as number | undefined;
+  const isPublicHoliday = selectedDate ? publicHolidayDates.has(format(selectedDate, 'yyyy-MM-dd')) : false;
+  const publicHolidayName = selectedDate && isPublicHoliday ? publicHolidays?.find(h => h.date === format(selectedDate, 'yyyy-MM-dd'))?.localName : '';
 
   const { data: existingBookings } = useQuery({
     queryKey: ['bookings-availability', selectedDate?.toISOString()],
@@ -311,10 +347,10 @@ const Booking = () => {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 py-2.5 sm:py-3 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 sm:gap-3">
-            <img src={logoImg} alt="Royal Head Spa" className="h-14 w-14 sm:h-20 sm:w-20 object-contain" />
-            <span className="text-xs sm:text-sm tracking-[0.2em] sm:tracking-[0.25em] uppercase text-foreground font-light">Royal Head Spa</span>
+            <img src={logoImg} alt="Spa" className="h-10 w-10 sm:h-14 sm:w-14 object-contain" />
+            <span className="text-xs sm:text-sm tracking-[0.2em] sm:tracking-[0.25em] uppercase text-foreground font-light">Oasis Reserve</span>
           </Link>
           <LanguageSwitcher />
         </div>
@@ -453,10 +489,17 @@ const Booking = () => {
                     onSelect={(d) => { setSelectedDate(d); setSelectedTime(''); }}
                     disabled={(date) => {
                       if (isBefore(startOfDay(date), startOfDay(new Date()))) return true;
-                      const holiday = shopHolidays?.find((h: any) => h.holiday_date === format(date, 'yyyy-MM-dd'));
+                      const dateStr = format(date, 'yyyy-MM-dd');
+                      // Shop-specific holidays
+                      const holiday = shopHolidays?.find((h: any) => h.holiday_date === dateStr);
                       if (holiday && !holiday.early_close_hour) return true;
+                      // Public holidays (when toggle is on)
+                      if (blockPublicHolidays && publicHolidayDates.has(dateStr)) return true;
+                      // Closed days from settings
+                      const dayOfWeek = date.getDay() === 0 ? 7 : date.getDay();
+                      if (!openDays.includes(dayOfWeek)) return true;
+                      // No working therapists
                       if (therapists) {
-                        const dayOfWeek = date.getDay() === 0 ? 7 : date.getDay();
                         const hasWorkingTherapist = therapists.some(th => th.working_days.includes(dayOfWeek));
                         if (!hasWorkingTherapist) return true;
                       }
@@ -466,8 +509,10 @@ const Booking = () => {
                   />
                 </PopoverContent>
               </Popover>
-              {isShopHoliday && (
-                <p className="text-sm text-destructive mt-2">{t('Tiệm nghỉ ngày này. Vui lòng chọn ngày khác.')}</p>
+              {(isShopHoliday || (blockPublicHolidays && isPublicHoliday)) && (
+                <p className="text-sm text-destructive mt-2">
+                  {t('Tiệm nghỉ ngày này.')} {publicHolidayName && `(${publicHolidayName})`} {t('Vui lòng chọn ngày khác.')}
+                </p>
               )}
               {earlyCloseHour && !isShopHoliday && (
                 <p className="text-sm text-amber-600 mt-2">{t('Tiệm đóng cửa sớm lúc')} {earlyCloseHour}:00 {t('ngày này.')}</p>

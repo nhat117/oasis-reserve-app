@@ -147,6 +147,37 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (req.method === "PATCH") {
+      // Only admins can update passwords
+      if (!isAdmin) {
+        return new Response(JSON.stringify({ error: "Admin only" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { user_id, password } = await req.json();
+      if (!user_id || !password || password.length < 6) {
+        return new Response(JSON.stringify({ error: "user_id and password (min 6 chars) required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { error: updateError } = await adminClient.auth.admin.updateUserById(user_id, { password });
+      if (updateError) {
+        return new Response(JSON.stringify({ error: updateError.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
       status: 405,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
