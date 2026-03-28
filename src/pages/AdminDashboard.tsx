@@ -1345,7 +1345,7 @@ const AdminDashboard = () => {
                       <TabsTrigger
                         value={item.value}
                         className={cn(
-                          "group relative w-full justify-start gap-3 rounded-lg py-2.5 text-[13px] font-medium text-[#8b7355] hover:text-[#5a3d2e] hover:bg-[#f0e8dd] transition-all data-[state=active]:bg-[#ede4d8] data-[state=active]:text-[#5a3d2e] data-[state=active]:shadow-[0_1px_4px_rgba(90,61,46,0.12)] data-[state=active]:border data-[state=active]:border-[#d4c4b0] data-[state=active]:font-semibold",
+                          "group relative w-full justify-start gap-3 rounded-lg py-2.5 text-[13px] font-medium text-[#8b7355] hover:text-[#5a3d2e] hover:bg-[#f0e8dd] transition-all data-[state=active]:!bg-[#ede4d8] data-[state=active]:!text-[#5a3d2e] data-[state=active]:!shadow-[0_1px_4px_rgba(90,61,46,0.12)] data-[state=active]:border data-[state=active]:border-[#d4c4b0] data-[state=active]:font-semibold",
                           sidebarOpen ? "px-3" : "px-2 justify-center"
                         )}
                       >
