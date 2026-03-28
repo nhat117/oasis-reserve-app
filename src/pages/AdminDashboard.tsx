@@ -16,7 +16,7 @@ import { BookingCalendar } from '@/components/BookingCalendar';
 import { LogoUpload as LogoUploadComponent } from '@/components/LogoUpload';
 import { Textarea } from '@/components/ui/textarea';
 import { BookingStats } from '@/components/BookingStats';
-import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2 } from 'lucide-react';
+import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis } from 'lucide-react';
 import { ALL_I18N_KEYS } from '@/lib/i18n-keys';
 import { Switch } from '@/components/ui/switch';
 import { Calendar } from '@/components/ui/calendar';
@@ -117,6 +117,8 @@ const AdminDashboard = () => {
   const [filterTherapist, setFilterTherapist] = useState('all');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [moreSheetOpen, setMoreSheetOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('stats');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [spaName, setSpaName] = useState('Oasis Reserve');
   const [settingsModal, setSettingsModal] = useState<string | null>(null);
@@ -1308,7 +1310,7 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-[#faf8f5] admin-shell">
-      <Tabs defaultValue="stats">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         {/* Desktop Sidebar */}
         <aside className={cn(
           "hidden sm:flex fixed inset-y-0 left-0 z-40 flex-col bg-[#f9f5f0] border-r border-[#ebe3d9] transition-all duration-300 ease-in-out",
@@ -1469,38 +1471,120 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* Mobile bottom nav — compact, max 5 primary tabs + overflow */}
-        <div className="fixed bottom-0 left-0 right-0 z-50 sm:hidden bg-[#faf8f5]/95 backdrop-blur-md border-t border-[#ebe3d9]/60 safe-bottom">
-          <TabsList className="w-full h-auto bg-transparent rounded-none grid grid-cols-5 p-0">
-            {sidebarNavItems.slice(0, 5).map(tab => (
-              <TabsTrigger
-                key={tab.value}
-                value={tab.value}
-                className="flex-col gap-[3px] py-2 px-1 rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none h-auto text-[#b8a48e] data-[state=active]:text-[#5a3d2e] transition-all duration-150"
-              >
-                <tab.icon className="h-[18px] w-[18px]" />
-                <span className="text-[9px] leading-none font-medium tracking-tight">{tab.label.length > 6 ? tab.label.split(' ')[0] : tab.label}</span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
-          {/* Secondary row for remaining tabs (therapists, settings) */}
-          {sidebarNavItems.length > 5 && (
-            <div className="border-t border-[#ebe3d9]/30">
-              <TabsList className="w-full h-auto bg-transparent rounded-none flex justify-center gap-0 p-0">
-                {sidebarNavItems.slice(5).map(tab => (
-                  <TabsTrigger
-                    key={tab.value}
-                    value={tab.value}
-                    className="flex items-center gap-1.5 py-1.5 px-4 rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none h-auto text-[#b8a48e] data-[state=active]:text-[#5a3d2e] transition-all duration-150 text-[10px] font-medium"
+        {/* Mobile bottom nav — Apple-style, 5 items max */}
+        {(() => {
+          const primaryTabs = [
+            { value: 'stats', icon: BarChart3, label: t('Thống kê') },
+            { value: 'bookings', icon: CalendarDays, label: t('Lịch hẹn') },
+            { value: 'customers', icon: UserCheck, label: t('Khách') },
+            { value: 'services', icon: Scissors, label: t('Dịch vụ') },
+          ];
+          const moreTabs = [
+            { value: 'sales', icon: DollarSign, label: t('Thanh toán') },
+            { value: 'therapists', icon: Users, label: t('Thợ') },
+            ...(canAccessSettings ? [{ value: 'settings', icon: Settings, label: t('Cài đặt') }] : []),
+          ];
+          const isMoreActive = moreTabs.some(t => t.value === activeTab);
+
+          return (
+            <div className="fixed bottom-0 left-0 right-0 z-50 sm:hidden safe-bottom">
+              <div className="bg-[#faf8f5]/80 backdrop-blur-xl border-t border-[#e8dfd4]/50">
+                <div className="grid grid-cols-5 px-2 pt-2 pb-1">
+                  {primaryTabs.map(tab => {
+                    const isActive = activeTab === tab.value;
+                    return (
+                      <button
+                        key={tab.value}
+                        onClick={() => setActiveTab(tab.value)}
+                        className="flex flex-col items-center gap-[3px] py-1 transition-all duration-200"
+                      >
+                        <div className={`transition-all duration-200 ${isActive ? 'scale-105' : 'scale-100'}`}>
+                          <tab.icon
+                            className={`h-[22px] w-[22px] transition-colors duration-200 ${
+                              isActive ? 'text-[#5a3d2e]' : 'text-[#c4b5a4]'
+                            }`}
+                            strokeWidth={isActive ? 2 : 1.5}
+                          />
+                        </div>
+                        <span className={`text-[10px] leading-none transition-all duration-200 ${
+                          isActive
+                            ? 'text-[#5a3d2e] font-medium opacity-100'
+                            : 'text-[#c4b5a4] font-normal opacity-80'
+                        }`}>
+                          {tab.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+
+                  {/* More button */}
+                  <button
+                    onClick={() => setMoreSheetOpen(true)}
+                    className="flex flex-col items-center gap-[3px] py-1 transition-all duration-200"
                   >
-                    <tab.icon className="h-3.5 w-3.5" />
-                    <span>{tab.label}</span>
-                  </TabsTrigger>
-                ))}
-              </TabsList>
+                    <div className={`transition-all duration-200 ${isMoreActive ? 'scale-105' : 'scale-100'}`}>
+                      <Ellipsis
+                        className={`h-[22px] w-[22px] transition-colors duration-200 ${
+                          isMoreActive ? 'text-[#5a3d2e]' : 'text-[#c4b5a4]'
+                        }`}
+                        strokeWidth={isMoreActive ? 2 : 1.5}
+                      />
+                    </div>
+                    <span className={`text-[10px] leading-none transition-all duration-200 ${
+                      isMoreActive
+                        ? 'text-[#5a3d2e] font-medium opacity-100'
+                        : 'text-[#c4b5a4] font-normal opacity-80'
+                    }`}>
+                      {t('Thêm')}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* More sheet overlay */}
+              {moreSheetOpen && (
+                <div className="fixed inset-0 z-[70]" onClick={() => setMoreSheetOpen(false)}>
+                  <div className="absolute inset-0 bg-black/25 backdrop-blur-[2px] transition-opacity" />
+                  <div
+                    className="absolute bottom-0 left-0 right-0 bg-[#faf8f5] rounded-t-2xl shadow-2xl animate-[sheetUp_0.25s_ease-out]"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    {/* Handle bar */}
+                    <div className="flex justify-center pt-3 pb-1">
+                      <div className="w-9 h-1 rounded-full bg-[#d4c9bc]" />
+                    </div>
+
+                    <div className="px-5 pb-2">
+                      <p className="text-[11px] tracking-[0.1em] uppercase text-[#a89680] font-medium mb-3">{t('Thêm')}</p>
+                    </div>
+
+                    <div className="px-3 pb-6 safe-bottom space-y-0.5">
+                      {moreTabs.map(tab => {
+                        const isActive = activeTab === tab.value;
+                        return (
+                          <button
+                            key={tab.value}
+                            onClick={() => { setActiveTab(tab.value); setMoreSheetOpen(false); }}
+                            className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl transition-all duration-150 ${
+                              isActive
+                                ? 'bg-[#ede4d8] text-[#3d2b1f]'
+                                : 'text-[#6b5c4c] hover:bg-[#f2ece4]'
+                            }`}
+                          >
+                            <tab.icon className="h-5 w-5" strokeWidth={isActive ? 2 : 1.5} />
+                            <span className={`text-[14px] ${isActive ? 'font-medium' : 'font-normal'}`}>
+                              {tab.label}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          );
+        })()}
 
         {/* Main content area */}
         <main className={cn("min-h-screen transition-all duration-300 ease-in-out", sidebarOpen ? "sm:ml-[220px]" : "sm:ml-[68px]")}>
