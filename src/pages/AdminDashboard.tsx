@@ -1345,12 +1345,18 @@ const AdminDashboard = () => {
                       <TabsTrigger
                         value={item.value}
                         className={cn(
-                          "group relative w-full justify-start gap-3 rounded-lg py-2.5 text-[13px] font-medium text-[#8b7355] hover:text-[#5a3d2e] hover:bg-[#f0e8dd] transition-all data-[state=active]:bg-[#ede4d8] data-[state=active]:text-[#5a3d2e] data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-[#ddd2c4] data-[state=active]:font-semibold",
-                          sidebarOpen ? "px-3" : "px-0 justify-center"
+                          "group relative w-full justify-start gap-3 rounded-lg py-2.5 text-[13px] font-medium text-[#8b7355] hover:text-[#5a3d2e] hover:bg-[#f0e8dd] transition-all data-[state=active]:bg-[#ede4d8] data-[state=active]:text-[#5a3d2e] data-[state=active]:shadow-[0_1px_4px_rgba(90,61,46,0.12)] data-[state=active]:border data-[state=active]:border-[#d4c4b0] data-[state=active]:font-semibold",
+                          sidebarOpen ? "px-3" : "px-2 justify-center"
                         )}
                       >
-                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full bg-[#6b4c3b] opacity-0 transition-all group-data-[state=active]:opacity-100" />
-                        <item.icon className="h-[18px] w-[18px] shrink-0 transition-transform group-data-[state=active]:scale-110" />
+                        <div className={cn(
+                          "absolute top-1/2 -translate-y-1/2 w-[3px] rounded-r-full bg-[#6b4c3b] opacity-0 transition-all group-data-[state=active]:opacity-100",
+                          sidebarOpen ? "left-0 h-6" : "left-0 h-5"
+                        )} />
+                        <item.icon className={cn(
+                          "shrink-0 transition-all group-data-[state=active]:scale-110 group-data-[state=active]:text-[#5a3d2e]",
+                          sidebarOpen ? "h-[18px] w-[18px]" : "h-5 w-5"
+                        )} />
                         {sidebarOpen && <span className="whitespace-nowrap">{item.label}</span>}
                       </TabsTrigger>
                     </TooltipTrigger>
