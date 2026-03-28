@@ -250,6 +250,11 @@
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-100%); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* --- Mobile bottom nav pill indicator --- */
 .admin-shell .safe-bottom [data-state="active"] svg {
   transform: scale(1.15);

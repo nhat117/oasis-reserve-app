@@ -16,7 +16,8 @@ import { BookingCalendar } from '@/components/BookingCalendar';
 import { LogoUpload as LogoUploadComponent } from '@/components/LogoUpload';
 import { Textarea } from '@/components/ui/textarea';
 import { BookingStats } from '@/components/BookingStats';
-import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare } from 'lucide-react';
+import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2 } from 'lucide-react';
+import { ALL_I18N_KEYS } from '@/lib/i18n-keys';
 import { Switch } from '@/components/ui/switch';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -115,6 +116,7 @@ const AdminDashboard = () => {
 
   const [filterTherapist, setFilterTherapist] = useState('all');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [spaName, setSpaName] = useState('Oasis Reserve');
   const [settingsModal, setSettingsModal] = useState<string | null>(null);
@@ -223,6 +225,40 @@ const AdminDashboard = () => {
   const [openaiApiKey, setOpenaiApiKey] = useState('');
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState('');
   const [openaiModel, setOpenaiModel] = useState('gpt-4o-mini');
+
+  // Translation populate state
+  const [populatingLang, setPopulatingLang] = useState<'vi' | 'en' | null>(null);
+  const [populateProgress, setPopulateProgress] = useState({ done: 0, total: 0 });
+
+  const populateTranslations = async (lang: 'vi' | 'en') => {
+    setPopulatingLang(lang);
+    const BATCH_SIZE = 25;
+    const total = Math.ceil(ALL_I18N_KEYS.length / BATCH_SIZE);
+    setPopulateProgress({ done: 0, total });
+
+    let translated = 0;
+    let errors = 0;
+    for (let i = 0; i < ALL_I18N_KEYS.length; i += BATCH_SIZE) {
+      const batch = ALL_I18N_KEYS.slice(i, i + BATCH_SIZE);
+      try {
+        const { error } = await supabase.functions.invoke('translate', {
+          body: { keys: batch, lang },
+        });
+        if (error) errors++;
+      } catch {
+        errors++;
+      }
+      translated++;
+      setPopulateProgress({ done: translated, total });
+    }
+
+    setPopulatingLang(null);
+    toast({
+      title: errors === 0
+        ? t('Đã dịch tất cả') + ` (${ALL_I18N_KEYS.length} ${t('mã')})`
+        : `${t('Hoàn thành')} (${errors} ${t('lỗi')})`,
+    });
+  };
 
   // Reminder settings state
   const [reminderEmailEnabled, setReminderEmailEnabled] = useState(false);
@@ -1362,38 +1398,108 @@ const AdminDashboard = () => {
           </div>
         </aside>
 
-        {/* Mobile top header */}
-        <header className="sm:hidden sticky top-0 z-50 bg-[#f9f5f0]/95 backdrop-blur-md border-b border-[#ebe3d9]">
-          <div className="px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
+        {/* Mobile top header — minimal, just brand + hamburger */}
+        <header className="sm:hidden sticky top-0 z-50 bg-[#faf8f5]/95 backdrop-blur-md border-b border-[#ebe3d9]/60">
+          <div className="px-4 py-2.5 flex items-center justify-between">
+            <Link to="/" className="flex items-center gap-2">
               <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-amber-700 to-yellow-800 flex items-center justify-center">
                 <Leaf className="h-3.5 w-3.5 text-white" />
               </div>
-              <span className="font-semibold text-sm text-[#3d2b1f]">{spaName}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge className={cn('text-[9px] px-1.5 py-0 h-5', isAdmin ? 'bg-amber-50 text-amber-800 border-amber-200 border' : 'bg-amber-50 text-amber-700 border-amber-200 border')} variant="secondary">
-                {isAdmin ? 'Admin' : 'Employee'}
-              </Badge>
-              <LanguageSwitcher />
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400" onClick={signOut}>
-                <LogOut className="h-3.5 w-3.5" />
-              </Button>
-            </div>
+              <span className="font-semibold text-[13px] text-[#3d2b1f] tracking-tight">{spaName}</span>
+            </Link>
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="h-8 w-8 rounded-lg flex items-center justify-center text-[#8b7355] hover:bg-[#ede4d8] transition-colors"
+              aria-label="Menu"
+            >
+              {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+            </button>
           </div>
         </header>
 
-        {/* Mobile bottom nav */}
-        <div className="fixed bottom-0 left-0 right-0 z-50 sm:hidden bg-[#f9f5f0]/95 backdrop-blur-md border-t border-[#ebe3d9] safe-bottom">
-          <TabsList className="w-full h-auto bg-transparent rounded-none flex justify-around p-0">
-            {sidebarNavItems.map(tab => (
-              <TabsTrigger key={tab.value} value={tab.value} className="flex-col gap-0.5 py-2.5 px-2 rounded-none data-[state=active]:bg-transparent data-[state=active]:text-[#5a3d2e] data-[state=active]:shadow-none h-auto text-[#b8a48e] transition-all duration-200 data-[state=active]:scale-105">
-                <tab.icon className="h-[18px] w-[18px] transition-transform duration-200" />
-                <span className="text-[9px] leading-tight font-medium">{tab.label.split(' ')[0]}</span>
-                <div className="h-1 w-1 rounded-full transition-colors duration-200 data-[state=active]:bg-[#6b4c3b] bg-transparent" />
+        {/* Mobile slide-down menu overlay */}
+        {mobileMenuOpen && (
+          <div className="sm:hidden fixed inset-0 z-[60]" onClick={() => setMobileMenuOpen(false)}>
+            <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
+            <div
+              className="absolute top-0 left-0 right-0 bg-[#faf8f5] shadow-xl rounded-b-2xl overflow-hidden animate-[slideDown_0.2s_ease-out]"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header inside overlay */}
+              <div className="px-4 py-2.5 flex items-center justify-between border-b border-[#ebe3d9]/40">
+                <div className="flex items-center gap-2">
+                  <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-amber-700 to-yellow-800 flex items-center justify-center">
+                    <Leaf className="h-3.5 w-3.5 text-white" />
+                  </div>
+                  <span className="font-semibold text-[13px] text-[#3d2b1f] tracking-tight">{spaName}</span>
+                </div>
+                <button
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="h-8 w-8 rounded-lg flex items-center justify-center text-[#8b7355] hover:bg-[#ede4d8] transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* User info */}
+              <div className="px-4 py-3 flex items-center gap-3 border-b border-[#ebe3d9]/30">
+                <div className="h-9 w-9 rounded-full bg-gradient-to-br from-amber-600 to-yellow-700 flex items-center justify-center text-white text-sm font-semibold shrink-0">
+                  {(user?.email || '?').charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12px] font-medium text-[#3d2b1f] truncate">{user?.email}</p>
+                  <p className={cn('text-[10px] font-semibold', isAdmin ? 'text-amber-700' : 'text-amber-600')}>
+                    {isAdmin ? 'Admin' : 'Employee'}
+                  </p>
+                </div>
+                <LanguageSwitcher />
+              </div>
+
+              {/* Menu actions */}
+              <div className="px-2 py-2">
+                <button
+                  onClick={() => { signOut(); setMobileMenuOpen(false); }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-gray-500 hover:bg-[#f0e8dd] hover:text-[#5a3d2e] transition-colors"
+                >
+                  <LogOut className="h-4 w-4" />
+                  {t('Đăng xuất')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Mobile bottom nav — compact, max 5 primary tabs + overflow */}
+        <div className="fixed bottom-0 left-0 right-0 z-50 sm:hidden bg-[#faf8f5]/95 backdrop-blur-md border-t border-[#ebe3d9]/60 safe-bottom">
+          <TabsList className="w-full h-auto bg-transparent rounded-none grid grid-cols-5 p-0">
+            {sidebarNavItems.slice(0, 5).map(tab => (
+              <TabsTrigger
+                key={tab.value}
+                value={tab.value}
+                className="flex-col gap-[3px] py-2 px-1 rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none h-auto text-[#b8a48e] data-[state=active]:text-[#5a3d2e] transition-all duration-150"
+              >
+                <tab.icon className="h-[18px] w-[18px]" />
+                <span className="text-[9px] leading-none font-medium tracking-tight">{tab.label.length > 6 ? tab.label.split(' ')[0] : tab.label}</span>
               </TabsTrigger>
             ))}
           </TabsList>
+          {/* Secondary row for remaining tabs (therapists, settings) */}
+          {sidebarNavItems.length > 5 && (
+            <div className="border-t border-[#ebe3d9]/30">
+              <TabsList className="w-full h-auto bg-transparent rounded-none flex justify-center gap-0 p-0">
+                {sidebarNavItems.slice(5).map(tab => (
+                  <TabsTrigger
+                    key={tab.value}
+                    value={tab.value}
+                    className="flex items-center gap-1.5 py-1.5 px-4 rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none h-auto text-[#b8a48e] data-[state=active]:text-[#5a3d2e] transition-all duration-150 text-[10px] font-medium"
+                  >
+                    <tab.icon className="h-3.5 w-3.5" />
+                    <span>{tab.label}</span>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
+          )}
         </div>
 
         {/* Main content area */}
@@ -2835,6 +2941,52 @@ const AdminDashboard = () => {
                         <p className="text-muted-foreground">Base URL: <strong>{openaiSettings['openai_base_url']}</strong></p>
                       )}
                       <p className="text-muted-foreground">Model: <strong>{openaiSettings['openai_model'] || 'gpt-4o-mini'}</strong></p>
+                    </div>
+                  )}
+
+                  {/* Populate Translations */}
+                  {openaiSettings?.['openai_api_key'] && (
+                    <div className="border-t border-border/50 pt-4 space-y-3">
+                      <div>
+                        <Label className="text-sm font-medium">{t('Dịch tất cả')}</Label>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {t('Dịch')} {ALL_I18N_KEYS.length} {t('mã')} {t('sang ngôn ngữ đã chọn')}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={!!populatingLang}
+                          onClick={() => populateTranslations('vi')}
+                        >
+                          {populatingLang === 'vi' ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+                          Tiếng Việt
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={!!populatingLang}
+                          onClick={() => populateTranslations('en')}
+                        >
+                          {populatingLang === 'en' ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+                          English
+                        </Button>
+                      </div>
+                      {populatingLang && (
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            {t('Đang dịch...')} {populateProgress.done}/{populateProgress.total} {t('batch')}
+                          </div>
+                          <div className="w-full bg-muted rounded-full h-1.5">
+                            <div
+                              className="bg-primary h-1.5 rounded-full transition-all"
+                              style={{ width: `${populateProgress.total ? (populateProgress.done / populateProgress.total) * 100 : 0}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
