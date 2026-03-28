@@ -1,19 +1,36 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { LanguageSwitcher, useI18n } from '@/hooks/useI18n';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, Menu, X } from 'lucide-react';
+import { ArrowRight, Menu, X, Play, Pause } from 'lucide-react';
 import { useLogo } from '@/hooks/useLogo';
 import heroImg from '@/assets/hero-luxury.jpg';
 import detail1Img from '@/assets/spa-detail-1.jpg';
 import detail2Img from '@/assets/spa-detail-2.jpg';
 
+const HERO_VIDEO_URL = 'https://videos.pexels.com/video-files/3188167/3188167-uhd_2560_1440_30fps.mp4';
+const PRODUCT_IMAGES = [
+  { src: 'https://images.pexels.com/photos/3735149/pexels-photo-3735149.jpeg?auto=compress&cs=tinysrgb&w=800', alt: 'Luxury shampoo bottles' },
+  { src: 'https://images.pexels.com/photos/3737586/pexels-photo-3737586.jpeg?auto=compress&cs=tinysrgb&w=800', alt: 'Herbal hair rinse' },
+  { src: 'https://images.pexels.com/photos/3997381/pexels-photo-3997381.jpeg?auto=compress&cs=tinysrgb&w=800', alt: 'Essential oils collection' },
+  { src: 'https://images.pexels.com/photos/3737579/pexels-photo-3737579.jpeg?auto=compress&cs=tinysrgb&w=800', alt: 'Spa treatment products' },
+];
+
 const Index = () => {
   const { t } = useI18n();
   const logoImg = useLogo();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [videoPlaying, setVideoPlaying] = useState(true);
+  const [videoLoaded, setVideoLoaded] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const toggleVideo = () => {
+    if (!videoRef.current) return;
+    if (videoPlaying) { videoRef.current.pause(); } else { videoRef.current.play(); }
+    setVideoPlaying(!videoPlaying);
+  };
 
   const { data: shopSettings } = useQuery({
     queryKey: ['shop-settings-public'],
@@ -83,20 +100,43 @@ const Index = () => {
         )}
       </header>
 
-      {/* Hero — Full Screen */}
-      <section className="relative h-[100svh] flex items-center justify-center">
+      {/* Hero — Full Screen Video */}
+      <section className="relative h-[100svh] flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0">
-          <img src={heroImg} alt="Royal Head Spa" className="w-full h-full object-cover" width={1920} height={1080} />
-          <div className="absolute inset-0 bg-foreground/50" />
+          {/* Fallback image while video loads */}
+          <img src={heroImg} alt="Royal Head Spa" className={`w-full h-full object-cover absolute inset-0 transition-opacity duration-1000 ${videoLoaded ? 'opacity-0' : 'opacity-100'}`} width={1920} height={1080} />
+          {/* Video background */}
+          <video
+            ref={videoRef}
+            autoPlay
+            muted
+            loop
+            playsInline
+            onCanPlay={() => setVideoLoaded(true)}
+            className={`w-full h-full object-cover absolute inset-0 transition-opacity duration-1000 ${videoLoaded ? 'opacity-100' : 'opacity-0'}`}
+          >
+            <source src={HERO_VIDEO_URL} type="video/mp4" />
+          </video>
+          <div className="absolute inset-0 bg-gradient-to-b from-foreground/40 via-foreground/50 to-foreground/70" />
         </div>
+
+        {/* Video play/pause control */}
+        <button
+          onClick={toggleVideo}
+          className="absolute bottom-6 right-6 z-10 p-2.5 rounded-full bg-background/10 backdrop-blur-sm border border-background/20 text-background/60 hover:text-background hover:bg-background/20 transition-all duration-300"
+          aria-label={videoPlaying ? 'Pause video' : 'Play video'}
+        >
+          {videoPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+        </button>
+
         <div className="relative flex flex-col items-center justify-center text-center px-6 space-y-5 sm:space-y-8">
-          <p className="text-xs sm:text-sm tracking-[0.35em] uppercase text-background/60">{t('Herbal Head Spa')}</p>
-          <h1 className="text-[3.2rem] leading-[1.1] sm:text-7xl md:text-8xl text-background font-light">
+          <p className="text-xs sm:text-sm tracking-[0.35em] uppercase text-background/60 animate-[fadeIn_1s_ease-in_0.3s_both]">{t('Herbal Head Spa')}</p>
+          <h1 className="text-[3.2rem] leading-[1.1] sm:text-7xl md:text-8xl text-background font-light animate-[fadeIn_1s_ease-in_0.5s_both]">
             {t('A Ritual for')}
             <br />
             <em className="italic">{t('the Senses')}</em>
           </h1>
-          <Link to="/booking" className="pt-2 sm:pt-4">
+          <Link to="/booking" className="pt-2 sm:pt-4 animate-[fadeIn_1s_ease-in_0.8s_both]">
             <Button
               size="lg"
               className="rounded-none text-xs sm:text-sm tracking-[0.25em] uppercase px-10 sm:px-14 h-14 sm:h-16 bg-background text-foreground hover:bg-background/90"
@@ -105,6 +145,42 @@ const Index = () => {
               <ArrowRight className="ml-3 h-4 w-4" />
             </Button>
           </Link>
+        </div>
+
+        {/* Scroll indicator */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-background/40 animate-bounce">
+          <div className="w-px h-8 bg-gradient-to-b from-transparent to-background/40" />
+        </div>
+      </section>
+
+      {/* Products Showcase */}
+      <section className="bg-foreground/[0.03]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 py-16 sm:py-24">
+          <div className="text-center mb-10 sm:mb-16">
+            <p className="text-[10px] sm:text-xs tracking-[0.3em] uppercase text-muted-foreground mb-3">{t('Sản phẩm cao cấp')}</p>
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-light leading-[1.15]">
+              {t('Thảo dược')}&nbsp;
+              <em className="italic">{t('thiên nhiên')}</em>
+            </h2>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-5">
+            {PRODUCT_IMAGES.map((img, i) => (
+              <div key={i} className="group relative overflow-hidden aspect-[3/4]">
+                <img
+                  src={img.src}
+                  alt={img.alt}
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                  loading="lazy"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-foreground/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+              </div>
+            ))}
+          </div>
+          <div className="text-center mt-8 sm:mt-12">
+            <p className="text-muted-foreground text-sm sm:text-[15px] max-w-lg mx-auto leading-relaxed">
+              {t('Chúng tôi sử dụng các sản phẩm organic cao cấp — dầu gội thảo dược, nước xả dưỡng sinh, tinh dầu thiên nhiên — được tuyển chọn kỹ lưỡng cho mỗi liệu trình.')}
+            </p>
+          </div>
         </div>
       </section>
 

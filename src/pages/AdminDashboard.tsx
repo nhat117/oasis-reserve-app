@@ -11,11 +11,12 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { BookingCalendar } from '@/components/BookingCalendar';
 import { LogoUpload as LogoUploadComponent } from '@/components/LogoUpload';
 import { Textarea } from '@/components/ui/textarea';
 import { BookingStats } from '@/components/BookingStats';
-import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock } from 'lucide-react';
+import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, PanelLeftClose, PanelLeft } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -67,6 +68,9 @@ const AdminDashboard = () => {
   };
 
   const [filterTherapist, setFilterTherapist] = useState('all');
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [spaName, setSpaName] = useState('Oasis Reserve');
 
   // Service form state
   const [serviceDialog, setServiceDialog] = useState(false);
@@ -285,6 +289,16 @@ const AdminDashboard = () => {
     },
   });
 
+  // Spa name from DB
+  useQuery({
+    queryKey: ['spa-name-setting'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'spa_name').single();
+      if (!error && data?.value) setSpaName(data.value);
+      return data?.value || 'Oasis Reserve';
+    },
+  });
+
   const toggleRandom = useMutation({
     mutationFn: async (enabled: boolean) => {
       requireAdmin();
@@ -371,6 +385,7 @@ const AdminDashboard = () => {
     mutationFn: async () => {
       requireAdmin();
       const rows = [
+        { key: 'spa_name', value: spaName },
         { key: 'shop_phone', value: shopPhone },
         { key: 'shop_address', value: shopAddress },
       ];
@@ -379,7 +394,7 @@ const AdminDashboard = () => {
         if (error) throw error;
       }
     },
-    onSuccess: () => { logActivity('update_shop_info', 'Updated shop contact info'); queryClient.invalidateQueries({ queryKey: ['shop-info-settings'] }); toast({ title: t('Đã lưu thông tin tiệm') }); },
+    onSuccess: () => { logActivity('update_shop_info', 'Updated shop contact info'); queryClient.invalidateQueries({ queryKey: ['shop-info-settings'] }); queryClient.invalidateQueries({ queryKey: ['spa-name-setting'] }); toast({ title: t('Đã lưu thông tin tiệm') }); },
   });
 
   // Resend email settings
@@ -762,13 +777,14 @@ const AdminDashboard = () => {
     queryKey: ['admin-accounts'],
     queryFn: async () => {
       const { data: { session: s } } = await supabase.auth.getSession();
+      if (!s?.access_token) throw new Error('No session');
       const res = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-admins`,
         {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${s?.access_token}`,
+            'Authorization': `Bearer ${s.access_token}`,
           },
         }
       );
@@ -1102,74 +1118,162 @@ const AdminDashboard = () => {
 
   const availableSlots = getAvailableTimeSlots();
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><p>{t('Đang tải...')}</p></div>;
+  if (loading) return (
+    <div className="min-h-screen bg-[#faf8f5] flex items-center justify-center">
+      <div className="flex flex-col items-center gap-3">
+        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-amber-700 to-yellow-800 flex items-center justify-center animate-pulse">
+          <Leaf className="h-5 w-5 text-white" />
+        </div>
+        <p className="text-sm text-gray-400">{t('Đang tải...')}</p>
+      </div>
+    </div>
+  );
   if (!user) return <Navigate to="/admin/login" />;
-  if (!isStaff) return <div className="min-h-screen flex items-center justify-center"><p className="text-destructive">{t('Bạn không có quyền truy cập.')}</p></div>;
+  if (!isStaff) return (
+    <div className="min-h-screen bg-[#faf8f5] flex items-center justify-center">
+      <div className="text-center space-y-2">
+        <Shield className="h-10 w-10 text-gray-300 mx-auto" />
+        <p className="text-sm text-gray-500 font-medium">{t('Bạn không có quyền truy cập.')}</p>
+      </div>
+    </div>
+  );
+
+  const sidebarNavItems = [
+    { value: 'stats', icon: BarChart3, label: t('Thống kê') },
+    { value: 'bookings', icon: CalendarDays, label: t('Lịch hẹn') },
+    { value: 'customers', icon: UserCheck, label: t('Khách hàng') },
+    { value: 'sales', icon: DollarSign, label: t('Thanh toán') },
+    { value: 'services', icon: Scissors, label: t('Dịch vụ') },
+    { value: 'therapists', icon: Users, label: t('Thợ') },
+    ...(canAccessSettings ? [{ value: 'settings', icon: Settings, label: t('Cài đặt') }] : []),
+  ];
 
   return (
-    <div className="min-h-screen bg-muted/30">
-      <header className="border-b border-border/50 bg-card/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2.5">
-            <Leaf className="h-5 w-5 text-primary/70" />
-            <span className="font-semibold font-serif text-primary tracking-wide">{t('Quản trị Spa')}</span>
-          </Link>
-          <div className="flex items-center gap-3">
-            <Badge variant={isAdmin ? 'default' : 'secondary'} className={cn('text-[10px] px-2 py-0.5', isAdmin ? 'bg-primary' : 'bg-amber-100 text-amber-700 border-amber-200 border')}>
-              <Shield className="h-3 w-3 mr-1" />
-              {isAdmin ? 'Admin' : 'Employee'}
-            </Badge>
-            <LanguageSwitcher />
-            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground text-xs gap-1.5" onClick={signOut}>
-              <LogOut className="h-3.5 w-3.5" /> {t('Đăng xuất')}
-            </Button>
+    <div className="min-h-screen bg-[#faf8f5] admin-shell">
+      <Tabs defaultValue="stats">
+        {/* Desktop Sidebar */}
+        <aside className={cn(
+          "hidden sm:flex fixed inset-y-0 left-0 z-40 flex-col bg-[#f9f5f0] border-r border-[#ebe3d9] transition-all duration-300 ease-in-out",
+          sidebarOpen ? "w-[220px]" : "w-[68px]"
+        )}>
+          {/* Sidebar header / brand */}
+          <div className="px-3 py-4 border-b border-[#ebe3d9] flex items-center justify-between">
+            <Link to="/" className="flex items-center gap-2.5 overflow-hidden">
+              <div className="h-8 w-8 shrink-0 rounded-lg bg-gradient-to-br from-amber-700 to-yellow-800 flex items-center justify-center">
+                <Leaf className="h-4 w-4 text-white" />
+              </div>
+              <span className={cn("font-semibold text-[15px] text-[#3d2b1f] tracking-tight whitespace-nowrap transition-opacity duration-200", sidebarOpen ? "opacity-100" : "opacity-0 w-0")}>{spaName}</span>
+            </Link>
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="h-7 w-7 shrink-0 flex items-center justify-center rounded-md text-[#8b7355] hover:text-[#5a3d2e] hover:bg-[#ede4d8] transition-colors"
+            >
+              {sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
+            </button>
           </div>
-        </div>
-      </header>
 
-      <div className="container mx-auto px-4 py-6 pb-24 sm:pb-6">
-        <Tabs defaultValue="stats">
-          {/* Employee permission notice */}
-          {isEmployee && !isAdmin && (
-            <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
-              <Shield className="h-4 w-4 shrink-0" />
-              <p>{t('Bạn đang đăng nhập với quyền Employee — có thể xem và tạo dữ liệu. Xoá và cài đặt hệ thống chỉ dành cho Admin.')}</p>
-            </div>
-          )}
-
-          {/* Desktop tabs - hidden on mobile */}
-          <TabsList className="mb-6 hidden sm:inline-flex h-11 bg-muted/50 p-1 rounded-xl gap-1">
-            <TabsTrigger value="stats" className="rounded-lg px-4 text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground">{t('Thống kê')}</TabsTrigger>
-            <TabsTrigger value="bookings" className="rounded-lg px-4 text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground">{t('Lịch hẹn')}</TabsTrigger>
-            <TabsTrigger value="customers" className="rounded-lg px-4 text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground">{t('Khách hàng')}</TabsTrigger>
-            <TabsTrigger value="sales" className="rounded-lg px-4 text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground">{t('Thanh toán')}</TabsTrigger>
-            <TabsTrigger value="services" className="rounded-lg px-4 text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground">{t('Dịch vụ')}</TabsTrigger>
-            <TabsTrigger value="therapists" className="rounded-lg px-4 text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground">{t('Thợ')}</TabsTrigger>
-            {canAccessSettings && (
-              <TabsTrigger value="settings" className="rounded-lg px-4 text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm data-[state=active]:text-foreground">{t('Cài đặt')}</TabsTrigger>
-            )}
-          </TabsList>
-
-          {/* Mobile bottom nav */}
-          <div className="fixed bottom-0 left-0 right-0 z-50 sm:hidden bg-card/95 backdrop-blur-md border-t border-border/40 safe-bottom">
-            <TabsList className="w-full h-auto bg-transparent rounded-none grid grid-cols-7 gap-0 p-0">
-              {[
-                { value: 'stats', icon: BarChart3, label: t('Thống kê') },
-                { value: 'bookings', icon: CalendarDays, label: t('Lịch') },
-                { value: 'customers', icon: UserCheck, label: t('Khách') },
-                { value: 'sales', icon: DollarSign, label: t('Thu') },
-                { value: 'services', icon: Scissors, label: t('Dịch vụ') },
-                { value: 'therapists', icon: Users, label: t('Thợ') },
-                ...(canAccessSettings ? [{ value: 'settings', icon: Settings, label: t('Cài đặt') }] : []),
-              ].map(tab => (
-                <TabsTrigger key={tab.value} value={tab.value} className="flex-col gap-1 py-2.5 px-1 rounded-none data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none h-auto text-xs text-muted-foreground transition-colors">
-                  <tab.icon className="h-5 w-5" />
-                  <span className="text-[10px] leading-tight">{tab.label}</span>
-                  <div className="h-1 w-1 rounded-full data-[state=active]:bg-primary bg-transparent" />
-                </TabsTrigger>
+          {/* Sidebar nav */}
+          <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto overflow-x-hidden">
+            <TabsList className="flex flex-col h-auto w-full bg-transparent p-0 gap-0.5">
+              {sidebarNavItems.map(item => (
+                <TooltipProvider key={item.value} delayDuration={0}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <TabsTrigger
+                        value={item.value}
+                        className={cn(
+                          "w-full justify-start gap-3 rounded-lg py-2.5 text-[13px] font-medium text-[#8b7355] hover:text-[#5a3d2e] hover:bg-[#f0e8dd] transition-all data-[state=active]:bg-[#ede4d8] data-[state=active]:text-[#5a3d2e] data-[state=active]:shadow-none data-[state=active]:font-semibold",
+                          sidebarOpen ? "px-3" : "px-0 justify-center"
+                        )}
+                      >
+                        <item.icon className="h-[18px] w-[18px] shrink-0" />
+                        <span className={cn("whitespace-nowrap transition-opacity duration-200", sidebarOpen ? "opacity-100" : "opacity-0 w-0 overflow-hidden")}>{item.label}</span>
+                      </TabsTrigger>
+                    </TooltipTrigger>
+                    {!sidebarOpen && (
+                      <TooltipContent side="right" className="text-xs">
+                        {item.label}
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
               ))}
             </TabsList>
+          </nav>
+
+          {/* Sidebar footer - user info */}
+          <div className={cn("border-t border-[#ebe3d9] transition-all duration-300", sidebarOpen ? "p-4" : "p-2 flex flex-col items-center")}>
+            {isEmployee && !isAdmin && sidebarOpen && (
+              <div className="mb-3 flex items-center gap-1.5 rounded-md bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-700 border border-amber-100">
+                <Lock className="h-3 w-3 shrink-0" />
+                {t('Quyền hạn chế')}
+              </div>
+            )}
+            <div className={cn("flex items-center", sidebarOpen ? "gap-2.5" : "justify-center")}>
+              <div className="h-8 w-8 shrink-0 rounded-full bg-gradient-to-br from-amber-600 to-yellow-700 flex items-center justify-center text-white text-xs font-semibold">
+                {(user?.email || '?').charAt(0).toUpperCase()}
+              </div>
+              {sidebarOpen && (
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12px] font-medium text-gray-900 truncate">{user?.email}</p>
+                  <p className={cn('text-[10px] font-medium', isAdmin ? 'text-amber-700' : 'text-amber-600')}>
+                    {isAdmin ? 'Admin' : 'Employee'}
+                  </p>
+                </div>
+              )}
+            </div>
+            {sidebarOpen ? (
+              <div className="mt-3 flex items-center gap-2">
+                <LanguageSwitcher />
+                <Button variant="ghost" size="sm" className="text-gray-400 hover:text-gray-600 text-[11px] gap-1 h-7 px-2" onClick={signOut}>
+                  <LogOut className="h-3 w-3" /> {t('Đăng xuất')}
+                </Button>
+              </div>
+            ) : (
+              <Button variant="ghost" size="icon" className="mt-2 h-7 w-7 text-gray-400 hover:text-gray-600" onClick={signOut}>
+                <LogOut className="h-3.5 w-3.5" />
+              </Button>
+            )}
           </div>
+        </aside>
+
+        {/* Mobile top header */}
+        <header className="sm:hidden sticky top-0 z-50 bg-[#f9f5f0]/95 backdrop-blur-md border-b border-[#ebe3d9]">
+          <div className="px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-amber-700 to-yellow-800 flex items-center justify-center">
+                <Leaf className="h-3.5 w-3.5 text-white" />
+              </div>
+              <span className="font-semibold text-sm text-[#3d2b1f]">{spaName}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge className={cn('text-[9px] px-1.5 py-0 h-5', isAdmin ? 'bg-amber-50 text-amber-800 border-amber-200 border' : 'bg-amber-50 text-amber-700 border-amber-200 border')} variant="secondary">
+                {isAdmin ? 'Admin' : 'Employee'}
+              </Badge>
+              <LanguageSwitcher />
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400" onClick={signOut}>
+                <LogOut className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        </header>
+
+        {/* Mobile bottom nav */}
+        <div className="fixed bottom-0 left-0 right-0 z-50 sm:hidden bg-[#f9f5f0]/95 backdrop-blur-md border-t border-[#ebe3d9] safe-bottom">
+          <TabsList className="w-full h-auto bg-transparent rounded-none flex justify-around p-0">
+            {sidebarNavItems.map(tab => (
+              <TabsTrigger key={tab.value} value={tab.value} className="flex-col gap-0.5 py-2.5 px-2 rounded-none data-[state=active]:bg-transparent data-[state=active]:text-[#5a3d2e] data-[state=active]:shadow-none h-auto text-[#b8a48e] transition-all duration-200 data-[state=active]:scale-105">
+                <tab.icon className="h-[18px] w-[18px] transition-transform duration-200" />
+                <span className="text-[9px] leading-tight font-medium">{tab.label.split(' ')[0]}</span>
+                <div className="h-1 w-1 rounded-full transition-colors duration-200 data-[state=active]:bg-[#6b4c3b] bg-transparent" />
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
+
+        {/* Main content area */}
+        <main className={cn("min-h-screen transition-all duration-300 ease-in-out", sidebarOpen ? "sm:ml-[220px]" : "sm:ml-[68px]")}>
+          <div className="px-4 sm:px-8 py-6 pb-24 sm:pb-8 max-w-[1400px]">
 
           {/* Stats Tab */}
           <TabsContent value="stats">
@@ -1953,6 +2057,10 @@ const AdminDashboard = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
+                  <Label>{t('Tên tiệm')}</Label>
+                  <Input value={spaName} onChange={e => setSpaName(e.target.value)} className="mt-1" placeholder="Oasis Reserve" />
+                </div>
+                <div>
                   <Label>{t('Số điện thoại tiệm')}</Label>
                   <Input value={shopPhone} onChange={e => setShopPhone(e.target.value)} className="mt-1" placeholder="+84 123 456 789" />
                 </div>
@@ -2212,11 +2320,12 @@ const AdminDashboard = () => {
                                 setDeletingAdminId(admin.id);
                                 try {
                                   const { data: { session: s } } = await supabase.auth.getSession();
+                                  if (!s?.access_token) throw new Error('Session expired. Please log out and log back in.');
                                   const res = await fetch(
                                     `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-admins`,
                                     {
                                       method: 'DELETE',
-                                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${s?.access_token}` },
+                                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${s.access_token}` },
                                       body: JSON.stringify({ user_id: admin.id }),
                                     }
                                   );
@@ -2278,11 +2387,12 @@ const AdminDashboard = () => {
                         setCreatingAdmin(true);
                         try {
                           const { data: { session: s } } = await supabase.auth.getSession();
+                          if (!s?.access_token) throw new Error('Session expired. Please log out and log back in.');
                           const res = await fetch(
                             `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-admin`,
                             {
                               method: 'POST',
-                              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${s?.access_token}` },
+                              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${s.access_token}` },
                               body: JSON.stringify({ email: newAdminEmail.trim(), password: newAdminPassword, role: newAdminRole }),
                             }
                           );
@@ -2616,8 +2726,9 @@ const AdminDashboard = () => {
             )}
           </TabsContent>
           )}
+          </div>
+        </main>
         </Tabs>
-      </div>
     </div>
   );
 };

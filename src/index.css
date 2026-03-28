@@ -99,6 +99,152 @@
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ═══════════════════════════════════
+   Fresha-style Admin Dashboard
+   ═══════════════════════════════════ */
+
+/* --- Layout & Cards --- */
+.admin-shell [data-slot="card"] {
+  background: #fffdf9;
+  border: 1px solid #ebe3d9;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.03);
+  border-radius: 1rem;
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
+}
+.admin-shell [data-slot="card"]:hover {
+  box-shadow: 0 4px 16px -4px rgb(0 0 0 / 0.08);
+}
+.admin-shell [data-slot="card-header"] {
+  padding: 1.25rem 1.25rem 0.75rem;
+}
+.admin-shell [data-slot="card-content"] {
+  padding: 0.75rem 1.25rem 1.25rem;
+}
+@media (min-width: 640px) {
+  .admin-shell [data-slot="card-header"] { padding: 1.5rem 1.75rem 0.75rem; }
+  .admin-shell [data-slot="card-content"] { padding: 0.75rem 1.75rem 1.5rem; }
+}
+
+/* --- Tables --- */
+.admin-shell table th {
+  color: #9ca3af;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+.admin-shell table td {
+  font-size: 0.85rem;
+}
+.admin-shell table tr {
+  transition: background 0.15s ease;
+}
+.admin-shell table tbody tr:hover {
+  background: #f7f2ec;
+}
+
+/* --- Badges (brown theme) --- */
+.admin-shell [data-slot="badge"][data-variant="default"] {
+  background: linear-gradient(135deg, #6b4c3b, #8b6f47);
+  border: none;
+}
+
+/* --- Buttons --- */
+.admin-shell button {
+  transition: all 0.2s ease;
+}
+.admin-shell button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* --- Tab content entrance --- */
+.admin-shell [role="tabpanel"] {
+  animation: adminFadeIn 0.3s ease-out;
+}
+@keyframes adminFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- Dialog / Sheet overlays --- */
+.admin-shell [role="dialog"] {
+  animation: adminSlideUp 0.25s ease-out;
+}
+@keyframes adminSlideUp {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* --- Mobile bottom nav pill indicator --- */
+.admin-shell .safe-bottom [data-state="active"] svg {
+  transform: scale(1.15);
+  color: #5a3d2e;
+}
+
+/* --- Responsive table scroll on mobile --- */
+@media (max-width: 639px) {
+  .admin-shell table {
+    font-size: 0.78rem;
+  }
+  .admin-shell [data-slot="card-header"],
+  .admin-shell [data-slot="card-content"] {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  .admin-shell .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* --- Input focus brown ring --- */
+.admin-shell input:focus,
+.admin-shell textarea:focus,
+.admin-shell [role="combobox"]:focus {
+  border-color: #6b4c3b !important;
+  box-shadow: 0 0 0 2px rgb(107 76 59 / 0.15) !important;
+  outline: none;
+}
+
+/* --- Switch brown theme --- */
+.admin-shell button[role="switch"][data-state="checked"] {
+  background: linear-gradient(135deg, #6b4c3b, #8b6f47) !important;
+}
+
+/* --- Primary button brown gradient --- */
+.admin-shell button[data-slot="button"]:not([data-variant]):not([variant]) {
+  background: linear-gradient(135deg, #6b4c3b, #8b6f47);
+  border: none;
+}
+.admin-shell button[data-slot="button"]:not([data-variant]):not([variant]):hover {
+  background: linear-gradient(135deg, #5a3d2e, #7a5e38);
+}
+
+/* --- Destructive buttons --- */
+.admin-shell button[data-variant="destructive"] {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+/* --- Scrollbar --- */
+.admin-shell ::-webkit-scrollbar {
+  width: 6px;
+}
+.admin-shell ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.admin-shell ::-webkit-scrollbar-thumb {
+  background: #ddd;
+  border-radius: 3px;
+}
+.admin-shell ::-webkit-scrollbar-thumb:hover {
+  background: #bbb;
+}
+
 /* Card hover micro-interaction */
 .card-hover {
   transition: transform 200ms ease, box-shadow 200ms ease;
