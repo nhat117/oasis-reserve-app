@@ -12,42 +12,36 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Auth check: require admin or employee role
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  // Auth: allow service_role key (for cron) or admin/employee user
   const authHeader = req.headers.get("authorization");
-  if (!authHeader) {
-    return new Response(JSON.stringify({ error: "Missing auth" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
+  const isServiceRole = authHeader === `Bearer ${supabaseKey}`;
 
-  const authUrl = Deno.env.get("SUPABASE_URL")!;
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-  const callerClient = createClient(authUrl, anonKey, {
-    global: { headers: { Authorization: authHeader } },
-  });
-  const { data: { user: caller } } = await callerClient.auth.getUser();
-  if (!caller) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+  if (!isServiceRole) {
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Missing auth" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const callerClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
     });
-  }
-
-  const { data: isAdmin } = await callerClient.rpc("has_role", {
-    _user_id: caller.id,
-    _role: "admin",
-  });
-  const { data: isEmployee } = await callerClient.rpc("has_role", {
-    _user_id: caller.id,
-    _role: "employee",
-  });
-
-  if (!isAdmin && !isEmployee) {
-    return new Response(JSON.stringify({ error: "Access denied" }), {
-      status: 403,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    const { data: { user: caller } } = await callerClient.auth.getUser();
+    if (!caller) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const { data: isAdmin } = await callerClient.rpc("has_role", { _user_id: caller.id, _role: "admin" });
+    const { data: isEmployee } = await callerClient.rpc("has_role", { _user_id: caller.id, _role: "employee" });
+    if (!isAdmin && !isEmployee) {
+      return new Response(JSON.stringify({ error: "Access denied" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
   }
 
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -56,8 +50,6 @@ Deno.serve(async (req) => {
   const TWILIO_API_KEY = Deno.env.get("TWILIO_API_KEY");
   if (!TWILIO_API_KEY) throw new Error("TWILIO_API_KEY is not configured");
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
