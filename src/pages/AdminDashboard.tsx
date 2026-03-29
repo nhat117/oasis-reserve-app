@@ -34,7 +34,7 @@ const CURRENCIES = ['VND', 'USD', 'EUR', 'AUD'] as const;
 
 const resizeImage = (file: File, maxW = 800, maxH = 600, quality = 0.85): Promise<File> =>
   new Promise((resolve) => {
-    const img = new Image();
+    const img = new window.Image() as HTMLImageElement;
     img.onload = () => {
       let { width, height } = img;
       if (width > maxW || height > maxH) {
