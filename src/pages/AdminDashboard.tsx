@@ -1023,7 +1023,7 @@ const AdminDashboard = () => {
   // Progressive rendering for large lists
   const { visibleItems: visibleCustomers, hasMore: hasMoreCustomers, sentinelRef: customerSentinelRef } = useLoadMore(filteredCustomers);
   const { visibleItems: visibleSales, hasMore: hasMoreSales, sentinelRef: salesSentinelRef } = useLoadMore(filteredSales);
-  const { visibleItems: visibleLogs, hasMore: hasMoreLogs, sentinelRef: logsSentinelRef } = useLoadMore(activityLogs || [], 50);
+  const emptyLogs: typeof activityLogs = [];
 
   useEffect(() => {
     if (currencySettings) {
