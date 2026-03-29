@@ -491,4 +491,11 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Vui lòng chọn ngày khác.": "Please choose another date.",
   "sang ngôn ngữ đã chọn": "to the selected language",
   "Đang dịch...": "Translating...",
+  "Cấu hình Twilio": "Twilio Configuration",
+  "Nhập thông tin tài khoản Twilio để gửi SMS và WhatsApp. Bạn có thể tìm thông tin này tại": "Enter your Twilio account details for SMS and WhatsApp. You can find this info at",
+  "Số điện thoại Twilio": "Twilio Phone Number",
+  "Số điện thoại Twilio dùng để gửi SMS/WhatsApp": "Twilio phone number used to send SMS/WhatsApp",
+  "Lưu cấu hình Twilio": "Save Twilio Configuration",
+  "Đã lưu cấu hình Twilio": "Twilio configuration saved",
+  "Số": "Number",
 };

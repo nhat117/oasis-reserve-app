@@ -16,7 +16,7 @@ import { BookingCalendar } from '@/components/BookingCalendar';
 import { LogoUpload as LogoUploadComponent } from '@/components/LogoUpload';
 import { Textarea } from '@/components/ui/textarea';
 import { BookingStats } from '@/components/BookingStats';
-import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal } from 'lucide-react';
+import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ALL_I18N_KEYS } from '@/lib/i18n-keys';
 import { Switch } from '@/components/ui/switch';
@@ -263,6 +263,11 @@ const AdminDashboard = () => {
     });
   };
 
+  // Twilio credentials state
+  const [twilioAccountSid, setTwilioAccountSid] = useState('');
+  const [twilioAuthToken, setTwilioAuthToken] = useState('');
+  const [twilioPhoneNumber, setTwilioPhoneNumber] = useState('');
+
   // Reminder settings state
   const [reminderEmailEnabled, setReminderEmailEnabled] = useState(false);
   const [reminderSmsEnabled, setReminderSmsEnabled] = useState(false);
@@ -441,6 +446,45 @@ const AdminDashboard = () => {
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['twilio-number-setting'] }); toast({ title: t('Đã lưu số SMS') }); },
+  });
+
+  // Twilio credentials
+  const { data: twilioSettings } = useQuery({
+    queryKey: ['twilio-credentials'],
+    queryFn: async () => {
+      const { data } = await supabase.from('app_settings').select('key, value')
+        .in('key', ['twilio_account_sid', 'twilio_auth_token', 'twilio_phone_number']);
+      const map: Record<string, string> = {};
+      data?.forEach((r: any) => { map[r.key] = r.value; });
+      return map;
+    },
+  });
+
+  useEffect(() => {
+    if (twilioSettings) {
+      if (twilioSettings.twilio_account_sid) setTwilioAccountSid(twilioSettings.twilio_account_sid);
+      if (twilioSettings.twilio_auth_token) setTwilioAuthToken(twilioSettings.twilio_auth_token);
+      if (twilioSettings.twilio_phone_number) setTwilioPhoneNumber(twilioSettings.twilio_phone_number);
+    }
+  }, [twilioSettings]);
+
+  const saveTwilioCredentials = useMutation({
+    mutationFn: async () => {
+      requireAdmin();
+      const settings = [
+        { key: 'twilio_account_sid', value: twilioAccountSid.trim() },
+        { key: 'twilio_auth_token', value: twilioAuthToken.trim() },
+        { key: 'twilio_phone_number', value: twilioPhoneNumber.trim() },
+      ];
+      for (const s of settings) {
+        const { error } = await supabase.from('app_settings').upsert(s);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['twilio-credentials'] });
+      toast({ title: t('Đã lưu cấu hình Twilio') });
+    },
   });
 
   // WhatsApp setting
@@ -2744,6 +2788,7 @@ const AdminDashboard = () => {
               { key: 'shop', icon: Store, label: t('Thông tin tiệm'), desc: t('Tên, địa chỉ, giờ mở cửa, ngày lễ') },
               { key: 'display', icon: Palette, label: t('Hiển thị & Giao diện'), desc: t('Logo, hero, thợ ngẫu nhiên, phụ phí thẻ') },
               { key: 'accounts', icon: Users, label: t('Quản lý tài khoản'), desc: `${adminAccounts?.length || 0} ${t('tài khoản')}` },
+              { key: 'twilio', icon: Phone, label: t('Cấu hình Twilio'), desc: twilioSettings?.twilio_account_sid ? t('Đã cấu hình') : t('Chưa cấu hình') },
               { key: 'notifications', icon: Bell, label: t('Thông báo & Nhắc lịch'), desc: t('SMS, WhatsApp, email nhắc lịch') },
               { key: 'email', icon: Mail, label: t('Cài đặt email'), desc: resendSettings?.['resend_api_key'] ? t('Đã cấu hình') : t('Chưa cấu hình') },
               { key: 'translation', icon: Languages, label: t('Cài đặt dịch thuật'), desc: openaiSettings?.['openai_api_key'] ? t('Đã cấu hình') : t('Chưa cấu hình') },
@@ -3575,6 +3620,57 @@ const AdminDashboard = () => {
                   <div className="pt-2">
                     <Link to="/software-terms" className="text-xs text-primary hover:underline">{t('Xem điều khoản phần mềm')}</Link>
                   </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* ── Twilio Configuration Modal ── */}
+            <Dialog open={settingsModal === 'twilio'} onOpenChange={(open) => !open && setSettingsModal(null)}>
+              <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>{t('Cấu hình Twilio')}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-2">
+                  <div className="rounded-lg bg-muted/50 border border-border/40 p-3">
+                    <p className="text-xs text-muted-foreground">{t('Nhập thông tin tài khoản Twilio để gửi SMS và WhatsApp. Bạn có thể tìm thông tin này tại')} <a href="https://console.twilio.com" target="_blank" rel="noopener noreferrer" className="text-[#6b4c3b] underline">console.twilio.com</a></p>
+                  </div>
+                  <div>
+                    <Label>Account SID</Label>
+                    <Input
+                      value={twilioAccountSid}
+                      onChange={e => setTwilioAccountSid(e.target.value)}
+                      placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                      className="mt-1 font-mono text-xs"
+                    />
+                  </div>
+                  <div>
+                    <Label>Auth Token</Label>
+                    <Input
+                      type="password"
+                      value={twilioAuthToken}
+                      onChange={e => setTwilioAuthToken(e.target.value)}
+                      placeholder="••••••••••••••••••••••••••••••••"
+                      className="mt-1 font-mono text-xs"
+                    />
+                  </div>
+                  <div>
+                    <Label>{t('Số điện thoại Twilio')}</Label>
+                    <Input
+                      value={twilioPhoneNumber}
+                      onChange={e => setTwilioPhoneNumber(e.target.value)}
+                      placeholder="+1 234 567 8900"
+                      className="mt-1"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">{t('Số điện thoại Twilio dùng để gửi SMS/WhatsApp')}</p>
+                  </div>
+                  {twilioSettings?.twilio_account_sid && (
+                    <div className="rounded-lg bg-green-50 border border-green-200 p-3">
+                      <p className="text-xs text-green-700 font-medium">{t('Đã cấu hình')}</p>
+                      <p className="text-xs text-green-600 mt-0.5">SID: {twilioSettings.twilio_account_sid.slice(0, 8)}...{twilioSettings.twilio_account_sid.slice(-4)}</p>
+                      {twilioSettings.twilio_phone_number && <p className="text-xs text-green-600">{t('Số')}: {twilioSettings.twilio_phone_number}</p>}
+                    </div>
+                  )}
+                  <Button size="sm" onClick={() => { saveTwilioCredentials.mutate(); setSettingsModal(null); }}>{t('Lưu cấu hình Twilio')}</Button>
                 </div>
               </DialogContent>
             </Dialog>
