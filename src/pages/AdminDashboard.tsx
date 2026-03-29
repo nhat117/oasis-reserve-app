@@ -1079,6 +1079,36 @@ const AdminDashboard = () => {
     onSuccess: () => {
       logActivity('create_booking', `Customer: ${bookingCustomerName}, Phone: ${bookingCustomerPhone}`);
       queryClient.invalidateQueries({ queryKey: ['admin-bookings'] });
+      // Send confirmation email if customer email provided
+      if (bookingCustomerEmail?.trim()) {
+        const service = services?.find(s => s.id === bookingServiceId);
+        const therapist = therapists?.find(t => t.id === bookingTherapistId);
+        const emailHtml = `
+          <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto;">
+            <div style="background: hsl(30, 35%, 28%); border-radius: 12px 12px 0 0; padding: 24px; text-align: center;">
+              <h1 style="color: #fff; margin: 0; font-size: 22px;">Booking Confirmed!</h1>
+            </div>
+            <div style="padding: 20px;">
+              <p style="font-size: 16px;">Hi <strong>${bookingCustomerName}</strong>,</p>
+              <p style="font-size: 14px; color: #666;">Your booking has been confirmed.</p>
+              <div style="background: hsl(35, 30%, 95%); border-radius: 8px; padding: 16px; margin: 16px 0;">
+                <p style="margin: 4px 0;">📋 <strong>Service:</strong> ${service?.name || ''}</p>
+                <p style="margin: 4px 0;">👤 <strong>Staff:</strong> ${therapist?.name || ''}</p>
+                <p style="margin: 4px 0;">📅 <strong>Date:</strong> ${bookingDate ? format(bookingDate, 'dd/MM/yyyy') : ''}</p>
+                <p style="margin: 4px 0;">🕐 <strong>Time:</strong> ${bookingTime || ''}</p>
+              </div>
+              <p style="font-size: 14px; color: #666;">Thank you for choosing us. We look forward to seeing you!</p>
+            </div>
+          </div>
+        `;
+        supabase.functions.invoke('send-email-resend', {
+          body: {
+            to: bookingCustomerEmail.trim(),
+            subject: `Booking Confirmed - ${service?.name || 'Oasis Reserve'}`,
+            html: emailHtml,
+          },
+        }).catch(err => console.error('Failed to send confirmation email:', err));
+      }
       setBookingDialog(false);
       resetBookingForm();
       toast({ title: t('Đã tạo lịch hẹn') });
