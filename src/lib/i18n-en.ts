@@ -528,7 +528,7 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Đang xác nhận thanh toán...": "Verifying payment...",
   "Thanh toán thành công!": "Payment successful!",
   "Cảm ơn bạn! Đặt lịch của bạn đã được xác nhận và thanh toán thành công.": "Thank you! Your booking has been confirmed and payment received.",
-  "Về trang chủ": "Back to home",
+  
   "Thanh toán bị hủy": "Payment cancelled",
   "Thanh toán chưa hoàn tất. Đặt lịch của bạn vẫn được lưu nhưng chưa thanh toán.": "Payment was not completed. Your booking is saved but unpaid.",
   "Đặt lịch lại": "Book again",
