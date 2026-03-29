@@ -409,3 +409,129 @@ describe('Sensitive settings key classification', () => {
     });
   });
 });
+
+// ─── Refund Validation (create-stripe-refund logic) ───
+
+interface RefundableBooking {
+  id: string;
+  payment_status: string;
+  payment_provider: string | null;
+  payment_intent_id: string | null;
+}
+
+function validateRefundRequest(booking: RefundableBooking | null): string | null {
+  if (!booking) return 'Booking not found';
+  if (booking.payment_status !== 'paid') return `Cannot refund: payment status is '${booking.payment_status}'`;
+  if (booking.payment_provider !== 'stripe') return 'Only Stripe payments can be refunded online';
+  if (!booking.payment_intent_id) return 'No payment intent found for this booking';
+  return null;
+}
+
+describe('Refund request validation', () => {
+  const validBooking: RefundableBooking = {
+    id: 'booking-123',
+    payment_status: 'paid',
+    payment_provider: 'stripe',
+    payment_intent_id: 'pi_abc123',
+  };
+
+  it('accepts valid paid Stripe booking', () => {
+    expect(validateRefundRequest(validBooking)).toBeNull();
+  });
+
+  it('rejects null booking', () => {
+    expect(validateRefundRequest(null)).toBe('Booking not found');
+  });
+
+  it('rejects unpaid booking', () => {
+    expect(validateRefundRequest({ ...validBooking, payment_status: 'unpaid' }))
+      .toBe("Cannot refund: payment status is 'unpaid'");
+  });
+
+  it('rejects pending booking', () => {
+    expect(validateRefundRequest({ ...validBooking, payment_status: 'pending' }))
+      .toBe("Cannot refund: payment status is 'pending'");
+  });
+
+  it('rejects already refunded booking', () => {
+    expect(validateRefundRequest({ ...validBooking, payment_status: 'refunded' }))
+      .toBe("Cannot refund: payment status is 'refunded'");
+  });
+
+  it('rejects failed booking', () => {
+    expect(validateRefundRequest({ ...validBooking, payment_status: 'failed' }))
+      .toBe("Cannot refund: payment status is 'failed'");
+  });
+
+  it('rejects Square payment (online refund not supported)', () => {
+    expect(validateRefundRequest({ ...validBooking, payment_provider: 'square' }))
+      .toBe('Only Stripe payments can be refunded online');
+  });
+
+  it('rejects null provider', () => {
+    expect(validateRefundRequest({ ...validBooking, payment_provider: null }))
+      .toBe('Only Stripe payments can be refunded online');
+  });
+
+  it('rejects missing payment_intent_id', () => {
+    expect(validateRefundRequest({ ...validBooking, payment_intent_id: null }))
+      .toBe('No payment intent found for this booking');
+  });
+
+  it('rejects empty payment_intent_id', () => {
+    expect(validateRefundRequest({ ...validBooking, payment_intent_id: '' }))
+      .toBe('No payment intent found for this booking');
+  });
+});
+
+describe('Refund status transition', () => {
+  it('paid → refunded is the only valid refund transition', () => {
+    expect(isValidTransition('paid', 'refunded')).toBe(true);
+  });
+
+  it('refunded is a terminal state', () => {
+    expect(isValidTransition('refunded', 'paid')).toBe(false);
+    expect(isValidTransition('refunded', 'pending')).toBe(false);
+    expect(isValidTransition('refunded', 'unpaid')).toBe(false);
+  });
+
+  it('cannot refund from unpaid', () => {
+    expect(isValidTransition('unpaid', 'refunded')).toBe(false);
+  });
+
+  it('cannot refund from pending', () => {
+    expect(isValidTransition('pending', 'refunded')).toBe(false);
+  });
+});
+
+describe('Refund amount validation', () => {
+  function validateRefundAmount(originalAmount: number): { amountInCents: number } | null {
+    if (originalAmount <= 0) return null;
+    return { amountInCents: Math.round(originalAmount * 100) };
+  }
+
+  it('converts dollars to cents correctly', () => {
+    expect(validateRefundAmount(50)).toEqual({ amountInCents: 5000 });
+  });
+
+  it('handles decimal amounts', () => {
+    expect(validateRefundAmount(99.99)).toEqual({ amountInCents: 9999 });
+  });
+
+  it('handles small amounts', () => {
+    expect(validateRefundAmount(0.50)).toEqual({ amountInCents: 50 });
+  });
+
+  it('rejects zero amount', () => {
+    expect(validateRefundAmount(0)).toBeNull();
+  });
+
+  it('rejects negative amount', () => {
+    expect(validateRefundAmount(-10)).toBeNull();
+  });
+
+  it('rounds floating point correctly', () => {
+    // 19.99 * 100 = 1998.9999... should round to 1999
+    expect(validateRefundAmount(19.99)).toEqual({ amountInCents: 1999 });
+  });
+});

@@ -23,12 +23,18 @@ export interface Booking {
   therapist_id: string;
   services?: { name: string } | null;
   therapists?: { name: string } | null;
+  // Payment fields (available after migration)
+  payment_status?: string | null;
+  payment_provider?: string | null;
+  payment_intent_id?: string | null;
+  total_amount?: number | null;
 }
 
 interface BookingCalendarProps {
   bookings: Booking[];
   onCancel: (id: string) => void;
   onDelete?: (id: string) => void;
+  onRefund?: (id: string) => void;
   onReschedule: (id: string, newDate: string, newStartTime: string, newEndTime: string) => void;
   onDateSelect?: (date: string, startTime?: string) => void;
 }
@@ -38,7 +44,7 @@ const THERAPIST_COLORS = [
   '#8b5cf6', '#06b6d4', '#ec4899', '#f97316',
 ];
 
-export function BookingCalendar({ bookings, onCancel, onDelete, onReschedule, onDateSelect }: BookingCalendarProps) {
+export function BookingCalendar({ bookings, onCancel, onDelete, onRefund, onReschedule, onDateSelect }: BookingCalendarProps) {
   const { t, lang } = useI18n();
   const calendarRef = useRef<FullCalendar>(null);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
@@ -199,6 +205,25 @@ export function BookingCalendar({ bookings, onCancel, onDelete, onReschedule, on
                 <p><span className="text-muted-foreground">{t('Khách')}:</span> {selectedBooking.customer_name}</p>
                 <p><span className="text-muted-foreground">{t('SĐT')}:</span> {selectedBooking.customer_phone}</p>
                 <p><span className="text-muted-foreground">{t('Dịch vụ')}:</span> {selectedBooking.services?.name}</p>
+                {selectedBooking.payment_status && selectedBooking.payment_status !== 'unpaid' && (
+                  <p>
+                    <span className="text-muted-foreground">{t('Thanh toán')}:</span>{' '}
+                    <Badge variant={
+                      selectedBooking.payment_status === 'paid' ? 'default' :
+                      selectedBooking.payment_status === 'refunded' ? 'secondary' :
+                      selectedBooking.payment_status === 'pending' ? 'outline' : 'destructive'
+                    } className="text-[10px] ml-1">
+                      {selectedBooking.payment_status === 'paid' ? t('Đã thanh toán') :
+                       selectedBooking.payment_status === 'refunded' ? t('Đã hoàn tiền') :
+                       selectedBooking.payment_status === 'pending' ? t('Đang chờ') :
+                       selectedBooking.payment_status === 'failed' ? t('Thất bại') :
+                       selectedBooking.payment_status}
+                    </Badge>
+                    {selectedBooking.payment_provider && (
+                      <span className="text-muted-foreground text-xs ml-1">({selectedBooking.payment_provider})</span>
+                    )}
+                  </p>
+                )}
               </div>
               {selectedBooking.status === 'confirmed' && (
                 <div className="flex gap-2">
@@ -213,6 +238,13 @@ export function BookingCalendar({ bookings, onCancel, onDelete, onReschedule, on
                     </Button>
                   )}
                 </div>
+              )}
+              {/* Refund button for paid Stripe bookings */}
+              {selectedBooking.payment_status === 'paid' && selectedBooking.payment_provider === 'stripe' && onRefund && (
+                <Button variant="outline" size="sm" className="w-full text-amber-600 hover:text-amber-700 border-amber-300 hover:border-amber-400"
+                  onClick={() => { onRefund(selectedBooking.id); setDialogOpen(false); }}>
+                  {t('Hoàn tiền qua Stripe')}
+                </Button>
               )}
               {selectedBooking.status === 'cancelled' && onDelete && (
                 <Button variant="destructive" size="sm" className="w-full"

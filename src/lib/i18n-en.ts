@@ -546,4 +546,14 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Máy thanh toán tại quầy": "In-store Terminal",
   "Thanh toán qua máy POS Square Terminal": "Pay via Square POS Terminal",
   "Chưa cấu hình — nhấn để thiết lập": "Not configured — tap to set up",
+
+  // Refund
+  "Hoàn tiền qua Stripe": "Refund via Stripe",
+  "Đã hoàn tiền": "Refunded",
+  "Đã thanh toán": "Paid",
+  "Đang chờ": "Pending",
+  "Thất bại": "Failed",
+  "Đã hoàn tiền thành công": "Refund processed successfully",
+  "Lỗi hoàn tiền": "Refund error",
+  "Bạn có chắc muốn hoàn tiền cho lịch hẹn này? Hành động không thể hoàn tác.": "Are you sure you want to refund this booking? This action cannot be undone.",
 };

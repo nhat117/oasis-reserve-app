@@ -1173,6 +1173,29 @@ const AdminDashboard = () => {
     onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
 
+  const [refundingBookingId, setRefundingBookingId] = useState<string | null>(null);
+  const refundBooking = useMutation({
+    mutationFn: async (id: string) => {
+      setRefundingBookingId(id);
+      const { data, error } = await supabase.functions.invoke('create-stripe-refund', {
+        body: { booking_id: id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (_d, id) => {
+      setRefundingBookingId(null);
+      logActivity('refund_booking', `Booking ID: ${id}`);
+      queryClient.invalidateQueries({ queryKey: ['admin-bookings'] });
+      toast({ title: t('Đã hoàn tiền thành công') });
+    },
+    onError: (e) => {
+      setRefundingBookingId(null);
+      toast({ title: t('Lỗi hoàn tiền'), description: e.message, variant: 'destructive' });
+    },
+  });
+
   const rescheduleBooking = useMutation({
     mutationFn: async ({ id, newDate, newStartTime, newEndTime }: { id: string; newDate: string; newStartTime: string; newEndTime: string }) => {
       const { error } = await supabase.from('bookings').update({
@@ -2089,6 +2112,11 @@ const AdminDashboard = () => {
                   bookings={(bookings as any) || []}
                   onCancel={(id) => cancelBooking.mutate(id)}
                   onDelete={isAdmin ? (id) => deleteBooking.mutate(id) : undefined}
+                  onRefund={(id) => {
+                    if (confirm(t('Bạn có chắc muốn hoàn tiền cho lịch hẹn này? Hành động không thể hoàn tác.'))) {
+                      refundBooking.mutate(id);
+                    }
+                  }}
                   onReschedule={(id, newDate, newStartTime, newEndTime) =>
                     rescheduleBooking.mutate({ id, newDate, newStartTime, newEndTime })
                   }
