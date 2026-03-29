@@ -498,4 +498,42 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Lưu cấu hình Twilio": "Save Twilio Configuration",
   "Đã lưu cấu hình Twilio": "Twilio configuration saved",
   "Số": "Number",
+
+  // Stripe configuration
+  "Cấu hình Stripe": "Stripe Configuration",
+  "Nhập thông tin tài khoản Stripe để nhận thanh toán trực tuyến. Bạn có thể tìm thông tin này tại": "Enter your Stripe account details for online payments. You can find this info at",
+  "Khóa công khai, dùng ở phía khách hàng": "Public key, used on the customer side",
+  "Khóa bí mật, chỉ dùng ở server": "Secret key, used on the server only",
+  "tùy chọn": "optional",
+  "Dùng để xác minh webhook từ Stripe": "Used to verify webhooks from Stripe",
+  "Lưu cấu hình Stripe": "Save Stripe Configuration",
+  "Đã lưu cấu hình Stripe": "Stripe configuration saved",
+
+  // Square configuration
+  "Cấu hình Square": "Square Configuration",
+  "Nhập thông tin tài khoản Square để sử dụng máy thanh toán tại quầy. Bạn có thể tìm thông tin này tại": "Enter your Square account details for in-store terminal payments. You can find this info at",
+  "ID địa điểm Square của bạn": "Your Square location ID",
+  "Môi trường": "Environment",
+  "thử nghiệm": "sandbox",
+  "chính thức": "production",
+  "Lưu cấu hình Square": "Save Square Configuration",
+  "Đã lưu cấu hình Square": "Square configuration saved",
+
+  // Payment flow
+  "Đang chuyển đến trang thanh toán...": "Redirecting to payment...",
+  "Vui lòng chờ trong giây lát": "Please wait a moment",
+  "Đặt lịch thành công": "Booking successful",
+  "Nhưng không thể chuyển đến trang thanh toán. Vui lòng thanh toán tại quầy.": "But could not redirect to payment. Please pay at the counter.",
+  "Đang xác nhận thanh toán...": "Verifying payment...",
+  "Thanh toán thành công!": "Payment successful!",
+  "Cảm ơn bạn! Đặt lịch của bạn đã được xác nhận và thanh toán thành công.": "Thank you! Your booking has been confirmed and payment received.",
+  "Về trang chủ": "Back to home",
+  "Thanh toán bị hủy": "Payment cancelled",
+  "Thanh toán chưa hoàn tất. Đặt lịch của bạn vẫn được lưu nhưng chưa thanh toán.": "Payment was not completed. Your booking is saved but unpaid.",
+  "Đặt lịch lại": "Book again",
+  "Đã ghi nhận nhưng lỗi Square Terminal": "Sale recorded but Square Terminal error",
+  "Đã gửi đến Square Terminal": "Sent to Square Terminal",
+  "Khách hàng có thể thanh toán trên máy POS": "Customer can pay on the POS terminal",
+  "Bật thanh toán trực tuyến": "Enable online payment",
+  "Khách hàng sẽ thanh toán qua Stripe khi đặt lịch": "Customers will pay via Stripe when booking",
 };

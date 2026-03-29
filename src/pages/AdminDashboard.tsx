@@ -16,7 +16,7 @@ import { BookingCalendar } from '@/components/BookingCalendar';
 import { LogoUpload as LogoUploadComponent } from '@/components/LogoUpload';
 import { Textarea } from '@/components/ui/textarea';
 import { BookingStats } from '@/components/BookingStats';
-import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone } from 'lucide-react';
+import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone, CreditCard, Square } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ALL_I18N_KEYS } from '@/lib/i18n-keys';
 import { Switch } from '@/components/ui/switch';
@@ -173,7 +173,8 @@ const AdminDashboard = () => {
   const [saleCustomerName, setSaleCustomerName] = useState('');
   const [saleCustomerPhone, setSaleCustomerPhone] = useState('');
   const [saleAmount, setSaleAmount] = useState('');
-  const [salePaymentMethod, setSalePaymentMethod] = useState<'cash' | 'card'>('cash');
+  const [salePaymentMethod, setSalePaymentMethod] = useState<'cash' | 'card' | 'square'>('cash');
+  const [squareCheckoutPending, setSquareCheckoutPending] = useState(false);
   const [saleNotes, setSaleNotes] = useState('');
   const [saleAddOns, setSaleAddOns] = useState<string[]>([]);
 
@@ -268,6 +269,17 @@ const AdminDashboard = () => {
   const [twilioAuthToken, setTwilioAuthToken] = useState('');
   const [twilioPhoneNumber, setTwilioPhoneNumber] = useState('');
 
+  // Stripe credentials state
+  const [stripePublishableKey, setStripePublishableKey] = useState('');
+  const [stripeSecretKey, setStripeSecretKey] = useState('');
+  const [stripeWebhookSecret, setStripeWebhookSecret] = useState('');
+  const [stripePaymentEnabled, setStripePaymentEnabled] = useState(false);
+
+  // Square credentials state
+  const [squareAccessToken, setSquareAccessToken] = useState('');
+  const [squareLocationId, setSquareLocationId] = useState('');
+  const [squareEnvironment, setSquareEnvironment] = useState('sandbox');
+
   // Reminder settings state
   const [reminderEmailEnabled, setReminderEmailEnabled] = useState(false);
   const [reminderSmsEnabled, setReminderSmsEnabled] = useState(false);
@@ -355,15 +367,35 @@ const AdminDashboard = () => {
       const totalAmount = baseAmount + surcharge;
       const payload: any = {
         amount: totalAmount,
-        payment_method: salePaymentMethod,
+        payment_method: salePaymentMethod === 'square' ? 'card' : salePaymentMethod,
+        payment_provider: salePaymentMethod === 'square' ? 'square' : salePaymentMethod,
         notes: saleNotes || null,
         sale_date: format(new Date(), 'yyyy-MM-dd'),
         customer_phone: saleCustomerPhone || null,
         customer_name: saleCustomerName || null,
       };
       if (saleType === 'booking' && saleBookingId && saleBookingId !== 'none') payload.booking_id = saleBookingId;
-      const { error } = await supabase.from('sales').insert(payload);
+      const { data: saleData, error } = await supabase.from('sales').insert(payload).select('id').single();
       if (error) throw error;
+
+      // If Square Terminal, trigger terminal checkout
+      if (salePaymentMethod === 'square' && saleData?.id) {
+        setSquareCheckoutPending(true);
+        const { error: sqErr } = await supabase.functions.invoke('create-square-terminal-checkout', {
+          body: {
+            sale_id: saleData.id,
+            booking_id: (saleType === 'booking' && saleBookingId && saleBookingId !== 'none') ? saleBookingId : undefined,
+            amount: totalAmount,
+            note: `${saleCustomerName || 'Customer'} - ${saleNotes || 'Payment'}`,
+          },
+        });
+        setSquareCheckoutPending(false);
+        if (sqErr) {
+          toast({ title: t('Đã ghi nhận nhưng lỗi Square Terminal'), description: String(sqErr), variant: 'destructive' });
+        } else {
+          toast({ title: t('Đã gửi đến Square Terminal'), description: t('Khách hàng có thể thanh toán trên máy POS') });
+        }
+      }
     },
     onSuccess: () => {
       logActivity('create_sale', `Amount: ${saleAmount}, Method: ${salePaymentMethod}, Customer: ${saleCustomerName || saleCustomerPhone || 'N/A'}`);
@@ -484,6 +516,90 @@ const AdminDashboard = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['twilio-credentials'] });
       toast({ title: t('Đã lưu cấu hình Twilio') });
+    },
+  });
+
+  // Stripe credentials
+  const { data: stripeSettings } = useQuery({
+    queryKey: ['stripe-credentials'],
+    queryFn: async () => {
+      const { data } = await supabase.from('app_settings').select('key, value')
+        .in('key', ['stripe_publishable_key', 'stripe_secret_key', 'stripe_webhook_secret', 'stripe_payment_enabled']);
+      const map: Record<string, string> = {};
+      data?.forEach((r: any) => { map[r.key] = r.value; });
+      return map;
+    },
+  });
+
+  useEffect(() => {
+    if (stripeSettings) {
+      if (stripeSettings.stripe_publishable_key) setStripePublishableKey(stripeSettings.stripe_publishable_key);
+      if (stripeSettings.stripe_secret_key) setStripeSecretKey(stripeSettings.stripe_secret_key);
+      if (stripeSettings.stripe_webhook_secret) setStripeWebhookSecret(stripeSettings.stripe_webhook_secret);
+      setStripePaymentEnabled(stripeSettings.stripe_payment_enabled === 'true');
+    }
+  }, [stripeSettings]);
+
+  const saveStripeCredentials = useMutation({
+    mutationFn: async () => {
+      requireAdmin();
+      const settings = [
+        { key: 'stripe_publishable_key', value: stripePublishableKey.trim() },
+        { key: 'stripe_secret_key', value: stripeSecretKey.trim() },
+        { key: 'stripe_webhook_secret', value: stripeWebhookSecret.trim() },
+        { key: 'stripe_payment_enabled', value: String(stripePaymentEnabled) },
+      ];
+      for (const s of settings) {
+        if (s.value) {
+          const { error } = await supabase.from('app_settings').upsert(s);
+          if (error) throw error;
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stripe-credentials'] });
+      toast({ title: t('Đã lưu cấu hình Stripe') });
+    },
+  });
+
+  // Square credentials
+  const { data: squareSettings } = useQuery({
+    queryKey: ['square-credentials'],
+    queryFn: async () => {
+      const { data } = await supabase.from('app_settings').select('key, value')
+        .in('key', ['square_access_token', 'square_location_id', 'square_environment']);
+      const map: Record<string, string> = {};
+      data?.forEach((r: any) => { map[r.key] = r.value; });
+      return map;
+    },
+  });
+
+  useEffect(() => {
+    if (squareSettings) {
+      if (squareSettings.square_access_token) setSquareAccessToken(squareSettings.square_access_token);
+      if (squareSettings.square_location_id) setSquareLocationId(squareSettings.square_location_id);
+      if (squareSettings.square_environment) setSquareEnvironment(squareSettings.square_environment);
+    }
+  }, [squareSettings]);
+
+  const saveSquareCredentials = useMutation({
+    mutationFn: async () => {
+      requireAdmin();
+      const settings = [
+        { key: 'square_access_token', value: squareAccessToken.trim() },
+        { key: 'square_location_id', value: squareLocationId.trim() },
+        { key: 'square_environment', value: squareEnvironment },
+      ];
+      for (const s of settings) {
+        if (s.value) {
+          const { error } = await supabase.from('app_settings').upsert(s);
+          if (error) throw error;
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['square-credentials'] });
+      toast({ title: t('Đã lưu cấu hình Square') });
     },
   });
 
@@ -2089,6 +2205,11 @@ const AdminDashboard = () => {
                           <Button type="button" variant={salePaymentMethod === 'card' ? 'default' : 'outline'} className="flex-1" onClick={() => setSalePaymentMethod('card')}>
                             {t('Thẻ')}
                           </Button>
+                          {squareSettings?.square_access_token && (
+                            <Button type="button" variant={salePaymentMethod === 'square' ? 'default' : 'outline'} className="flex-1" onClick={() => setSalePaymentMethod('square')}>
+                              Square
+                            </Button>
+                          )}
                         </div>
                         {(() => {
                           const addOnTotal = saleAddOns.reduce((sum, id) => sum + (services?.find(s => s.id === id)?.price || 0), 0);
@@ -2818,6 +2939,8 @@ const AdminDashboard = () => {
               { key: 'shop', icon: Store, label: t('Thông tin tiệm'), desc: t('Tên, địa chỉ, giờ mở cửa, ngày lễ') },
               { key: 'display', icon: Palette, label: t('Hiển thị & Giao diện'), desc: t('Logo, hero, thợ ngẫu nhiên, phụ phí thẻ') },
               { key: 'accounts', icon: Users, label: t('Quản lý tài khoản'), desc: `${adminAccounts?.length || 0} ${t('tài khoản')}` },
+              { key: 'stripe', icon: CreditCard, label: t('Cấu hình Stripe'), desc: stripeSettings?.stripe_publishable_key ? t('Đã cấu hình') : t('Chưa cấu hình') },
+              { key: 'square', icon: Square, label: t('Cấu hình Square'), desc: squareSettings?.square_access_token ? t('Đã cấu hình') : t('Chưa cấu hình') },
               { key: 'twilio', icon: Phone, label: t('Cấu hình Twilio'), desc: twilioSettings?.twilio_account_sid ? t('Đã cấu hình') : t('Chưa cấu hình') },
               { key: 'notifications', icon: Bell, label: t('Thông báo & Nhắc lịch'), desc: t('SMS, WhatsApp, email nhắc lịch') },
               { key: 'email', icon: Mail, label: t('Cài đặt email'), desc: resendSettings?.['resend_api_key'] ? t('Đã cấu hình') : t('Chưa cấu hình') },
@@ -3701,6 +3824,120 @@ const AdminDashboard = () => {
                     </div>
                   )}
                   <Button size="sm" onClick={() => { saveTwilioCredentials.mutate(); setSettingsModal(null); }}>{t('Lưu cấu hình Twilio')}</Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* ── Stripe Configuration Modal ── */}
+            <Dialog open={settingsModal === 'stripe'} onOpenChange={(open) => !open && setSettingsModal(null)}>
+              <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>{t('Cấu hình Stripe')}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-2">
+                  <div className="flex items-center justify-between rounded-lg border border-border/40 p-3">
+                    <div>
+                      <p className="text-sm font-medium">{t('Bật thanh toán trực tuyến')}</p>
+                      <p className="text-xs text-muted-foreground">{t('Khách hàng sẽ thanh toán qua Stripe khi đặt lịch')}</p>
+                    </div>
+                    <Switch checked={stripePaymentEnabled} onCheckedChange={setStripePaymentEnabled} />
+                  </div>
+                  <div className="rounded-lg bg-muted/50 border border-border/40 p-3">
+                    <p className="text-xs text-muted-foreground">{t('Nhập thông tin tài khoản Stripe để nhận thanh toán trực tuyến. Bạn có thể tìm thông tin này tại')} <a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noopener noreferrer" className="text-[#6b4c3b] underline">dashboard.stripe.com</a></p>
+                  </div>
+                  <div>
+                    <Label>Publishable Key</Label>
+                    <Input
+                      value={stripePublishableKey}
+                      onChange={e => setStripePublishableKey(e.target.value)}
+                      placeholder="pk_live_xxxxxxxxxxxxxxxxxxxxxxxx"
+                      className="mt-1 font-mono text-xs"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">{t('Khóa công khai, dùng ở phía khách hàng')}</p>
+                  </div>
+                  <div>
+                    <Label>Secret Key</Label>
+                    <Input
+                      type="password"
+                      value={stripeSecretKey}
+                      onChange={e => setStripeSecretKey(e.target.value)}
+                      placeholder="sk_live_xxxxxxxxxxxxxxxxxxxxxxxx"
+                      className="mt-1 font-mono text-xs"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">{t('Khóa bí mật, chỉ dùng ở server')}</p>
+                  </div>
+                  <div>
+                    <Label>Webhook Secret ({t('tùy chọn')})</Label>
+                    <Input
+                      type="password"
+                      value={stripeWebhookSecret}
+                      onChange={e => setStripeWebhookSecret(e.target.value)}
+                      placeholder="whsec_xxxxxxxxxxxxxxxxxxxxxxxx"
+                      className="mt-1 font-mono text-xs"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">{t('Dùng để xác minh webhook từ Stripe')}</p>
+                  </div>
+                  {stripeSettings?.stripe_publishable_key && (
+                    <div className="rounded-lg bg-green-50 border border-green-200 p-3">
+                      <p className="text-xs text-green-700 font-medium">{t('Đã cấu hình')}</p>
+                      <p className="text-xs text-green-600 mt-0.5">Key: {stripeSettings.stripe_publishable_key.slice(0, 12)}...{stripeSettings.stripe_publishable_key.slice(-4)}</p>
+                    </div>
+                  )}
+                  <Button size="sm" onClick={() => { saveStripeCredentials.mutate(); setSettingsModal(null); }}>{t('Lưu cấu hình Stripe')}</Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* ── Square Configuration Modal ── */}
+            <Dialog open={settingsModal === 'square'} onOpenChange={(open) => !open && setSettingsModal(null)}>
+              <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>{t('Cấu hình Square')}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-2">
+                  <div className="rounded-lg bg-muted/50 border border-border/40 p-3">
+                    <p className="text-xs text-muted-foreground">{t('Nhập thông tin tài khoản Square để sử dụng máy thanh toán tại quầy. Bạn có thể tìm thông tin này tại')} <a href="https://developer.squareup.com/apps" target="_blank" rel="noopener noreferrer" className="text-[#6b4c3b] underline">developer.squareup.com</a></p>
+                  </div>
+                  <div>
+                    <Label>Access Token</Label>
+                    <Input
+                      type="password"
+                      value={squareAccessToken}
+                      onChange={e => setSquareAccessToken(e.target.value)}
+                      placeholder="EAAAxxxxxxxxxxxxxxxxxxxxxxxx"
+                      className="mt-1 font-mono text-xs"
+                    />
+                  </div>
+                  <div>
+                    <Label>Location ID</Label>
+                    <Input
+                      value={squareLocationId}
+                      onChange={e => setSquareLocationId(e.target.value)}
+                      placeholder="Lxxxxxxxxxxxxxxx"
+                      className="mt-1 font-mono text-xs"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">{t('ID địa điểm Square của bạn')}</p>
+                  </div>
+                  <div>
+                    <Label>{t('Môi trường')}</Label>
+                    <Select value={squareEnvironment} onValueChange={setSquareEnvironment}>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sandbox">Sandbox ({t('thử nghiệm')})</SelectItem>
+                        <SelectItem value="production">Production ({t('chính thức')})</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {squareSettings?.square_access_token && (
+                    <div className="rounded-lg bg-green-50 border border-green-200 p-3">
+                      <p className="text-xs text-green-700 font-medium">{t('Đã cấu hình')}</p>
+                      <p className="text-xs text-green-600 mt-0.5">Location: {squareSettings.square_location_id || 'N/A'}</p>
+                      <p className="text-xs text-green-600">{t('Môi trường')}: {squareSettings.square_environment === 'production' ? t('chính thức') : t('thử nghiệm')}</p>
+                    </div>
+                  )}
+                  <Button size="sm" onClick={() => { saveSquareCredentials.mutate(); setSettingsModal(null); }}>{t('Lưu cấu hình Square')}</Button>
                 </div>
               </DialogContent>
             </Dialog>

@@ -1,0 +1,155 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
+
+// TODO: Restrict CORS to your actual domains once finalized
+// e.g. ["https://yourdomain.com", "http://localhost:5173"]
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+Deno.serve(async (req) => {
+
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  try {
+    const {
+      booking_id,
+      service_name,
+      total_amount,
+      customer_email,
+      customer_name,
+      success_url,
+      cancel_url,
+    } = await req.json();
+
+    if (!booking_id || !total_amount || !success_url || !cancel_url) {
+      return new Response(
+        JSON.stringify({ error: "Missing required fields" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate booking exists and get the real price from DB
+    const { data: booking, error: bookingError } = await supabase
+      .from("bookings")
+      .select("id, service_id, payment_status")
+      .eq("id", booking_id)
+      .single();
+
+    if (bookingError || !booking) {
+      return new Response(
+        JSON.stringify({ error: "Booking not found" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (booking.payment_status === "paid") {
+      return new Response(
+        JSON.stringify({ error: "Booking already paid" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Verify amount matches the service price
+    const { data: service } = await supabase
+      .from("services")
+      .select("price, name")
+      .eq("id", booking.service_id)
+      .single();
+
+    if (service) {
+      // Allow small rounding difference (add-ons may increase total)
+      // but reject if client amount is less than the base service price
+      if (total_amount < service.price * 0.99) {
+        return new Response(
+          JSON.stringify({ error: "Invalid amount" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // Get Stripe secret key from app_settings
+    const { data: settingsRows } = await supabase
+      .from("app_settings")
+      .select("key, value")
+      .in("key", ["stripe_secret_key", "spa_name", "stripe_payment_enabled"]);
+
+    const s: Record<string, string> = {};
+    settingsRows?.forEach((r: any) => { s[r.key] = r.value; });
+
+    if (s["stripe_payment_enabled"] !== "true") {
+      return new Response(
+        JSON.stringify({ error: "Online payment is not enabled" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const stripeSecretKey = s["stripe_secret_key"];
+    if (!stripeSecretKey) {
+      return new Response(
+        JSON.stringify({ error: "Payment not configured" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const spaName = s["spa_name"] || "Oasis Reserve";
+    const amountInCents = Math.round(total_amount * 100);
+
+    // Create Stripe Checkout Session
+    const stripeResponse = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${stripeSecretKey}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        "payment_method_types[0]": "card",
+        "mode": "payment",
+        "line_items[0][price_data][currency]": "aud",
+        "line_items[0][price_data][product_data][name]": service_name || "Booking",
+        "line_items[0][price_data][product_data][description]": `${spaName} - Booking`,
+        "line_items[0][price_data][unit_amount]": String(amountInCents),
+        "line_items[0][quantity]": "1",
+        "success_url": `${success_url}?session_id={CHECKOUT_SESSION_ID}&booking_id=${booking_id}`,
+        "cancel_url": `${cancel_url}?booking_id=${booking_id}`,
+        "metadata[booking_id]": booking_id,
+        ...(customer_email ? { "customer_email": customer_email } : {}),
+      }),
+    });
+
+    const sessionData = await stripeResponse.json();
+
+    if (!stripeResponse.ok) {
+      console.error("Stripe API error:", sessionData);
+      return new Response(
+        JSON.stringify({ error: "Failed to create checkout session" }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Update booking with payment info
+    await supabase.from("bookings").update({
+      payment_status: "pending",
+      payment_provider: "stripe",
+      payment_intent_id: sessionData.id,
+      total_amount: total_amount,
+    }).eq("id", booking_id);
+
+    return new Response(
+      JSON.stringify({ url: sessionData.url, session_id: sessionData.id }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (err) {
+    console.error("Create Stripe checkout error:", err);
+    return new Response(
+      JSON.stringify({ error: "Internal server error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});

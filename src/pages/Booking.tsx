@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, ArrowRight, CalendarIcon, Check } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarIcon, Check, Loader2 } from 'lucide-react';
 import { format, addMinutes, isBefore, isToday, startOfDay } from 'date-fns';
 import { vi as viLocale, enAU } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -34,6 +34,16 @@ const Booking = () => {
   const [bookingComplete, setBookingComplete] = useState(false);
   const [assignedTherapistName, setAssignedTherapistName] = useState('');
   const [selectedAddOns, setSelectedAddOns] = useState<string[]>([]);
+  const [redirectingToPayment, setRedirectingToPayment] = useState(false);
+
+  // Check if Stripe online payment is enabled
+  const { data: stripeEnabled } = useQuery({
+    queryKey: ['stripe-enabled-public'],
+    queryFn: async () => {
+      const { data } = await supabase.from('app_settings').select('value').eq('key', 'stripe_payment_enabled').single();
+      return data?.value === 'true';
+    },
+  });
 
   const { data: services } = useQuery({
     queryKey: ['services'],
@@ -267,17 +277,54 @@ const Booking = () => {
     if (error) {
       toast({ title: t('Lỗi'), description: t('Không thể đặt lịch. Vui lòng thử lại.'), variant: 'destructive' });
     } else {
-      setBookingComplete(true);
+      // If Stripe is configured and there's a price, redirect to payment
+      if (stripeEnabled && totalPrice > 0) {
+        setRedirectingToPayment(true);
+        try {
+          const origin = window.location.origin;
+          const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('create-stripe-checkout', {
+            body: {
+              booking_id: bookingId,
+              service_name: currentService?.name || 'Booking',
+              total_amount: totalPrice,
+              customer_email: customerEmail.trim() || undefined,
+              customer_name: customerName.trim(),
+              success_url: `${origin}/booking/success`,
+              cancel_url: `${origin}/booking/cancel`,
+            },
+          });
+
+          if (checkoutError || !checkoutData?.url) {
+            console.error('Stripe checkout error:', checkoutError || checkoutData);
+            // Fall back to normal confirmation if payment fails
+            setRedirectingToPayment(false);
+            setBookingComplete(true);
+            toast({ title: t('Đặt lịch thành công'), description: t('Nhưng không thể chuyển đến trang thanh toán. Vui lòng thanh toán tại quầy.') });
+          } else {
+            window.location.href = checkoutData.url;
+            return;
+          }
+        } catch (err) {
+          console.error('Failed to create checkout:', err);
+          setRedirectingToPayment(false);
+          setBookingComplete(true);
+        }
+      } else {
+        setBookingComplete(true);
+      }
+
+      // Send confirmation email
       if (customerEmail.trim()) {
+        const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         const emailHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <h1 style="color: #1a1a1a; font-size: 22px;">Booking Confirmed!</h1>
-            <p style="color: #555; font-size: 14px; line-height: 1.6;">Hi <strong>${customerName.trim()}</strong>, your booking has been confirmed.</p>
+            <p style="color: #555; font-size: 14px; line-height: 1.6;">Hi <strong>${esc(customerName.trim())}</strong>, your booking has been confirmed.</p>
             <div style="background: #f5f5f5; border-radius: 8px; padding: 16px; margin: 20px 0;">
-              <p style="margin: 4px 0;"><strong>Service:</strong> ${currentService?.name || ''}</p>
+              <p style="margin: 4px 0;"><strong>Service:</strong> ${esc(currentService?.name || '')}</p>
               <p style="margin: 4px 0;"><strong>Date:</strong> ${format(selectedDate, 'dd/MM/yyyy')}</p>
               <p style="margin: 4px 0;"><strong>Time:</strong> ${selectedTime} - ${format(endDate, 'HH:mm')}</p>
-              <p style="margin: 4px 0;"><strong>Therapist:</strong> ${therapistName}</p>
+              <p style="margin: 4px 0;"><strong>Therapist:</strong> ${esc(therapistName)}</p>
             </div>
             <p style="color: #555; font-size: 14px;">Thank you for choosing Royal Head Spa. We look forward to seeing you!</p>
           </div>
@@ -303,6 +350,20 @@ const Booking = () => {
     t('Thông tin'),
     t('Xác nhận'),
   ];
+
+  if (redirectingToPayment) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="max-w-md w-full text-center space-y-6">
+          <Loader2 className="h-8 w-8 animate-spin text-[#6b4c3b] mx-auto" />
+          <div className="space-y-2">
+            <h1 className="text-2xl font-light">{t('Đang chuyển đến trang thanh toán...')}</h1>
+            <p className="text-muted-foreground text-sm">{t('Vui lòng chờ trong giây lát')}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (bookingComplete) {
     return (

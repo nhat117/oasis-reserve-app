@@ -16,6 +16,8 @@ import NotFound from "./pages/NotFound";
 import Unsubscribe from "./pages/Unsubscribe";
 import About from "./pages/About";
 import SoftwareTerms from "./pages/SoftwareTerms";
+import PaymentSuccess from "./pages/PaymentSuccess";
+import PaymentCancel from "./pages/PaymentCancel";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +38,8 @@ const App = () => (
             <Route path="/admin/reset-password" element={<AdminResetPassword />} />
             <Route path="/about" element={<About />} />
             <Route path="/software-terms" element={<SoftwareTerms />} />
+            <Route path="/booking/success" element={<PaymentSuccess />} />
+            <Route path="/booking/cancel" element={<PaymentCancel />} />
             <Route path="/unsubscribe" element={<Unsubscribe />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

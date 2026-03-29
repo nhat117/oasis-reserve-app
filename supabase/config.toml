@@ -29,3 +29,18 @@ verify_jwt = false
 
 [functions.manage-admins]
 verify_jwt = false
+
+[functions.create-stripe-checkout]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.create-square-terminal-checkout]
+verify_jwt = false
+
+[functions.square-webhook]
+verify_jwt = false
+
+[functions.send-email-resend]
+verify_jwt = false
