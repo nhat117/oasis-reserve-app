@@ -5,8 +5,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const GATEWAY_URL = "https://connector-gateway.lovable.dev/twilio";
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -44,19 +42,13 @@ Deno.serve(async (req) => {
     }
   }
 
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
-
-  const TWILIO_API_KEY = Deno.env.get("TWILIO_API_KEY");
-  if (!TWILIO_API_KEY) throw new Error("TWILIO_API_KEY is not configured");
-
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
     // Check if SMS reminders are enabled
     const { data: enabledSetting } = await supabase
       .from("app_settings").select("value").eq("key", "reminder_sms_enabled").single();
-    
+
     if (enabledSetting?.value !== "true") {
       return new Response(
         JSON.stringify({ skipped: true, reason: "SMS reminders disabled" }),
@@ -64,15 +56,25 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get settings
-    const { data: phoneSetting } = await supabase
-      .from("app_settings").select("value").eq("key", "twilio_from_number").single();
-    const { data: whatsappSetting } = await supabase
-      .from("app_settings").select("value").eq("key", "whatsapp_enabled").single();
+    // Get Twilio credentials from app_settings (configured in admin UI)
+    const { data: twilioSettings } = await supabase
+      .from("app_settings").select("key, value")
+      .in("key", ["twilio_account_sid", "twilio_auth_token", "twilio_phone_number", "twilio_from_number", "whatsapp_enabled"]);
 
-    const fromNumber = phoneSetting?.value;
-    const whatsappEnabled = whatsappSetting?.value === "true";
+    const settings: Record<string, string> = {};
+    twilioSettings?.forEach((r: any) => { settings[r.key] = r.value; });
 
+    const accountSid = settings.twilio_account_sid;
+    const authToken = settings.twilio_auth_token;
+    const fromNumber = settings.twilio_phone_number || settings.twilio_from_number;
+    const whatsappEnabled = settings.whatsapp_enabled === "true";
+
+    if (!accountSid || !authToken) {
+      return new Response(
+        JSON.stringify({ error: "Twilio credentials not configured. Go to Settings > Twilio Configuration." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
     if (!fromNumber) {
       return new Response(
         JSON.stringify({ error: "Twilio phone number not configured" }),
@@ -89,6 +91,10 @@ Deno.serve(async (req) => {
     const reminder1Hours = parseInt(interval1Setting?.value || "24");
     const reminder2Hours = parseInt(interval2Setting?.value || "1");
 
+    // Twilio API base URL
+    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+    const twilioAuth = btoa(`${accountSid}:${authToken}`);
+
     const now = new Date();
     const results: any[] = [];
 
@@ -99,7 +105,7 @@ Deno.serve(async (req) => {
       const targetDate = targetTime.toISOString().split("T")[0];
       const targetHour = targetTime.getUTCHours().toString().padStart(2, "0");
       const targetMinute = targetTime.getUTCMinutes().toString().padStart(2, "0");
-      
+
       const windowStart = `${targetHour}:${targetMinute}:00`;
       const windowEndTime = new Date(targetTime.getTime() + 30 * 60 * 1000);
       const windowEndHour = windowEndTime.getUTCHours().toString().padStart(2, "0");
@@ -124,21 +130,21 @@ Deno.serve(async (req) => {
 
         let phone = booking.customer_phone.replace(/\s+/g, "");
         if (phone.startsWith("0")) {
-          phone = "+84" + phone.slice(1);
+          phone = "+61" + phone.slice(1);
         } else if (!phone.startsWith("+")) {
-          phone = "+84" + phone;
+          phone = "+61" + phone;
         }
 
         const serviceName = (booking as any).services?.name || "";
         const therapistName = (booking as any).therapists?.name || "";
-        const message = `Royal Head Spa nhắc lịch: Bạn có lịch hẹn "${serviceName}" lúc ${booking.start_time.slice(0, 5)} ngày ${booking.booking_date} với ${therapistName}. Hẹn gặp bạn!`;
+        const message = `Oasis Reserve reminder: You have a "${serviceName}" appointment at ${booking.start_time.slice(0, 5)} on ${booking.booking_date} with ${therapistName}. See you soon!`;
 
         try {
-          const smsResponse = await fetch(`${GATEWAY_URL}/Messages.json`, {
+          // Send SMS via Twilio API directly
+          const smsResponse = await fetch(twilioUrl, {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
-              "X-Connection-Api-Key": TWILIO_API_KEY,
+              Authorization: `Basic ${twilioAuth}`,
               "Content-Type": "application/x-www-form-urlencoded",
             },
             body: new URLSearchParams({ To: phone, From: fromNumber, Body: message }),
@@ -147,13 +153,13 @@ Deno.serve(async (req) => {
           const smsData = await smsResponse.json();
           const result: any = { booking_id: booking.id, phone, sms: smsResponse.ok ? smsData.sid : smsData };
 
+          // WhatsApp (if enabled)
           if (whatsappEnabled) {
             try {
-              const waResponse = await fetch(`${GATEWAY_URL}/Messages.json`, {
+              const waResponse = await fetch(twilioUrl, {
                 method: "POST",
                 headers: {
-                  Authorization: `Bearer ${LOVABLE_API_KEY}`,
-                  "X-Connection-Api-Key": TWILIO_API_KEY,
+                  Authorization: `Basic ${twilioAuth}`,
                   "Content-Type": "application/x-www-form-urlencoded",
                 },
                 body: new URLSearchParams({
