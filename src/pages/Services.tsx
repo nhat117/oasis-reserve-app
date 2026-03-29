@@ -55,9 +55,7 @@ const Services = () => {
             ))
           ) : (
             services?.map((service, idx) => {
-              const imageUrl = service.image_path
-                ? supabase.storage.from('service-images').getPublicUrl(service.image_path).data.publicUrl
-                : SERVICE_STOCK_IMAGES[idx % SERVICE_STOCK_IMAGES.length];
+              const imageUrl = SERVICE_STOCK_IMAGES[idx % SERVICE_STOCK_IMAGES.length];
               return (
                 <div key={service.id} className="border border-border/60 hover:border-foreground/20 transition-colors duration-200 group overflow-hidden">
                   <div className="flex flex-col sm:flex-row">

@@ -51,7 +51,7 @@ describe('useReveal', () => {
     renderHook(() => useReveal());
 
     observerCallback(
-      [{ isIntersecting: true, target: el } as IntersectionObserverEntry],
+      [{ isIntersecting: true, target: el } as unknown as IntersectionObserverEntry],
       {} as IntersectionObserver,
     );
 
@@ -68,7 +68,7 @@ describe('useReveal', () => {
     renderHook(() => useReveal());
 
     observerCallback(
-      [{ isIntersecting: false, target: el } as IntersectionObserverEntry],
+      [{ isIntersecting: false, target: el } as unknown as IntersectionObserverEntry],
       {} as IntersectionObserver,
     );
 
