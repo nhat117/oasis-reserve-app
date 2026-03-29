@@ -29,7 +29,6 @@ const Header = () => {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  // Close menu on route change
   useEffect(() => {
     setMenuOpen(false);
   }, [location.pathname]);
@@ -44,45 +43,59 @@ const Header = () => {
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ease-out ${
         scrolled
-          ? 'bg-background/90 backdrop-blur-lg shadow-sm'
-          : 'bg-background/60 backdrop-blur-md'
+          ? 'bg-background/95 backdrop-blur-xl shadow-[0_1px_3px_rgba(0,0,0,0.05)] border-b border-border/20 py-0'
+          : 'bg-background/60 backdrop-blur-md py-0.5'
       }`}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 py-3 flex items-center justify-between">
+      <div className={`max-w-7xl mx-auto px-5 sm:px-8 md:px-10 flex items-center justify-between transition-all duration-300 ${
+        scrolled ? 'h-14' : 'h-16'
+      }`}>
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2.5">
+        <Link
+          to="/"
+          className="flex items-center gap-3 group"
+        >
           <img
             src={logoImg}
             alt={spaName || 'Oasis Reserve'}
-            className="h-9 w-9 sm:h-11 sm:w-11 object-contain"
+            className={`object-contain transition-all duration-300 group-hover:scale-105 ${
+              scrolled ? 'h-10 w-10 sm:h-11 sm:w-11' : 'h-11 w-11 sm:h-[52px] sm:w-[52px]'
+            }`}
           />
-          <span className="text-[11px] sm:text-xs tracking-[0.22em] uppercase text-foreground/90 font-light">
+          <span className="text-xs sm:text-[13px] tracking-[0.18em] uppercase text-foreground font-medium">
             {spaName || 'Oasis Reserve'}
           </span>
         </Link>
 
         {/* Desktop nav */}
-        <nav className="hidden md:flex items-center gap-10">
+        <nav className="hidden md:flex items-center gap-7">
           {navLinks.map(link => (
             <Link
               key={link.to}
               to={link.to}
-              className={`text-[11px] tracking-[0.18em] uppercase transition-colors duration-200 ${
+              className={`group relative text-[11.5px] tracking-[0.14em] uppercase transition-colors duration-250 py-1 ${
                 isActive(link.to)
-                  ? 'text-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
+                  ? 'text-foreground font-medium'
+                  : 'text-foreground/50 hover:text-foreground/80'
               }`}
             >
               {link.label}
+              <span
+                className={`absolute -bottom-0.5 left-0 h-[1.5px] bg-foreground/70 transition-all duration-250 ease-out ${
+                  isActive(link.to) ? 'w-full' : 'w-0 group-hover:w-full'
+                }`}
+              />
             </Link>
           ))}
-          <LanguageSwitcher />
-          <Link to="/booking" className="ml-2">
+          <div className="ml-1">
+            <LanguageSwitcher />
+          </div>
+          <Link to="/booking" className="ml-1.5">
             <Button
               size="sm"
-              className="text-[11px] tracking-[0.15em] uppercase rounded-none px-7 h-8"
+              className="text-[11px] tracking-[0.14em] uppercase rounded-none px-7 h-8 font-medium transition-all duration-250 hover:opacity-90"
             >
               {t('Đặt lịch')}
             </Button>
@@ -90,17 +103,17 @@ const Header = () => {
         </nav>
 
         {/* Mobile: book button + hamburger */}
-        <div className="flex md:hidden items-center gap-2">
+        <div className="flex md:hidden items-center gap-2.5">
           <Link to="/booking">
             <Button
               size="sm"
-              className="text-[10px] tracking-[0.12em] uppercase rounded-none px-4 h-7"
+              className="text-[10px] tracking-[0.12em] uppercase rounded-none px-5 h-7 font-medium"
             >
               {t('Đặt lịch')}
             </Button>
           </Link>
           <button
-            className="p-1.5 text-foreground/80 hover:text-foreground transition-colors"
+            className="p-1.5 text-foreground/70 hover:text-foreground transition-colors duration-250"
             onClick={() => setMenuOpen(!menuOpen)}
             aria-label="Menu"
           >
@@ -115,21 +128,21 @@ const Header = () => {
           menuOpen ? 'max-h-80 opacity-100' : 'max-h-0 opacity-0'
         }`}
       >
-        <nav className="bg-background/95 backdrop-blur-lg border-t border-border/30 px-6 py-5 space-y-1">
+        <nav className="bg-background/97 backdrop-blur-xl border-t border-border/20 px-6 py-5 space-y-0.5">
           {navLinks.map(link => (
             <Link
               key={link.to}
               to={link.to}
-              className={`block py-2.5 text-sm tracking-[0.12em] uppercase transition-colors ${
+              className={`block py-2.5 text-[13px] tracking-[0.1em] uppercase transition-colors duration-250 ${
                 isActive(link.to)
-                  ? 'text-foreground font-normal'
-                  : 'text-muted-foreground hover:text-foreground'
+                  ? 'text-foreground font-medium'
+                  : 'text-foreground/45 hover:text-foreground/75'
               }`}
             >
               {link.label}
             </Link>
           ))}
-          <div className="pt-3 border-t border-border/30">
+          <div className="pt-3 border-t border-border/20">
             <LanguageSwitcher />
           </div>
         </nav>
