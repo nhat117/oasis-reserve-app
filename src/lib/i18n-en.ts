@@ -537,4 +537,13 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Khách hàng có thể thanh toán trên máy POS": "Customer can pay on the POS terminal",
   "Bật thanh toán trực tuyến": "Enable online payment",
   "Khách hàng sẽ thanh toán qua Stripe khi đặt lịch": "Customers will pay via Stripe when booking",
+
+  // Payments unified settings
+  "Thanh toán": "Payments",
+  "Đã bật": "Enabled",
+  "Chưa bật": "Not enabled",
+  "Thanh toán trực tuyến": "Online Payment",
+  "Máy thanh toán tại quầy": "In-store Terminal",
+  "Thanh toán qua máy POS Square Terminal": "Pay via Square POS Terminal",
+  "Chưa cấu hình — nhấn để thiết lập": "Not configured — tap to set up",
 };

@@ -280,6 +280,10 @@ const AdminDashboard = () => {
   const [squareAccessToken, setSquareAccessToken] = useState('');
   const [squareLocationId, setSquareLocationId] = useState('');
   const [squareEnvironment, setSquareEnvironment] = useState('sandbox');
+  const [squareTerminalEnabled, setSquareTerminalEnabled] = useState(false);
+
+  // Payments modal sub-section expansion
+  const [paymentSection, setPaymentSection] = useState<'stripe' | 'square' | null>(null);
 
   // Reminder settings state
   const [reminderEmailEnabled, setReminderEmailEnabled] = useState(false);
@@ -369,7 +373,6 @@ const AdminDashboard = () => {
       const payload: any = {
         amount: totalAmount,
         payment_method: salePaymentMethod === 'square' ? 'card' : salePaymentMethod,
-        payment_provider: salePaymentMethod === 'square' ? 'square' : salePaymentMethod,
         notes: saleNotes || null,
         sale_date: format(new Date(), 'yyyy-MM-dd'),
         customer_phone: saleCustomerPhone || null,
@@ -568,7 +571,7 @@ const AdminDashboard = () => {
     queryKey: ['square-credentials'],
     queryFn: async () => {
       const { data } = await supabase.from('app_settings').select('key, value')
-        .in('key', ['square_access_token', 'square_location_id', 'square_environment']);
+        .in('key', ['square_access_token', 'square_location_id', 'square_environment', 'square_terminal_enabled']);
       const map: Record<string, string> = {};
       data?.forEach((r: any) => { map[r.key] = r.value; });
       return map;
@@ -580,6 +583,7 @@ const AdminDashboard = () => {
       if (squareSettings.square_access_token) setSquareAccessToken(squareSettings.square_access_token);
       if (squareSettings.square_location_id) setSquareLocationId(squareSettings.square_location_id);
       if (squareSettings.square_environment) setSquareEnvironment(squareSettings.square_environment);
+      setSquareTerminalEnabled(squareSettings.square_terminal_enabled === 'true');
     }
   }, [squareSettings]);
 
@@ -590,6 +594,7 @@ const AdminDashboard = () => {
         { key: 'square_access_token', value: squareAccessToken.trim() },
         { key: 'square_location_id', value: squareLocationId.trim() },
         { key: 'square_environment', value: squareEnvironment },
+        { key: 'square_terminal_enabled', value: String(squareTerminalEnabled) },
       ];
       for (const s of settings) {
         if (s.value) {
@@ -2226,7 +2231,7 @@ const AdminDashboard = () => {
                           <Button type="button" variant={salePaymentMethod === 'card' ? 'default' : 'outline'} className="flex-1" onClick={() => setSalePaymentMethod('card')}>
                             {t('Thẻ')}
                           </Button>
-                          {squareSettings?.square_access_token && (
+                          {squareTerminalEnabled && squareSettings?.square_access_token && (
                             <Button type="button" variant={salePaymentMethod === 'square' ? 'default' : 'outline'} className="flex-1" onClick={() => setSalePaymentMethod('square')}>
                               Square
                             </Button>
@@ -2943,8 +2948,7 @@ const AdminDashboard = () => {
               { key: 'shop', icon: Store, label: t('Thông tin tiệm'), desc: t('Tên, địa chỉ, giờ mở cửa, ngày lễ') },
               { key: 'display', icon: Palette, label: t('Hiển thị & Giao diện'), desc: t('Logo, hero, thợ ngẫu nhiên, phụ phí thẻ') },
               { key: 'accounts', icon: Users, label: t('Quản lý tài khoản'), desc: `${adminAccounts?.length || 0} ${t('tài khoản')}` },
-              { key: 'stripe', icon: CreditCard, label: t('Cấu hình Stripe'), desc: stripeSettings?.stripe_publishable_key ? t('Đã cấu hình') : t('Chưa cấu hình') },
-              { key: 'square', icon: Square, label: t('Cấu hình Square'), desc: squareSettings?.square_access_token ? t('Đã cấu hình') : t('Chưa cấu hình') },
+              { key: 'payments', icon: CreditCard, label: t('Thanh toán'), desc: stripePaymentEnabled || squareTerminalEnabled ? t('Đã bật') : t('Chưa bật') },
               { key: 'twilio', icon: Phone, label: t('Cấu hình Twilio'), desc: twilioSettings?.twilio_account_sid ? t('Đã cấu hình') : t('Chưa cấu hình') },
               { key: 'notifications', icon: Bell, label: t('Thông báo & Nhắc lịch'), desc: t('SMS, WhatsApp, email nhắc lịch') },
               { key: 'email', icon: Mail, label: t('Cài đặt email'), desc: resendSettings?.['resend_api_key'] ? t('Đã cấu hình') : t('Chưa cấu hình') },
@@ -3070,27 +3074,6 @@ const AdminDashboard = () => {
                       <p className="text-xs text-muted-foreground">{t('Cho phép khách chọn "bất kỳ thợ trống" khi đặt lịch')}</p>
                     </div>
                     <Switch checked={randomEnabled !== false} onCheckedChange={(v) => toggleRandom.mutate(v)} />
-                  </div>
-                  <div className="border-t border-border/40" />
-
-                  {/* Card surcharge */}
-                  <div className="space-y-3">
-                    <p className="font-medium text-sm">{t('Phụ phí thẻ tín dụng')}</p>
-                    <div>
-                      <Label>{t('Phần trăm phụ phí (%)')}</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        max="20"
-                        step="0.1"
-                        value={cardSurchargePercent}
-                        onChange={e => setCardSurchargePercent(e.target.value)}
-                        className="mt-1 w-[120px]"
-                        placeholder="0"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">{t('Phụ phí sẽ được tự động cộng thêm khi khách thanh toán bằng thẻ')}</p>
-                    </div>
-                    <Button size="sm" onClick={() => saveCardSurcharge.mutate()}>{t('Lưu')}</Button>
                   </div>
                   <div className="border-t border-border/40" />
 
@@ -3832,116 +3815,138 @@ const AdminDashboard = () => {
               </DialogContent>
             </Dialog>
 
-            {/* ── Stripe Configuration Modal ── */}
-            <Dialog open={settingsModal === 'stripe'} onOpenChange={(open) => !open && setSettingsModal(null)}>
+            {/* ── Payments Configuration Modal ── */}
+            <Dialog open={settingsModal === 'payments'} onOpenChange={(open) => { if (!open) { setSettingsModal(null); setPaymentSection(null); } }}>
               <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>{t('Cấu hình Stripe')}</DialogTitle>
+                  <DialogTitle>{t('Thanh toán')}</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4 pt-2">
-                  <div className="flex items-center justify-between rounded-lg border border-border/40 p-3">
-                    <div>
-                      <p className="text-sm font-medium">{t('Bật thanh toán trực tuyến')}</p>
-                      <p className="text-xs text-muted-foreground">{t('Khách hàng sẽ thanh toán qua Stripe khi đặt lịch')}</p>
-                    </div>
-                    <Switch checked={stripePaymentEnabled} onCheckedChange={setStripePaymentEnabled} />
-                  </div>
-                  <div className="rounded-lg bg-muted/50 border border-border/40 p-3">
-                    <p className="text-xs text-muted-foreground">{t('Nhập thông tin tài khoản Stripe để nhận thanh toán trực tuyến. Bạn có thể tìm thông tin này tại')} <a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noopener noreferrer" className="text-[#6b4c3b] underline">dashboard.stripe.com</a></p>
-                  </div>
-                  <div>
-                    <Label>Publishable Key</Label>
-                    <Input
-                      value={stripePublishableKey}
-                      onChange={e => setStripePublishableKey(e.target.value)}
-                      placeholder="pk_live_xxxxxxxxxxxxxxxxxxxxxxxx"
-                      className="mt-1 font-mono text-xs"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">{t('Khóa công khai, dùng ở phía khách hàng')}</p>
-                  </div>
-                  <div>
-                    <Label>Secret Key</Label>
-                    <Input
-                      type="password"
-                      value={stripeSecretKey}
-                      onChange={e => setStripeSecretKey(e.target.value)}
-                      placeholder="sk_live_xxxxxxxxxxxxxxxxxxxxxxxx"
-                      className="mt-1 font-mono text-xs"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">{t('Khóa bí mật, chỉ dùng ở server')}</p>
-                  </div>
-                  <div>
-                    <Label>Webhook Secret ({t('tùy chọn')})</Label>
-                    <Input
-                      type="password"
-                      value={stripeWebhookSecret}
-                      onChange={e => setStripeWebhookSecret(e.target.value)}
-                      placeholder="whsec_xxxxxxxxxxxxxxxxxxxxxxxx"
-                      className="mt-1 font-mono text-xs"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">{t('Dùng để xác minh webhook từ Stripe')}</p>
-                  </div>
-                  {stripeSettings?.stripe_publishable_key && (
-                    <div className="rounded-lg bg-green-50 border border-green-200 p-3">
-                      <p className="text-xs text-green-700 font-medium">{t('Đã cấu hình')}</p>
-                      <p className="text-xs text-green-600 mt-0.5">Key: {stripeSettings.stripe_publishable_key.slice(0, 12)}...{stripeSettings.stripe_publishable_key.slice(-4)}</p>
-                    </div>
-                  )}
-                  <Button size="sm" onClick={() => { saveStripeCredentials.mutate(); setSettingsModal(null); }}>{t('Lưu cấu hình Stripe')}</Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+                <div className="space-y-5 pt-2">
 
-            {/* ── Square Configuration Modal ── */}
-            <Dialog open={settingsModal === 'square'} onOpenChange={(open) => !open && setSettingsModal(null)}>
-              <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>{t('Cấu hình Square')}</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 pt-2">
-                  <div className="rounded-lg bg-muted/50 border border-border/40 p-3">
-                    <p className="text-xs text-muted-foreground">{t('Nhập thông tin tài khoản Square để sử dụng máy thanh toán tại quầy. Bạn có thể tìm thông tin này tại')} <a href="https://developer.squareup.com/apps" target="_blank" rel="noopener noreferrer" className="text-[#6b4c3b] underline">developer.squareup.com</a></p>
-                  </div>
-                  <div>
-                    <Label>Access Token</Label>
-                    <Input
-                      type="password"
-                      value={squareAccessToken}
-                      onChange={e => setSquareAccessToken(e.target.value)}
-                      placeholder="EAAAxxxxxxxxxxxxxxxxxxxxxxxx"
-                      className="mt-1 font-mono text-xs"
-                    />
-                  </div>
-                  <div>
-                    <Label>Location ID</Label>
-                    <Input
-                      value={squareLocationId}
-                      onChange={e => setSquareLocationId(e.target.value)}
-                      placeholder="Lxxxxxxxxxxxxxxx"
-                      className="mt-1 font-mono text-xs"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">{t('ID địa điểm Square của bạn')}</p>
-                  </div>
-                  <div>
-                    <Label>{t('Môi trường')}</Label>
-                    <Select value={squareEnvironment} onValueChange={setSquareEnvironment}>
-                      <SelectTrigger className="mt-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="sandbox">Sandbox ({t('thử nghiệm')})</SelectItem>
-                        <SelectItem value="production">Production ({t('chính thức')})</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {squareSettings?.square_access_token && (
-                    <div className="rounded-lg bg-green-50 border border-green-200 p-3">
-                      <p className="text-xs text-green-700 font-medium">{t('Đã cấu hình')}</p>
-                      <p className="text-xs text-green-600 mt-0.5">Location: {squareSettings.square_location_id || 'N/A'}</p>
-                      <p className="text-xs text-green-600">{t('Môi trường')}: {squareSettings.square_environment === 'production' ? t('chính thức') : t('thử nghiệm')}</p>
+                  {/* ── Stripe: Online Payment ── */}
+                  <div className="rounded-lg border border-border/60 overflow-hidden">
+                    <div className="flex items-center justify-between p-4">
+                      <div className="flex items-center gap-3">
+                        <CreditCard className="h-5 w-5 text-muted-foreground" />
+                        <div>
+                          <p className="text-sm font-medium">Stripe — {t('Thanh toán trực tuyến')}</p>
+                          <p className="text-xs text-muted-foreground">{t('Khách hàng sẽ thanh toán qua Stripe khi đặt lịch')}</p>
+                        </div>
+                      </div>
+                      <Switch checked={stripePaymentEnabled} onCheckedChange={setStripePaymentEnabled} />
                     </div>
-                  )}
-                  <Button size="sm" onClick={() => { saveSquareCredentials.mutate(); setSettingsModal(null); }}>{t('Lưu cấu hình Square')}</Button>
+                    {stripePaymentEnabled && (
+                      <div className="border-t border-border/40">
+                        <button
+                          type="button"
+                          className="w-full flex items-center justify-between p-3 text-xs text-muted-foreground hover:bg-muted/50 transition-colors"
+                          onClick={() => setPaymentSection(paymentSection === 'stripe' ? null : 'stripe')}
+                        >
+                          <span>{stripeSettings?.stripe_publishable_key ? `${t('Đã cấu hình')} · ${stripeSettings.stripe_publishable_key.slice(0, 12)}...` : t('Chưa cấu hình — nhấn để thiết lập')}</span>
+                          <ChevronRight className={cn('h-3.5 w-3.5 transition-transform', paymentSection === 'stripe' && 'rotate-90')} />
+                        </button>
+                        {paymentSection === 'stripe' && (
+                          <div className="space-y-3 p-4 pt-0">
+                            <div className="rounded-lg bg-muted/50 border border-border/40 p-3">
+                              <p className="text-xs text-muted-foreground">{t('Nhập thông tin tài khoản Stripe để nhận thanh toán trực tuyến. Bạn có thể tìm thông tin này tại')} <a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noopener noreferrer" className="text-[#6b4c3b] underline">dashboard.stripe.com</a></p>
+                            </div>
+                            <div>
+                              <Label>Publishable Key</Label>
+                              <Input value={stripePublishableKey} onChange={e => setStripePublishableKey(e.target.value)} placeholder="pk_live_xxxxxxxxxxxxxxxxxxxxxxxx" className="mt-1 font-mono text-xs" />
+                              <p className="text-xs text-muted-foreground mt-1">{t('Khóa công khai, dùng ở phía khách hàng')}</p>
+                            </div>
+                            <div>
+                              <Label>Secret Key</Label>
+                              <Input type="password" value={stripeSecretKey} onChange={e => setStripeSecretKey(e.target.value)} placeholder="sk_live_xxxxxxxxxxxxxxxxxxxxxxxx" className="mt-1 font-mono text-xs" />
+                              <p className="text-xs text-muted-foreground mt-1">{t('Khóa bí mật, chỉ dùng ở server')}</p>
+                            </div>
+                            <div>
+                              <Label>Webhook Secret ({t('tùy chọn')})</Label>
+                              <Input type="password" value={stripeWebhookSecret} onChange={e => setStripeWebhookSecret(e.target.value)} placeholder="whsec_xxxxxxxxxxxxxxxxxxxxxxxx" className="mt-1 font-mono text-xs" />
+                              <p className="text-xs text-muted-foreground mt-1">{t('Dùng để xác minh webhook từ Stripe')}</p>
+                            </div>
+                            <Button size="sm" onClick={() => { saveStripeCredentials.mutate(); }}>{t('Lưu cấu hình Stripe')}</Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── Square: Terminal Payment ── */}
+                  <div className="rounded-lg border border-border/60 overflow-hidden">
+                    <div className="flex items-center justify-between p-4">
+                      <div className="flex items-center gap-3">
+                        <Square className="h-5 w-5 text-muted-foreground" />
+                        <div>
+                          <p className="text-sm font-medium">Square — {t('Máy thanh toán tại quầy')}</p>
+                          <p className="text-xs text-muted-foreground">{t('Thanh toán qua máy POS Square Terminal')}</p>
+                        </div>
+                      </div>
+                      <Switch checked={squareTerminalEnabled} onCheckedChange={setSquareTerminalEnabled} />
+                    </div>
+                    {squareTerminalEnabled && (
+                      <div className="border-t border-border/40">
+                        <button
+                          type="button"
+                          className="w-full flex items-center justify-between p-3 text-xs text-muted-foreground hover:bg-muted/50 transition-colors"
+                          onClick={() => setPaymentSection(paymentSection === 'square' ? null : 'square')}
+                        >
+                          <span>{squareSettings?.square_access_token ? `${t('Đã cấu hình')} · ${squareSettings.square_location_id || 'N/A'}` : t('Chưa cấu hình — nhấn để thiết lập')}</span>
+                          <ChevronRight className={cn('h-3.5 w-3.5 transition-transform', paymentSection === 'square' && 'rotate-90')} />
+                        </button>
+                        {paymentSection === 'square' && (
+                          <div className="space-y-3 p-4 pt-0">
+                            <div className="rounded-lg bg-muted/50 border border-border/40 p-3">
+                              <p className="text-xs text-muted-foreground">{t('Nhập thông tin tài khoản Square để sử dụng máy thanh toán tại quầy. Bạn có thể tìm thông tin này tại')} <a href="https://developer.squareup.com/apps" target="_blank" rel="noopener noreferrer" className="text-[#6b4c3b] underline">developer.squareup.com</a></p>
+                            </div>
+                            <div>
+                              <Label>Access Token</Label>
+                              <Input type="password" value={squareAccessToken} onChange={e => setSquareAccessToken(e.target.value)} placeholder="EAAAxxxxxxxxxxxxxxxxxxxxxxxx" className="mt-1 font-mono text-xs" />
+                            </div>
+                            <div>
+                              <Label>Location ID</Label>
+                              <Input value={squareLocationId} onChange={e => setSquareLocationId(e.target.value)} placeholder="Lxxxxxxxxxxxxxxx" className="mt-1 font-mono text-xs" />
+                              <p className="text-xs text-muted-foreground mt-1">{t('ID địa điểm Square của bạn')}</p>
+                            </div>
+                            <div>
+                              <Label>{t('Môi trường')}</Label>
+                              <Select value={squareEnvironment} onValueChange={setSquareEnvironment}>
+                                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="sandbox">Sandbox ({t('thử nghiệm')})</SelectItem>
+                                  <SelectItem value="production">Production ({t('chính thức')})</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <Button size="sm" onClick={() => { saveSquareCredentials.mutate(); }}>{t('Lưu cấu hình Square')}</Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── Card Surcharge ── */}
+                  <div className="border-t border-border/40 pt-4">
+                    <div className="space-y-3">
+                      <p className="font-medium text-sm">{t('Phụ phí thẻ tín dụng')}</p>
+                      <div>
+                        <Label>{t('Phần trăm phụ phí (%)')}</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="20"
+                          step="0.1"
+                          value={cardSurchargePercent}
+                          onChange={e => setCardSurchargePercent(e.target.value)}
+                          className="mt-1 w-[120px]"
+                          placeholder="0"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">{t('Phụ phí sẽ được tự động cộng thêm khi khách thanh toán bằng thẻ')}</p>
+                      </div>
+                      <Button size="sm" onClick={() => saveCardSurcharge.mutate()}>{t('Lưu')}</Button>
+                    </div>
+                  </div>
+
                 </div>
               </DialogContent>
             </Dialog>
