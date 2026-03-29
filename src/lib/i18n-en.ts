@@ -483,7 +483,6 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Inactive": "Inactive",
   "English": "English",
   "Hello": "Hello",
-  "Cập nhật": "Update",
   "Chưa có nhân viên": "No staff",
   "Dịch": "Translate",
   "Dịch tất cả": "Translate All",
