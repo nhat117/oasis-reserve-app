@@ -539,7 +539,6 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Khách hàng sẽ thanh toán qua Stripe khi đặt lịch": "Customers will pay via Stripe when booking",
 
   // Payments unified settings
-  "Thanh toán": "Payments",
   "Đã bật": "Enabled",
   "Chưa bật": "Not enabled",
   "Thanh toán trực tuyến": "Online Payment",

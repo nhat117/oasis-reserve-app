@@ -327,6 +327,7 @@ export type Database = {
           customer_name: string | null
           customer_phone: string | null
           id: string
+          is_refunded: boolean
           notes: string | null
           payment_method: string
           sale_date: string
@@ -339,6 +340,7 @@ export type Database = {
           customer_name?: string | null
           customer_phone?: string | null
           id?: string
+          is_refunded?: boolean
           notes?: string | null
           payment_method?: string
           sale_date?: string
@@ -351,6 +353,7 @@ export type Database = {
           customer_name?: string | null
           customer_phone?: string | null
           id?: string
+          is_refunded?: boolean
           notes?: string | null
           payment_method?: string
           sale_date?: string
