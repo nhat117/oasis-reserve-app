@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -28,6 +28,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Navigate, Link } from 'react-router-dom';
 import { useI18n, LanguageSwitcher } from '@/hooks/useI18n';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useLoadMore } from '@/hooks/useLoadMore';
 
 const CURRENCIES = ['VND', 'USD', 'EUR', 'AUD'] as const;
 
@@ -1005,6 +1006,25 @@ const AdminDashboard = () => {
     return g.customer_phone?.toLowerCase().includes(s) || g.customer_name?.toLowerCase().includes(s);
   });
 
+  const filteredSales = useMemo(() => (sales || []).filter((s: any) => {
+    if (salesFilterMethod !== 'all' && s.payment_method !== salesFilterMethod) return false;
+    if (salesFilterDateFrom && s.sale_date < salesFilterDateFrom) return false;
+    if (salesFilterDateTo && s.sale_date > salesFilterDateTo) return false;
+    if (salesFilterSearch) {
+      const q = salesFilterSearch.toLowerCase();
+      const name = (s.customer_name || s.bookings?.customer_name || '').toLowerCase();
+      const phone = (s.customer_phone || s.bookings?.customer_phone || '').toLowerCase();
+      const note = (s.notes || '').toLowerCase();
+      if (!name.includes(q) && !note.includes(q) && !phone.includes(q)) return false;
+    }
+    return true;
+  }), [sales, salesFilterMethod, salesFilterDateFrom, salesFilterDateTo, salesFilterSearch]);
+
+  // Progressive rendering for large lists
+  const { visibleItems: visibleCustomers, hasMore: hasMoreCustomers, sentinelRef: customerSentinelRef } = useLoadMore(filteredCustomers);
+  const { visibleItems: visibleSales, hasMore: hasMoreSales, sentinelRef: salesSentinelRef } = useLoadMore(filteredSales);
+  const { visibleItems: visibleLogs, hasMore: hasMoreLogs, sentinelRef: logsSentinelRef } = useLoadMore(activityLogs || [], 50);
+
   useEffect(() => {
     if (currencySettings) {
       setExchangeUSD(currencySettings['exchange_rate_usd'] || '0.000039');
@@ -1809,7 +1829,7 @@ const AdminDashboard = () => {
               <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
                 <div>
                   <h2 className="text-xl font-semibold text-[#3d2b1f] tracking-tight">{t('Khách hàng')}</h2>
-                  <p className="text-sm text-muted-foreground/70 mt-0.5">{filteredCustomers.length} {t('khách hàng')}</p>
+                  <p className="text-sm text-muted-foreground/70 mt-0.5">{filteredCustomers.length} {t('khách hàng')}{hasMoreCustomers ? ` (${visibleCustomers.length} ${t('hiển thị')})` : ''}</p>
                 </div>
                 <div className="relative w-full sm:w-[280px]">
                   <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
@@ -1842,7 +1862,7 @@ const AdminDashboard = () => {
                     </div>
 
                     <div className="space-y-1">
-                      {filteredCustomers.map(g => {
+                      {visibleCustomers.map(g => {
                         const tier = (g as any).membership_tiers;
                         return (
                           <div
@@ -1896,7 +1916,7 @@ const AdminDashboard = () => {
 
                   {/* Mobile cards */}
                   <div className="sm:hidden space-y-2">
-                    {filteredCustomers.map(g => {
+                    {visibleCustomers.map(g => {
                       const tier = (g as any).membership_tiers;
                       return (
                         <div key={g.id} className="bg-white rounded-xl border border-[#ebe3d9]/40 p-4 transition-colors hover:border-[#d4c9bc]">
@@ -1929,6 +1949,7 @@ const AdminDashboard = () => {
                       );
                     })}
                   </div>
+                  {hasMoreCustomers && <div ref={customerSentinelRef} className="py-4 text-center text-xs text-muted-foreground/50"><Loader2 className="h-4 w-4 animate-spin inline mr-1.5" />{t('Đang tải thêm...')}</div>}
                 </>
               )}
             </div>
@@ -2273,34 +2294,17 @@ const AdminDashboard = () => {
               </div>
 
               {/* Payment list */}
-              {(() => {
-                const filtered = (sales || []).filter((s: any) => {
-                  if (salesFilterMethod !== 'all' && s.payment_method !== salesFilterMethod) return false;
-                  if (salesFilterDateFrom && s.sale_date < salesFilterDateFrom) return false;
-                  if (salesFilterDateTo && s.sale_date > salesFilterDateTo) return false;
-                  if (salesFilterSearch) {
-                    const q = salesFilterSearch.toLowerCase();
-                    const name = (s.customer_name || s.bookings?.customer_name || '').toLowerCase();
-                    const phone = (s.customer_phone || s.bookings?.customer_phone || '').toLowerCase();
-                    const note = (s.notes || '').toLowerCase();
-                    if (!name.includes(q) && !note.includes(q) && !phone.includes(q)) return false;
-                  }
-                  return true;
-                });
-
-                if (filtered.length === 0) return (
+              {filteredSales.length === 0 ? (
                   <div className="text-center py-20 text-muted-foreground">
                     <DollarSign className="h-10 w-10 mx-auto mb-3 opacity-20" />
                     <p className="text-sm font-medium">{sales?.length ? t('Không tìm thấy kết quả') : t('Chưa có thanh toán')}</p>
                     <p className="text-xs text-muted-foreground/60 mt-1">{t('Tạo thanh toán đầu tiên để bắt đầu')}</p>
                   </div>
-                );
-
-                return (
+              ) : (
                   <>
                     {/* Mobile card layout */}
                     <div className="space-y-2 sm:hidden">
-                      {filtered.map((s: any) => {
+                      {visibleSales.map((s: any) => {
                         const customerName = s.customer_name || s.bookings?.customer_name || '—';
                         const customerPhone = s.customer_phone || s.bookings?.customer_phone || '';
                         return (
@@ -2358,7 +2362,7 @@ const AdminDashboard = () => {
 
                       {/* Rows */}
                       <div className="space-y-1">
-                        {filtered.map((s: any) => {
+                        {visibleSales.map((s: any) => {
                           const customerName = s.customer_name || s.bookings?.customer_name || '—';
                           const customerPhone = s.customer_phone || s.bookings?.customer_phone || '';
                           return (
@@ -2423,9 +2427,9 @@ const AdminDashboard = () => {
                         })}
                       </div>
                     </div>
+                    {hasMoreSales && <div ref={salesSentinelRef} className="py-4 text-center text-xs text-muted-foreground/50"><Loader2 className="h-4 w-4 animate-spin inline mr-1.5" />{t('Đang tải thêm...')}</div>}
                   </>
-                );
-              })()}
+              )}
             </div>
           </TabsContent>
 

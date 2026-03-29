@@ -140,6 +140,8 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Ghi nhận thanh toán cho dịch vụ": "Record a payment for a service",
   "Chưa có thanh toán": "No payments yet",
   "Tạo thanh toán đầu tiên để bắt đầu": "Create your first payment to get started",
+  "Đang tải thêm...": "Loading more...",
+  "hiển thị": "shown",
   "Không tìm thấy kết quả": "No results found",
   "Tìm khách hàng...": "Search customers...",
   "Phương thức": "Method",
