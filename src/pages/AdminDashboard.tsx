@@ -16,7 +16,7 @@ import { BookingCalendar } from '@/components/BookingCalendar';
 import { LogoUpload as LogoUploadComponent } from '@/components/LogoUpload';
 import { Textarea } from '@/components/ui/textarea';
 import { BookingStats } from '@/components/BookingStats';
-import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone, CreditCard, Square } from 'lucide-react';
+import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone, CreditCard, Square, RotateCcw } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ALL_I18N_KEYS } from '@/lib/i18n-keys';
 import { Switch } from '@/components/ui/switch';
@@ -354,7 +354,7 @@ const AdminDashboard = () => {
     queryKey: ['admin-sales'],
     queryFn: async () => {
       const { data, error } = await supabase.from('sales')
-        .select('*, bookings(customer_name, customer_phone, booking_date, start_time, services(name))')
+        .select('*, bookings(customer_name, customer_phone, booking_date, start_time, services(name)), is_refunded')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data as any[];
@@ -431,6 +431,19 @@ const AdminDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ['admin-sales'] });
       toast({ title: t('Đã xoá thanh toán') });
     },
+  });
+
+  const refundSale = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('sales').update({ is_refunded: true }).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, id) => {
+      logActivity('refund_sale', `Sale ID: ${id}`);
+      queryClient.invalidateQueries({ queryKey: ['admin-sales'] });
+      toast({ title: t('Đã đánh dấu hoàn tiền') });
+    },
+    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
 
   // Random therapist setting
@@ -2369,6 +2382,11 @@ const AdminDashboard = () => {
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
+                                    {!s.is_refunded && (
+                                      <DropdownMenuItem className="text-amber-600" onClick={() => { if (confirm(t('Xác nhận đánh dấu hoàn tiền?'))) refundSale.mutate(s.id); }}>
+                                        <RotateCcw className="h-3.5 w-3.5 mr-2" /> {t('Hoàn tiền')}
+                                      </DropdownMenuItem>
+                                    )}
                                     <DropdownMenuItem className="text-destructive" onClick={() => deleteSale.mutate(s.id)}>
                                       <Trash2 className="h-3.5 w-3.5 mr-2" /> {t('Xóa')}
                                     </DropdownMenuItem>
@@ -2376,6 +2394,9 @@ const AdminDashboard = () => {
                                 </DropdownMenu>
                               )}
                             </div>
+                            {s.is_refunded && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-600">{t('Đã hoàn tiền')}</span>
+                            )}
                             {s.notes && <p className="text-xs text-muted-foreground/70 truncate">{s.notes}</p>}
                           </div>
                         );
@@ -2425,13 +2446,17 @@ const AdminDashboard = () => {
 
                               {/* Method badge */}
                               <div className="text-center w-20">
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium tracking-wide ${
-                                  s.payment_method === 'card'
-                                    ? 'bg-blue-50 text-blue-600'
-                                    : 'bg-emerald-50 text-emerald-600'
-                                }`}>
-                                  {s.payment_method === 'card' ? t('Thẻ') : t('Tiền mặt')}
-                                </span>
+                                {s.is_refunded ? (
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium tracking-wide bg-amber-50 text-amber-600">{t('Đã hoàn tiền')}</span>
+                                ) : (
+                                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium tracking-wide ${
+                                    s.payment_method === 'card'
+                                      ? 'bg-blue-50 text-blue-600'
+                                      : 'bg-emerald-50 text-emerald-600'
+                                  }`}>
+                                    {s.payment_method === 'card' ? t('Thẻ') : t('Tiền mặt')}
+                                  </span>
+                                )}
                               </div>
 
                               {/* Actions — visible on hover */}
@@ -2448,6 +2473,11 @@ const AdminDashboard = () => {
                                       </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="w-36">
+                                      {!s.is_refunded && (
+                                        <DropdownMenuItem className="text-amber-600 text-xs" onClick={() => { if (confirm(t('Xác nhận đánh dấu hoàn tiền?'))) refundSale.mutate(s.id); }}>
+                                          <RotateCcw className="h-3.5 w-3.5 mr-2" /> {t('Hoàn tiền')}
+                                        </DropdownMenuItem>
+                                      )}
                                       <DropdownMenuItem className="text-destructive text-xs" onClick={() => deleteSale.mutate(s.id)}>
                                         <Trash2 className="h-3.5 w-3.5 mr-2" /> {t('Xóa')}
                                       </DropdownMenuItem>

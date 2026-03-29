@@ -548,7 +548,10 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Chưa cấu hình — nhấn để thiết lập": "Not configured — tap to set up",
 
   // Refund
+  "Hoàn tiền": "Refund",
   "Hoàn tiền qua Stripe": "Refund via Stripe",
+  "Xác nhận đánh dấu hoàn tiền?": "Confirm mark as refunded?",
+  "Đã đánh dấu hoàn tiền": "Marked as refunded",
   "Đã hoàn tiền": "Refunded",
   "Đã thanh toán": "Paid",
   "Đang chờ": "Pending",
