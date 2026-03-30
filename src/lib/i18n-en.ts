@@ -564,4 +564,12 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Đã hoàn tiền thành công": "Refund processed successfully",
   "Lỗi hoàn tiền": "Refund error",
   "Bạn có chắc muốn hoàn tiền cho lịch hẹn này? Hành động không thể hoàn tác.": "Are you sure you want to refund this booking? This action cannot be undone.",
+
+  // Booking stats & calendar
+  "Tỷ lệ đến": "Attendance Rate",
+  "hoàn thành": "completed",
+  "hoàn thành + không đến": "completed + no-shows",
+  "Không đến": "No Show",
+  "Đã đánh dấu hoàn thành": "Marked as completed",
+  "Đã đánh dấu không đến": "Marked as no-show",
 };
