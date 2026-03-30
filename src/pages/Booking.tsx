@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, TENANT_ID } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -301,6 +301,7 @@ const Booking = () => {
       end_time: endTime,
       status: 'confirmed',
       notes: notesText,
+      ...(TENANT_ID ? { tenant_id: TENANT_ID } : {}),
     });
 
     setIsSubmitting(false);

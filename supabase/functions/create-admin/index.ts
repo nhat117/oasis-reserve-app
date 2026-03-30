@@ -73,10 +73,19 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Assign role
+    // Get caller's tenant_id so the new user is in the same tenant
+    const { data: callerRole } = await adminClient
+      .from("user_roles")
+      .select("tenant_id")
+      .eq("user_id", caller.id)
+      .single();
+
+    const callerTenantId = callerRole?.tenant_id;
+
+    // Assign role with tenant
     const { error: roleError } = await adminClient
       .from("user_roles")
-      .insert({ user_id: newUser.user.id, role: assignRole });
+      .insert({ user_id: newUser.user.id, role: assignRole, tenant_id: callerTenantId });
 
     if (roleError) {
       return new Response(JSON.stringify({ error: roleError.message }), {
@@ -85,17 +94,42 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Send welcome email
+    // Send welcome email via Resend
     try {
-      await adminClient.functions.invoke('send-transactional-email', {
+      // Get spa name for this tenant
+      const { data: spaNameSetting } = await adminClient
+        .from("app_settings").select("value")
+        .eq("key", "spa_name")
+        .eq("tenant_id", callerTenantId)
+        .single();
+      const spaName = spaNameSetting?.value || 'Oasis Reserve';
+
+      const loginUrl = `${req.headers.get('origin') || ''}/admin/login`
+      const welcomeHtml = `
+<div style="background-color:#ffffff;font-family:'Be Vietnam Pro',Arial,sans-serif">
+  <div style="padding:20px 25px;max-width:520px;margin:0 auto">
+    <div style="background-color:hsl(30,35%,28%);border-radius:12px 12px 0 0;padding:24px;text-align:center">
+      <h1 style="font-size:22px;font-weight:bold;color:#ffffff;margin:0">🌿 Welcome, Admin!</h1>
+    </div>
+    <p style="font-size:16px;color:hsl(25,30%,12%);margin:20px 0 8px">Hello,</p>
+    <p style="font-size:14px;color:hsl(25,15%,45%);line-height:1.6;margin:0 0 16px">An admin account has been created for you at <strong>${spaName}</strong>.</p>
+    <div style="background-color:hsl(35,30%,95%);border-radius:8px;padding:16px;margin:0 0 20px">
+      <p style="font-size:14px;color:hsl(25,30%,12%);margin:4px 0;line-height:1.6">📧 <strong>Email:</strong> ${email}</p>
+    </div>
+    <p style="font-size:14px;color:hsl(25,15%,45%);line-height:1.6;margin:0 0 16px">You can now sign in to the admin dashboard to manage bookings, services, and settings.</p>
+    <div style="text-align:center;margin:24px 0">
+      <a href="${loginUrl}" style="background-color:hsl(30,35%,28%);color:#ffffff;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:bold;text-decoration:none;display:inline-block">Sign In to Dashboard</a>
+    </div>
+    <p style="font-size:14px;color:hsl(25,15%,45%);line-height:1.6;margin:0 0 16px">If you did not expect this email, please ignore it or contact the team.</p>
+    <hr style="border-color:hsl(35,20%,85%);margin:20px 0" />
+    <p style="font-size:12px;color:hsl(25,15%,45%);margin:0">Best regards, ${spaName}</p>
+  </div>
+</div>`
+      await adminClient.functions.invoke('send-email-resend', {
         body: {
-          templateName: 'admin-welcome',
-          recipientEmail: email,
-          idempotencyKey: `admin-welcome-${newUser.user.id}`,
-          templateData: {
-            email,
-            loginUrl: `${req.headers.get('origin') || ''}/admin/login`,
-          },
+          to: email,
+          subject: 'Your admin account has been created – ${spaName}',
+          html: welcomeHtml,
         },
       });
     } catch (emailErr) {

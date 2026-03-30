@@ -42,15 +42,17 @@ Deno.serve(async (req) => {
 
     const resendApiKey = apiKeySetting.value
 
-    // Get sender email from settings or use default
-    const { data: senderSetting } = await supabase
+    // Get sender email and spa name from settings
+    const { data: senderSettings } = await supabase
       .from('app_settings')
-      .select('value')
-      .eq('key', 'resend_from_email')
-      .single()
+      .select('key, value')
+      .in('key', ['resend_from_email', 'spa_name'])
 
-    const senderEmail = from_email || senderSetting?.value || 'onboarding@resend.dev'
-    const senderName = from_name || 'Royal Head Spa'
+    const settingsMap: Record<string, string> = {}
+    senderSettings?.forEach((r: any) => { settingsMap[r.key] = r.value })
+
+    const senderEmail = from_email || settingsMap.resend_from_email || 'onboarding@resend.dev'
+    const senderName = from_name || settingsMap.spa_name || 'Oasis Reserve'
 
     // Send email via Resend API
     const resendResponse = await fetch('https://api.resend.com/emails', {
