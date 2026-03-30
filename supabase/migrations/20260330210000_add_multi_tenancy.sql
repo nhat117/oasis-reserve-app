@@ -18,27 +18,11 @@ CREATE TABLE IF NOT EXISTS public.tenants (
 
 ALTER TABLE public.tenants ENABLE ROW LEVEL SECURITY;
 
--- Tenants table policies: service_role bypasses RLS; authenticated users
--- can only see their own tenant; anon can read active tenants by id/slug
+-- Anon policy can be created now (no dependency on tenant_id column)
 CREATE POLICY "anon_read_active_tenants" ON public.tenants
   FOR SELECT TO anon USING (is_active = true);
 
-CREATE POLICY "authenticated_read_own_tenant" ON public.tenants
-  FOR SELECT TO authenticated USING (
-    id IN (SELECT tenant_id FROM public.user_roles WHERE user_id = auth.uid())
-  );
-
--- 2. Helper function: get the current user's tenant_id
-CREATE OR REPLACE FUNCTION public.get_my_tenant_id()
-RETURNS UUID
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-AS $$
-  SELECT tenant_id FROM public.user_roles WHERE user_id = auth.uid() LIMIT 1;
-$$;
-
--- 3. Add tenant_id to all business tables
+-- 2. Add tenant_id to all business tables FIRST (policies depend on this column)
 -- We use a default of NULL initially so existing rows aren't broken.
 -- After migration, a default tenant should be created and rows backfilled.
 
@@ -86,6 +70,21 @@ ALTER TABLE public.suppressed_emails
 
 ALTER TABLE public.email_unsubscribe_tokens
   ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES public.tenants(id);
+
+-- 3. Helper function + tenant policy (now that user_roles.tenant_id exists)
+CREATE OR REPLACE FUNCTION public.get_my_tenant_id()
+RETURNS UUID
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+AS $$
+  SELECT tenant_id FROM public.user_roles WHERE user_id = auth.uid() LIMIT 1;
+$$;
+
+CREATE POLICY "authenticated_read_own_tenant" ON public.tenants
+  FOR SELECT TO authenticated USING (
+    id IN (SELECT tenant_id FROM public.user_roles WHERE user_id = auth.uid())
+  );
 
 -- 4. Indexes for tenant_id lookups
 CREATE INDEX IF NOT EXISTS idx_user_roles_tenant ON public.user_roles(tenant_id);
