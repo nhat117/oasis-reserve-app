@@ -355,7 +355,7 @@ const Index = () => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-10 sm:gap-8">
             {/* Brand */}
             <div className="flex flex-col items-center sm:items-start gap-3">
-              <img src={logoImg} alt={spaName} className="h-14 w-14 object-contain opacity-60" loading="lazy" />
+              <img src={logoImg} alt={spaName} className="h-20 w-20 sm:h-24 sm:w-24 object-contain opacity-60" loading="lazy" />
               <h3 className="text-base sm:text-lg tracking-[0.15em] uppercase font-light">{spaName}</h3>
               <p className="text-sm text-muted-foreground/60 text-center sm:text-left max-w-[240px]">
                 {t('Trải nghiệm thư giãn cao cấp')}
