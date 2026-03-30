@@ -357,13 +357,13 @@ const Booking = () => {
               <p style="margin: 4px 0;"><strong>Time:</strong> ${selectedTime} - ${format(endDate, 'HH:mm')}</p>
               <p style="margin: 4px 0;"><strong>Therapist:</strong> ${esc(therapistName)}</p>
             </div>
-            <p style="color: #555; font-size: 14px;">Thank you for choosing Royal Head Spa. We look forward to seeing you!</p>
+            <p style="color: #555; font-size: 14px;">Thank you for choosing Oasis Reserve. We look forward to seeing you!</p>
           </div>
         `;
         supabase.functions.invoke('send-email-resend', {
           body: {
             to: customerEmail.trim(),
-            subject: `Booking Confirmed - ${currentService?.name || 'Royal Head Spa'}`,
+            subject: `Booking Confirmed - ${currentService?.name || 'Oasis Reserve'}`,
             html: emailHtml,
           },
         }).catch(err => console.error('Failed to send confirmation email:', err));

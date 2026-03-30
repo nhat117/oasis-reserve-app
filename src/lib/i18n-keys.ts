@@ -123,6 +123,8 @@ export const ALL_I18N_KEYS: string[] = [
   "Không có lịch hẹn hôm nay",
   "Không có ngày nghỉ trong tháng này",
   "Không gian spa",
+  "Không gian salon",
+  "Nghệ thuật nail",
   "Không giới hạn",
   "Không liên kết",
   "Không thể kết nối đến server. Vui lòng kiểm tra kết nối hoặc deploy lại edge function.",

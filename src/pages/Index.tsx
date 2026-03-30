@@ -12,22 +12,22 @@ import heroImg from '@/assets/hero-luxury.jpg';
 import detail1Img from '@/assets/spa-detail-1.jpg';
 import detail2Img from '@/assets/spa-detail-2.jpg';
 
-const DEFAULT_HERO_VIDEO = 'https://videos.pexels.com/video-files/3188167/3188167-uhd_2560_1440_30fps.mp4';
+const DEFAULT_HERO_VIDEO = 'https://videos.pexels.com/video-files/3205012/3205012-uhd_2560_1440_25fps.mp4';
 
 const SERVICE_STOCK_IMAGES = [
-  'https://images.pexels.com/photos/3997993/pexels-photo-3997993.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'https://images.pexels.com/photos/3757952/pexels-photo-3757952.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'https://images.pexels.com/photos/3997989/pexels-photo-3997989.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'https://images.pexels.com/photos/5240677/pexels-photo-5240677.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'https://images.pexels.com/photos/3997986/pexels-photo-3997986.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'https://images.pexels.com/photos/3738349/pexels-photo-3738349.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'https://images.pexels.com/photos/939835/pexels-photo-939835.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'https://images.pexels.com/photos/3997391/pexels-photo-3997391.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'https://images.pexels.com/photos/3997390/pexels-photo-3997390.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'https://images.pexels.com/photos/3997385/pexels-photo-3997385.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'https://images.pexels.com/photos/704815/pexels-photo-704815.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'https://images.pexels.com/photos/3997383/pexels-photo-3997383.jpeg?auto=compress&cs=tinysrgb&w=800',
 ];
 
 const PRODUCT_IMAGES = [
-  { src: 'https://images.pexels.com/photos/3735149/pexels-photo-3735149.jpeg?auto=compress&cs=tinysrgb&w=800', alt: 'Luxury shampoo bottles' },
-  { src: 'https://images.pexels.com/photos/3737586/pexels-photo-3737586.jpeg?auto=compress&cs=tinysrgb&w=800', alt: 'Herbal hair rinse' },
-  { src: 'https://images.pexels.com/photos/3997381/pexels-photo-3997381.jpeg?auto=compress&cs=tinysrgb&w=800', alt: 'Essential oils collection' },
-  { src: 'https://images.pexels.com/photos/3737579/pexels-photo-3737579.jpeg?auto=compress&cs=tinysrgb&w=800', alt: 'Spa treatment products' },
+  { src: 'https://images.pexels.com/photos/3997379/pexels-photo-3997379.jpeg?auto=compress&cs=tinysrgb&w=800', alt: 'Nail polish collection' },
+  { src: 'https://images.pexels.com/photos/3997376/pexels-photo-3997376.jpeg?auto=compress&cs=tinysrgb&w=800', alt: 'Gel nail supplies' },
+  { src: 'https://images.pexels.com/photos/3997381/pexels-photo-3997381.jpeg?auto=compress&cs=tinysrgb&w=800', alt: 'Essential oils and cuticle care' },
+  { src: 'https://images.pexels.com/photos/3997374/pexels-photo-3997374.jpeg?auto=compress&cs=tinysrgb&w=800', alt: 'Nail art tools and accessories' },
 ];
 
 const Index = () => {
@@ -293,10 +293,10 @@ const Index = () => {
           </div>
           <div className="grid grid-cols-2 gap-3 sm:gap-4 reveal-right">
             <div className="pt-8 sm:pt-12 overflow-hidden">
-              <img src={detail1Img} alt={t('Thảo dược thiên nhiên')} className="w-full aspect-[3/4] object-cover transition-transform duration-700 hover:scale-105" loading="lazy" width={800} height={1000} />
+              <img src={detail1Img} alt={t('Nghệ thuật nail')} className="w-full aspect-[3/4] object-cover transition-transform duration-700 hover:scale-105" loading="lazy" width={800} height={1000} />
             </div>
             <div className="overflow-hidden">
-              <img src={detail2Img} alt={t('Không gian spa')} className="w-full aspect-[3/4] object-cover transition-transform duration-700 hover:scale-105" loading="lazy" width={800} height={1000} />
+              <img src={detail2Img} alt={t('Không gian salon')} className="w-full aspect-[3/4] object-cover transition-transform duration-700 hover:scale-105" loading="lazy" width={800} height={1000} />
             </div>
           </div>
         </div>
