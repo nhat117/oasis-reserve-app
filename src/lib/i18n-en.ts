@@ -413,6 +413,7 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "thiên nhiên": "natural",
   "Nghệ thuật": "Art",
   "gội đầu dưỡng sinh": "herbal hair wash",
+  "làm đẹp móng": "nail beauty",
   "của chúng tôi": "our",
   "với": "with",
   "để tận hưởng liệu trình": "to enjoy the treatment",
@@ -426,11 +427,14 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Chính sách hoàn tiền": "Refund Policy",
   "Chúng tôi chấp nhận thanh toán bằng tiền mặt và thẻ. Phụ phí có thể áp dụng khi thanh toán bằng thẻ tín dụng.": "We accept cash and card payments. A surcharge may apply for credit card payments.",
   "Chúng tôi sử dụng các sản phẩm organic cao cấp — dầu gội thảo dược, nước xả dưỡng sinh, tinh dầu thiên nhiên — được tuyển chọn kỹ lưỡng cho mỗi liệu trình.": "We use premium organic products — herbal shampoo, nourishing conditioner, natural essential oils — carefully selected for each treatment.",
+  "Chúng tôi sử dụng các sản phẩm nail cao cấp — gel, bột acrylic, sơn OPI & CND — được tuyển chọn kỹ lưỡng để bảo vệ và làm đẹp đôi tay bạn.": "We use premium nail products — gel, acrylic powder, OPI & CND polishes — carefully selected to protect and beautify your hands.",
   "Với đội ngũ thợ lành nghề và không gian yên tĩnh, chúng tôi cam kết mang đến cho bạn những phút giây thư thái trọn vẹn nhất.": "With skilled staff and a tranquil space, we are committed to delivering the most complete relaxation experience.",
+  "Với đội ngũ thợ nail lành nghề và không gian sang trọng, chúng tôi cam kết mang đến cho bạn sự hài lòng tuyệt đối.": "With skilled nail technicians and an elegant space, we are committed to your absolute satisfaction.",
   "Thông tin cá nhân của quý khách được bảo mật và chỉ sử dụng cho mục đích đặt lịch và liên lạc. Chúng tôi không chia sẻ thông tin cho bên thứ ba.": "Your personal information is kept confidential and only used for booking and communication purposes. We do not share information with third parties.",
   "Quý khách có thể đặt lịch trực tuyến hoặc qua điện thoại. Vui lòng hủy lịch ít nhất 2 giờ trước giờ hẹn để tránh ảnh hưởng đến lịch phục vụ.": "You can book online or by phone. Please cancel at least 2 hours before your appointment to avoid affecting the service schedule.",
   "Nếu quý khách không hài lòng với dịch vụ, vui lòng thông báo ngay cho nhân viên. Chúng tôi sẽ cố gắng giải quyết trong khả năng tốt nhất.": "If you are not satisfied with the service, please notify staff immediately. We will try our best to resolve it.",
   "mang đến trải nghiệm gội đầu dưỡng sinh cao cấp, kết hợp giữa phương pháp truyền thống và thảo dược thiên nhiên. Mỗi liệu trình được thiết kế riêng biệt, giúp bạn thư giãn sâu, giảm stress và phục hồi năng lượng.": "offers a premium herbal hair wash experience, combining traditional methods with natural herbs. Each treatment is individually designed to help you deeply relax, reduce stress, and restore energy.",
+  "mang đến trải nghiệm làm nail cao cấp, kết hợp giữa xu hướng mới nhất và kỹ thuật chuyên nghiệp. Mỗi bộ nail được thiết kế riêng biệt, giúp bạn tự tin tỏa sáng với đôi tay hoàn hảo.": "offers a premium nail experience, combining the latest trends with professional techniques. Each nail set is individually designed to help you shine with confidence and perfect hands.",
 
   // Auth
   "Admin Login": "Admin Login",

@@ -159,7 +159,7 @@ function getSettingsForTenant(settings: AppSetting[], tenantId: string, keys: st
 
 describe('Per-tenant settings resolution', () => {
   const settings: AppSetting[] = [
-    { key: 'spa_name', value: 'Royal Head Spa', tenant_id: 'tenant-a' },
+    { key: 'spa_name', value: 'Oasis Nails Studio', tenant_id: 'tenant-a' },
     { key: 'spa_name', value: 'Glamour Nails', tenant_id: 'tenant-b' },
     { key: 'twilio_account_sid', value: 'AC_aaa', tenant_id: 'tenant-a' },
     { key: 'twilio_account_sid', value: 'AC_bbb', tenant_id: 'tenant-b' },
@@ -170,7 +170,7 @@ describe('Per-tenant settings resolution', () => {
   it('resolves correct spa_name per tenant', () => {
     const a = getSettingsForTenant(settings, 'tenant-a', ['spa_name']);
     const b = getSettingsForTenant(settings, 'tenant-b', ['spa_name']);
-    expect(a['spa_name']).toBe('Royal Head Spa');
+    expect(a['spa_name']).toBe('Oasis Nails Studio');
     expect(b['spa_name']).toBe('Glamour Nails');
   });
 

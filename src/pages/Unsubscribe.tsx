@@ -50,7 +50,7 @@ const Unsubscribe = () => {
           {status === 'valid' && (
             <>
               <h2 className="text-xl font-semibold">Hủy đăng ký nhận email</h2>
-              <p className="text-muted-foreground text-sm">Bạn sẽ không nhận được email từ Spa Bliss Bookings nữa.</p>
+              <p className="text-muted-foreground text-sm">Bạn sẽ không nhận được email từ Oasis Reserve nữa.</p>
               <Button onClick={handleUnsubscribe} disabled={processing} className="w-full">
                 {processing ? 'Đang xử lý...' : 'Xác nhận hủy đăng ký'}
               </Button>

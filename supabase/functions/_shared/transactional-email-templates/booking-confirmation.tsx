@@ -4,7 +4,7 @@ import {
 } from 'npm:@react-email/components@0.0.22'
 import type { TemplateEntry } from './registry.ts'
 
-const SITE_NAME = "Spa Bliss Bookings"
+const SITE_NAME = "Oasis Reserve"
 
 interface BookingConfirmationProps {
   customerName?: string
@@ -24,7 +24,7 @@ const BookingConfirmationEmail = ({
     <Body style={main}>
       <Container style={container}>
         <Section style={headerSection}>
-          <Heading style={h1}>🌿 Xác Nhận Đặt Lịch</Heading>
+          <Heading style={h1}>💅 Xác Nhận Đặt Lịch</Heading>
         </Section>
         <Text style={greeting}>
           Xin chào {customerName || 'Quý khách'},
@@ -50,11 +50,11 @@ const BookingConfirmationEmail = ({
 
 export const template = {
   component: BookingConfirmationEmail,
-  subject: 'Xác nhận đặt lịch tại Spa Bliss Bookings',
+  subject: 'Xác nhận đặt lịch tại Oasis Reserve',
   displayName: 'Xác nhận đặt lịch',
   previewData: {
     customerName: 'Nguyễn Văn A',
-    serviceName: 'Gội đầu dưỡng sinh',
+    serviceName: 'Sơn gel cao cấp',
     therapistName: 'Chị Lan',
     bookingDate: '28/03/2026',
     startTime: '10:00',

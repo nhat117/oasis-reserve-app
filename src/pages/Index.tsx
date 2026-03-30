@@ -221,7 +221,7 @@ const Index = () => {
           </div>
           <div className="text-center mt-8 sm:mt-12 reveal">
             <p className="text-muted-foreground text-sm sm:text-[15px] max-w-lg mx-auto leading-relaxed">
-              {t('Chúng tôi sử dụng các sản phẩm organic cao cấp — dầu gội thảo dược, nước xả dưỡng sinh, tinh dầu thiên nhiên — được tuyển chọn kỹ lưỡng cho mỗi liệu trình.')}
+              {t('Chúng tôi sử dụng các sản phẩm nail cao cấp — gel, bột acrylic, sơn OPI & CND — được tuyển chọn kỹ lưỡng để bảo vệ và làm đẹp đôi tay bạn.')}
             </p>
           </div>
         </div>
@@ -277,14 +277,14 @@ const Index = () => {
             <p className="text-[10px] sm:text-xs tracking-[0.3em] uppercase text-muted-foreground">{t('Về chúng tôi')}</p>
             <h2 className="text-3xl sm:text-4xl md:text-5xl leading-[1.15] font-light">
               {t('Nghệ thuật')}<br />
-              <em className="italic">{t('gội đầu dưỡng sinh')}</em>
+              <em className="italic">{t('làm đẹp móng')}</em>
             </h2>
             <div className="w-12 h-px bg-foreground/20" />
             <p className="text-muted-foreground leading-relaxed text-sm sm:text-[15px] max-w-md">
-              {spaName} {t('mang đến trải nghiệm gội đầu dưỡng sinh cao cấp, kết hợp giữa phương pháp truyền thống và thảo dược thiên nhiên. Mỗi liệu trình được thiết kế riêng biệt, giúp bạn thư giãn sâu, giảm stress và phục hồi năng lượng.')}
+              {spaName} {t('mang đến trải nghiệm làm nail cao cấp, kết hợp giữa xu hướng mới nhất và kỹ thuật chuyên nghiệp. Mỗi bộ nail được thiết kế riêng biệt, giúp bạn tự tin tỏa sáng với đôi tay hoàn hảo.')}
             </p>
             <p className="text-muted-foreground leading-relaxed text-sm sm:text-[15px] max-w-md">
-              {t('Với đội ngũ thợ lành nghề và không gian yên tĩnh, chúng tôi cam kết mang đến cho bạn những phút giây thư thái trọn vẹn nhất.')}
+              {t('Với đội ngũ thợ nail lành nghề và không gian sang trọng, chúng tôi cam kết mang đến cho bạn sự hài lòng tuyệt đối.')}
             </p>
             <Link to="/services" className="inline-flex items-center gap-2 text-[10px] sm:text-xs tracking-[0.2em] uppercase text-foreground hover:text-muted-foreground transition-colors duration-300 pt-2">
               {t('Xem dịch vụ')}

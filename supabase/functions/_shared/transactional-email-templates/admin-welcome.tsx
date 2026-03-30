@@ -4,7 +4,7 @@ import {
 } from 'npm:@react-email/components@0.0.22'
 import type { TemplateEntry } from './registry.ts'
 
-const SITE_NAME = "Spa Bliss Bookings"
+const SITE_NAME = "Oasis Reserve"
 
 interface AdminWelcomeProps {
   email?: string
@@ -18,7 +18,7 @@ const AdminWelcomeEmail = ({ email, loginUrl }: AdminWelcomeProps) => (
     <Body style={main}>
       <Container style={container}>
         <Section style={headerSection}>
-          <Heading style={h1}>🌿 Welcome, Admin!</Heading>
+          <Heading style={h1}>💅 Welcome, Admin!</Heading>
         </Section>
         <Text style={greeting}>Hello,</Text>
         <Text style={text}>
@@ -52,7 +52,7 @@ export const template = {
   subject: 'Your admin account has been created',
   displayName: 'Admin welcome',
   previewData: {
-    email: 'newadmin@spa.com',
+    email: 'newadmin@nails.com',
     loginUrl: 'https://example.com/admin/login',
   },
 } satisfies TemplateEntry

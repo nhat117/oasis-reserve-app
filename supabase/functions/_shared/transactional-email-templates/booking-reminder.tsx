@@ -4,7 +4,7 @@ import {
 } from 'npm:@react-email/components@0.0.22'
 import type { TemplateEntry } from './registry.ts'
 
-const SITE_NAME = "Spa Bliss Bookings"
+const SITE_NAME = "Oasis Reserve"
 
 interface BookingReminderProps {
   customerName?: string
@@ -49,11 +49,11 @@ const BookingReminderEmail = ({
 
 export const template = {
   component: BookingReminderEmail,
-  subject: 'Nhắc lịch hẹn ngày mai - Spa Bliss Bookings',
+  subject: 'Nhắc lịch hẹn ngày mai - Oasis Reserve',
   displayName: 'Nhắc lịch hẹn',
   previewData: {
     customerName: 'Nguyễn Văn A',
-    serviceName: 'Gội đầu dưỡng sinh',
+    serviceName: 'Sơn gel cao cấp',
     therapistName: 'Chị Lan',
     bookingDate: '28/03/2026',
     startTime: '10:00',

@@ -72,7 +72,7 @@ describe('loginSchema', () => {
 describe('serviceSchema', () => {
   it('accepts valid service', () => {
     expect(serviceSchema.safeParse({
-      name: 'Head Spa', description: 'Relaxing', duration_minutes: 60, price: 100,
+      name: 'Gel Manicure', description: 'Premium gel nails', duration_minutes: 60, price: 100,
     }).success).toBe(true);
   });
 

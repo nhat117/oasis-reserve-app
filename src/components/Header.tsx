@@ -61,7 +61,7 @@ const Header = () => {
             src={logoImg}
             alt={spaName || 'Oasis Reserve'}
             className={`object-contain transition-all duration-300 group-hover:scale-105 ${
-              scrolled ? 'h-10 w-10 sm:h-11 sm:w-11' : 'h-11 w-11 sm:h-[52px] sm:w-[52px]'
+              scrolled ? 'h-12 w-12 sm:h-14 sm:w-14' : 'h-14 w-14 sm:h-16 sm:w-16'
             }`}
           />
           <span className="text-xs sm:text-[13px] tracking-[0.18em] uppercase text-foreground font-medium">
