@@ -50,7 +50,7 @@ const Header = () => {
       }`}
     >
       <div className={`max-w-7xl mx-auto px-5 sm:px-8 md:px-10 flex items-center justify-between transition-all duration-300 ${
-        scrolled ? 'h-14' : 'h-16'
+        scrolled ? 'h-20' : 'h-24'
       }`}>
         {/* Logo */}
         <Link
