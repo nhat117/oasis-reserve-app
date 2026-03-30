@@ -35,6 +35,8 @@ interface BookingCalendarProps {
   onCancel: (id: string) => void;
   onDelete?: (id: string) => void;
   onRefund?: (id: string) => void;
+  onMarkCompleted?: (id: string) => void;
+  onMarkNoShow?: (id: string) => void;
   onReschedule: (id: string, newDate: string, newStartTime: string, newEndTime: string) => void;
   onDateSelect?: (date: string, startTime?: string) => void;
 }
@@ -44,14 +46,14 @@ const THERAPIST_COLORS = [
   '#8b5cf6', '#06b6d4', '#ec4899', '#f97316',
 ];
 
-export function BookingCalendar({ bookings, onCancel, onDelete, onRefund, onReschedule, onDateSelect }: BookingCalendarProps) {
+export function BookingCalendar({ bookings, onCancel, onDelete, onRefund, onMarkCompleted, onMarkNoShow, onReschedule, onDateSelect }: BookingCalendarProps) {
   const { t, lang } = useI18n();
   const calendarRef = useRef<FullCalendar>(null);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const statusLabel = (status: string) => {
-    const map: Record<string, string> = { confirmed: t('Đã xác nhận'), cancelled: t('Đã huỷ'), completed: t('Hoàn thành') };
+    const map: Record<string, string> = { confirmed: t('Đã xác nhận'), cancelled: t('Đã huỷ'), completed: t('Hoàn thành'), no_show: t('Không đến') };
     return map[status] || status;
   };
 
@@ -192,7 +194,7 @@ export function BookingCalendar({ bookings, onCancel, onDelete, onRefund, onResc
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="font-semibold">{selectedBooking.start_time?.slice(0, 5)} – {selectedBooking.end_time?.slice(0, 5)}</span>
-                <Badge variant={selectedBooking.status === 'confirmed' ? 'default' : selectedBooking.status === 'cancelled' ? 'destructive' : 'secondary'}>
+                <Badge variant={selectedBooking.status === 'confirmed' ? 'default' : selectedBooking.status === 'cancelled' ? 'destructive' : selectedBooking.status === 'no_show' ? 'outline' : 'secondary'}>
                   {statusLabel(selectedBooking.status)}
                 </Badge>
               </div>
@@ -226,17 +228,33 @@ export function BookingCalendar({ bookings, onCancel, onDelete, onRefund, onResc
                 )}
               </div>
               {selectedBooking.status === 'confirmed' && (
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="flex-1 text-destructive hover:text-destructive"
-                    onClick={() => { onCancel(selectedBooking.id); setDialogOpen(false); }}>
-                    {t('Huỷ lịch hẹn')}
-                  </Button>
-                  {onDelete && (
-                    <Button variant="destructive" size="sm" className="flex-1"
-                      onClick={() => { onDelete(selectedBooking.id); setDialogOpen(false); }}>
-                      {t('Xoá')}
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    {onMarkCompleted && (
+                      <Button variant="default" size="sm" className="flex-1"
+                        onClick={() => { onMarkCompleted(selectedBooking.id); setDialogOpen(false); }}>
+                        {t('Hoàn thành')}
+                      </Button>
+                    )}
+                    {onMarkNoShow && (
+                      <Button variant="outline" size="sm" className="flex-1 text-amber-600 hover:text-amber-700 border-amber-300 hover:border-amber-400"
+                        onClick={() => { onMarkNoShow(selectedBooking.id); setDialogOpen(false); }}>
+                        {t('Không đến')}
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" className="flex-1 text-destructive hover:text-destructive"
+                      onClick={() => { onCancel(selectedBooking.id); setDialogOpen(false); }}>
+                      {t('Huỷ lịch hẹn')}
                     </Button>
-                  )}
+                    {onDelete && (
+                      <Button variant="destructive" size="sm" className="flex-1"
+                        onClick={() => { onDelete(selectedBooking.id); setDialogOpen(false); }}>
+                        {t('Xoá')}
+                      </Button>
+                    )}
+                  </div>
                 </div>
               )}
               {/* Refund button for paid Stripe bookings */}

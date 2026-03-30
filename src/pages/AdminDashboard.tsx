@@ -24,6 +24,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { escapeHtml } from '@/lib/validation';
 import { useToast } from '@/hooks/use-toast';
 import { Navigate, Link } from 'react-router-dom';
 import { useI18n, LanguageSwitcher } from '@/hooks/useI18n';
@@ -205,6 +206,18 @@ const AdminDashboard = () => {
   const [openTime, setOpenTime] = useState('09:00');
   const [closeTime, setCloseTime] = useState('18:00');
   const [shopState, setShopState] = useState('VIC');
+  const [shopTimezone, setShopTimezone] = useState('Australia/Melbourne');
+
+  const STATE_TIMEZONE_MAP: Record<string, string> = {
+    NSW: 'Australia/Sydney',
+    VIC: 'Australia/Melbourne',
+    QLD: 'Australia/Brisbane',
+    SA: 'Australia/Adelaide',
+    WA: 'Australia/Perth',
+    TAS: 'Australia/Hobart',
+    NT: 'Australia/Darwin',
+    ACT: 'Australia/Sydney',
+  };
   const [showHolidayClosed, setShowHolidayClosed] = useState(true);
   const [heroMode, setHeroMode] = useState<'video' | 'image'>('video');
   const [heroMediaFile, setHeroMediaFile] = useState<File | null>(null);
@@ -659,7 +672,7 @@ const AdminDashboard = () => {
     queryKey: ['shop-info-settings'],
     queryFn: async () => {
       const { data, error } = await supabase.from('app_settings').select('key, value')
-        .in('key', ['shop_phone', 'shop_address', 'opening_hours', 'open_days', 'open_time', 'close_time', 'shop_state', 'show_holiday_closed', 'hero_mode', 'hero_media_path']);
+        .in('key', ['shop_phone', 'shop_address', 'opening_hours', 'open_days', 'open_time', 'close_time', 'shop_state', 'shop_timezone', 'show_holiday_closed', 'hero_mode', 'hero_media_path']);
       if (error) throw error;
       const map: Record<string, string> = {};
       data?.forEach(r => { map[r.key] = r.value; });
@@ -676,6 +689,7 @@ const AdminDashboard = () => {
       if (shopInfoSettings['open_time']) setOpenTime(shopInfoSettings['open_time']);
       if (shopInfoSettings['close_time']) setCloseTime(shopInfoSettings['close_time']);
       if (shopInfoSettings['shop_state']) setShopState(shopInfoSettings['shop_state']);
+      if (shopInfoSettings['shop_timezone']) setShopTimezone(shopInfoSettings['shop_timezone']);
       if (shopInfoSettings['show_holiday_closed'] !== undefined) setShowHolidayClosed(shopInfoSettings['show_holiday_closed'] === 'true');
       if (shopInfoSettings['hero_mode']) setHeroMode(shopInfoSettings['hero_mode'] as 'video' | 'image');
       if (shopInfoSettings['hero_media_path']) {
@@ -698,6 +712,7 @@ const AdminDashboard = () => {
         { key: 'open_time', value: openTime },
         { key: 'close_time', value: closeTime },
         { key: 'shop_state', value: shopState },
+        { key: 'shop_timezone', value: shopTimezone },
         { key: 'show_holiday_closed', value: String(showHolidayClosed) },
       ];
       for (const row of rows) {
@@ -1169,6 +1184,21 @@ const AdminDashboard = () => {
     onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
 
+  const updateBookingStatus = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const { error } = await supabase.from('bookings').update({ status }).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, { id, status }) => {
+      logActivity('update_booking_status', `Booking ID: ${id}, Status: ${status}`);
+      queryClient.invalidateQueries({ queryKey: ['admin-bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['stats-bookings'] });
+      const labels: Record<string, string> = { completed: t('Đã đánh dấu hoàn thành'), no_show: t('Đã đánh dấu không đến') };
+      toast({ title: labels[status] || t('Đã cập nhật trạng thái') });
+    },
+    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+  });
+
   const deleteBooking = useMutation({
     mutationFn: async (id: string) => {
       if (!isAdmin) throw new Error('Admin only');
@@ -1260,19 +1290,20 @@ const AdminDashboard = () => {
       if (bookingCustomerEmail?.trim()) {
         const service = services?.find(s => s.id === bookingServiceId);
         const therapist = therapists?.find(t => t.id === bookingTherapistId);
+        const esc = escapeHtml;
         const emailHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto;">
             <div style="background: hsl(30, 35%, 28%); border-radius: 12px 12px 0 0; padding: 24px; text-align: center;">
               <h1 style="color: #fff; margin: 0; font-size: 22px;">Booking Confirmed!</h1>
             </div>
             <div style="padding: 20px;">
-              <p style="font-size: 16px;">Hi <strong>${bookingCustomerName}</strong>,</p>
+              <p style="font-size: 16px;">Hi <strong>${esc(bookingCustomerName)}</strong>,</p>
               <p style="font-size: 14px; color: #666;">Your booking has been confirmed.</p>
               <div style="background: hsl(35, 30%, 95%); border-radius: 8px; padding: 16px; margin: 16px 0;">
-                <p style="margin: 4px 0;">📋 <strong>Service:</strong> ${service?.name || ''}</p>
-                <p style="margin: 4px 0;">👤 <strong>Staff:</strong> ${therapist?.name || ''}</p>
+                <p style="margin: 4px 0;">📋 <strong>Service:</strong> ${esc(service?.name || '')}</p>
+                <p style="margin: 4px 0;">👤 <strong>Staff:</strong> ${esc(therapist?.name || '')}</p>
                 <p style="margin: 4px 0;">📅 <strong>Date:</strong> ${bookingDate ? format(bookingDate, 'dd/MM/yyyy') : ''}</p>
-                <p style="margin: 4px 0;">🕐 <strong>Time:</strong> ${bookingTime || ''}</p>
+                <p style="margin: 4px 0;">🕐 <strong>Time:</strong> ${esc(bookingTime || '')}</p>
               </div>
               <p style="font-size: 14px; color: #666;">Thank you for choosing us. We look forward to seeing you!</p>
             </div>
@@ -1428,8 +1459,8 @@ const AdminDashboard = () => {
   };
 
   const statusBadge = (status: string) => {
-    const map: Record<string, string> = { confirmed: t('Đã xác nhận'), cancelled: t('Đã huỷ'), completed: t('Hoàn thành') };
-    const variant = status === 'confirmed' ? 'default' : status === 'cancelled' ? 'destructive' : 'secondary';
+    const map: Record<string, string> = { confirmed: t('Đã xác nhận'), cancelled: t('Đã huỷ'), completed: t('Hoàn thành'), no_show: t('Không đến') };
+    const variant = status === 'confirmed' ? 'default' : status === 'cancelled' ? 'destructive' : status === 'no_show' ? 'outline' : 'secondary';
     return <Badge variant={variant as any}>{map[status] || status}</Badge>;
   };
 
@@ -2125,6 +2156,8 @@ const AdminDashboard = () => {
                   bookings={(bookings as any) || []}
                   onCancel={(id) => cancelBooking.mutate(id)}
                   onDelete={isAdmin ? (id) => deleteBooking.mutate(id) : undefined}
+                  onMarkCompleted={(id) => updateBookingStatus.mutate({ id, status: 'completed' })}
+                  onMarkNoShow={(id) => updateBookingStatus.mutate({ id, status: 'no_show' })}
                   onRefund={(id) => {
                     if (confirm(t('Bạn có chắc muốn hoàn tiền cho lịch hẹn này? Hành động không thể hoàn tác.'))) {
                       refundBooking.mutate(id);
@@ -3097,14 +3130,16 @@ const AdminDashboard = () => {
                     <Label>{t('Bang/Tiểu bang')}</Label>
                     <select
                       value={shopState}
-                      onChange={e => setShopState(e.target.value)}
+                      onChange={e => { setShopState(e.target.value); setShopTimezone(STATE_TIMEZONE_MAP[e.target.value] || 'Australia/Melbourne'); }}
                       className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     >
                       {['NSW', 'VIC', 'QLD', 'SA', 'WA', 'TAS', 'NT', 'ACT'].map(s => (
                         <option key={s} value={s}>{s}</option>
                       ))}
                     </select>
-                    <p className="text-xs text-muted-foreground mt-1">{t('Dùng để hiển thị ngày lễ công cộng')}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {t('Dùng để hiển thị ngày lễ công cộng')} · {t('Múi giờ')}: {shopTimezone}
+                    </p>
                   </div>
                   <div className="flex items-center justify-between">
                     <div>

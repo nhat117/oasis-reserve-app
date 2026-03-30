@@ -82,14 +82,28 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get reminder intervals
-    const { data: interval1Setting } = await supabase
-      .from("app_settings").select("value").eq("key", "reminder_1st_hours").single();
-    const { data: interval2Setting } = await supabase
-      .from("app_settings").select("value").eq("key", "reminder_2nd_hours").single();
+    // Get reminder intervals and shop timezone
+    const { data: reminderSettings } = await supabase
+      .from("app_settings").select("key, value")
+      .in("key", ["reminder_1st_hours", "reminder_2nd_hours", "shop_timezone"]);
 
-    const reminder1Hours = parseInt(interval1Setting?.value || "24");
-    const reminder2Hours = parseInt(interval2Setting?.value || "1");
+    const reminderMap: Record<string, string> = {};
+    reminderSettings?.forEach((r: any) => { reminderMap[r.key] = r.value; });
+
+    const reminder1Hours = parseInt(reminderMap.reminder_1st_hours || "24");
+    const reminder2Hours = parseInt(reminderMap.reminder_2nd_hours || "1");
+    const shopTimezone = reminderMap.shop_timezone || "Australia/Melbourne";
+
+    // Helper: format a Date in the shop's local timezone
+    const toLocalDate = (d: Date): string =>
+      d.toLocaleDateString("en-CA", { timeZone: shopTimezone }); // YYYY-MM-DD
+
+    const formatLocalTime = (d: Date): string => {
+      const parts = new Intl.DateTimeFormat("en-GB", { timeZone: shopTimezone, hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(d);
+      const h = parts.find(p => p.type === "hour")?.value || "00";
+      const m = parts.find(p => p.type === "minute")?.value || "00";
+      return `${h}:${m}`;
+    };
 
     // Twilio API base URL
     const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
@@ -102,15 +116,12 @@ Deno.serve(async (req) => {
       if (hoursAhead <= 0) continue;
 
       const targetTime = new Date(now.getTime() + hoursAhead * 60 * 60 * 1000);
-      const targetDate = targetTime.toISOString().split("T")[0];
-      const targetHour = targetTime.getUTCHours().toString().padStart(2, "0");
-      const targetMinute = targetTime.getUTCMinutes().toString().padStart(2, "0");
+      const targetDate = toLocalDate(targetTime);
 
-      const windowStart = `${targetHour}:${targetMinute}:00`;
+      // Find bookings within a 30-min window around the target time (in shop local time)
+      const windowStart = formatLocalTime(targetTime) + ":00";
       const windowEndTime = new Date(targetTime.getTime() + 30 * 60 * 1000);
-      const windowEndHour = windowEndTime.getUTCHours().toString().padStart(2, "0");
-      const windowEndMinute = windowEndTime.getUTCMinutes().toString().padStart(2, "0");
-      const windowEnd = `${windowEndHour}:${windowEndMinute}:00`;
+      const windowEnd = formatLocalTime(windowEndTime) + ":00";
 
       const { data: bookings, error } = await supabase
         .from("bookings")

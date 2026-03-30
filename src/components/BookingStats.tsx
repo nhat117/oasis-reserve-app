@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarDays, TrendingUp, TrendingDown, DollarSign, Clock, CalendarCheck, Users, CalendarIcon, Crown } from 'lucide-react';
+import { CalendarDays, TrendingUp, TrendingDown, DollarSign, Clock, CalendarCheck, Users, CalendarIcon, Crown, UserCheck, UserX } from 'lucide-react';
 import { format, subDays, addDays, startOfMonth, endOfMonth, differenceInDays, eachDayOfInterval } from 'date-fns';
 import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { useI18n } from '@/hooks/useI18n';
@@ -74,6 +74,7 @@ export function BookingStats({ className }: StatsProps) {
 
     const confirmed = bookings.filter(b => b.status === 'confirmed');
     const completed = bookings.filter(b => b.status === 'completed');
+    const noShow = bookings.filter(b => b.status === 'no_show');
     const active = [...confirmed, ...completed];
 
     const fromStr = format(dateRange.from, 'yyyy-MM-dd');
@@ -175,6 +176,19 @@ export function BookingStats({ className }: StatsProps) {
     });
     const topTeam = Object.values(therapistRevenue).sort((a, b) => b.revenue - a.revenue);
 
+    // Attendance / Show rate stats
+    const rangeCompleted = completed.filter(b => b.booking_date >= fromStr && b.booking_date <= toStr);
+    const rangeNoShow = noShow.filter(b => b.booking_date >= fromStr && b.booking_date <= toStr);
+    const rangeResolved = rangeCompleted.length + rangeNoShow.length;
+    const showRate = rangeResolved > 0 ? (rangeCompleted.length / rangeResolved) * 100 : 0;
+    const noShowRate = rangeResolved > 0 ? (rangeNoShow.length / rangeResolved) * 100 : 0;
+
+    const prevCompleted = completed.filter(b => b.booking_date >= prevFromStr && b.booking_date <= prevToStr);
+    const prevNoShow = noShow.filter(b => b.booking_date >= prevFromStr && b.booking_date <= prevToStr);
+    const prevResolved = prevCompleted.length + prevNoShow.length;
+    const prevShowRate = prevResolved > 0 ? (prevCompleted.length / prevResolved) * 100 : 0;
+    const showRateTrend = prevShowRate > 0 ? showRate - prevShowRate : 0;
+
     return {
       rangeRevenue,
       rangeCount: rangeBookings.length,
@@ -190,6 +204,12 @@ export function BookingStats({ className }: StatsProps) {
       todayRevenue,
       topServices,
       topTeam,
+      showRate,
+      noShowRate,
+      showRateTrend,
+      rangeCompletedCount: rangeCompleted.length,
+      rangeNoShowCount: rangeNoShow.length,
+      rangeResolved,
     };
   }, [bookings, sales, dateRange]);
 
@@ -340,6 +360,67 @@ export function BookingStats({ className }: StatsProps) {
         ))}
       </div>
 
+      {/* ── Attendance / Show Rate Cards ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        <Card className="card-hover border-border/50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="h-8 w-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+                <UserCheck className="h-4 w-4 text-emerald-600" />
+              </div>
+              <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">{t('Tỷ lệ đến')}</p>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <p className="text-2xl font-semibold font-serif tracking-tight text-foreground">
+                {stats.rangeResolved > 0 ? `${stats.showRate.toFixed(1)}%` : '—'}
+              </p>
+              {stats.showRateTrend !== 0 && <TrendIndicator value={stats.showRateTrend} />}
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-1">{stats.rangeCompletedCount} {t('hoàn thành')}</p>
+          </CardContent>
+        </Card>
+        <Card className="card-hover border-border/50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="h-8 w-8 rounded-lg bg-red-50 flex items-center justify-center">
+                <UserX className="h-4 w-4 text-red-500" />
+              </div>
+              <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">{t('Không đến')}</p>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <p className="text-2xl font-semibold font-serif tracking-tight text-foreground">
+                {stats.rangeResolved > 0 ? `${stats.noShowRate.toFixed(1)}%` : '—'}
+              </p>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-1">{stats.rangeNoShowCount} {t('lịch hẹn')}</p>
+          </CardContent>
+        </Card>
+        <Card className="card-hover border-border/50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="h-8 w-8 rounded-lg bg-primary/5 flex items-center justify-center">
+                <CalendarCheck className="h-4 w-4 text-primary/70" />
+              </div>
+              <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">{t('Hoàn thành')}</p>
+            </div>
+            <p className="text-2xl font-semibold font-serif tracking-tight text-foreground">{stats.rangeCompletedCount}</p>
+            <p className="text-[10px] text-muted-foreground mt-1">{t(rangeLabel)}</p>
+          </CardContent>
+        </Card>
+        <Card className="card-hover border-border/50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="h-8 w-8 rounded-lg bg-primary/5 flex items-center justify-center">
+                <Users className="h-4 w-4 text-primary/70" />
+              </div>
+              <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">{t('Đã xử lý')}</p>
+            </div>
+            <p className="text-2xl font-semibold font-serif tracking-tight text-foreground">{stats.rangeResolved}</p>
+            <p className="text-[10px] text-muted-foreground mt-1">{t('hoàn thành + không đến')}</p>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="grid lg:grid-cols-2 gap-6">
         {/* ── Revenue Chart ── */}
         <Card className="card-hover border-border/50">
@@ -446,8 +527,10 @@ export function BookingStats({ className }: StatsProps) {
                       ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                       : b.status === 'cancelled'
                       ? 'bg-red-50 text-red-600 border-red-200'
+                      : b.status === 'no_show'
+                      ? 'bg-amber-50 text-amber-700 border-amber-200'
                       : 'bg-primary/5 text-primary border-primary/20';
-                    const statusText = b.status === 'confirmed' ? t('Đã đặt') : b.status === 'cancelled' ? t('Đã huỷ') : t('Hoàn thành');
+                    const statusText = b.status === 'confirmed' ? t('Đã đặt') : b.status === 'cancelled' ? t('Đã huỷ') : b.status === 'no_show' ? t('Không đến') : t('Hoàn thành');
                     return (
                       <div key={b.id} className="relative flex items-start gap-3 py-3 pl-2">
                         {/* Timeline dot */}

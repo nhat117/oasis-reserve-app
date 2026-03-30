@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useI18n } from '@/hooks/useI18n';
 import Header from '@/components/Header';
+import { bookingCustomerSchema, validateField, escapeHtml } from '@/lib/validation';
 
 const Booking = () => {
   const [searchParams] = useSearchParams();
@@ -35,6 +36,23 @@ const Booking = () => {
   const [assignedTherapistName, setAssignedTherapistName] = useState('');
   const [selectedAddOns, setSelectedAddOns] = useState<string[]>([]);
   const [redirectingToPayment, setRedirectingToPayment] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+
+  const handleBlur = useCallback((field: 'customerName' | 'customerPhone' | 'customerEmail', value: string) => {
+    setTouched(prev => ({ ...prev, [field]: true }));
+    setFieldErrors(prev => ({ ...prev, [field]: validateField(bookingCustomerSchema, field, value) }));
+  }, []);
+
+  const handleFieldChange = useCallback((field: 'customerName' | 'customerPhone' | 'customerEmail', value: string) => {
+    if (touched[field]) {
+      setFieldErrors(prev => ({ ...prev, [field]: validateField(bookingCustomerSchema, field, value) }));
+    }
+  }, [touched]);
+
+  const isStep3Valid = useMemo(() => {
+    return bookingCustomerSchema.safeParse({ customerName, customerPhone, customerEmail }).success;
+  }, [customerName, customerPhone, customerEmail]);
 
   // Check if Stripe online payment is enabled
   const { data: stripeEnabled } = useQuery({
@@ -244,7 +262,19 @@ const Booking = () => {
         setIsSubmitting(false);
         return;
       }
-      const picked = available[Math.floor(Math.random() * available.length)];
+      // Round-robin: pick the available therapist with fewest bookings today
+      const bookingCounts: Record<string, number> = {};
+      existingBookings?.forEach(b => {
+        if (b.status !== 'cancelled') {
+          bookingCounts[b.therapist_id] = (bookingCounts[b.therapist_id] || 0) + 1;
+        }
+      });
+      const sorted = [...available].sort((a, b) => {
+        const countDiff = (bookingCounts[a.id] || 0) - (bookingCounts[b.id] || 0);
+        if (countDiff !== 0) return countDiff;
+        return a.id.localeCompare(b.id); // stable tie-break
+      });
+      const picked = sorted[0];
       therapistId = picked.id;
       setAssignedTherapistName(picked.name);
     } else {
@@ -315,7 +345,7 @@ const Booking = () => {
 
       // Send confirmation email
       if (customerEmail.trim()) {
-        const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const esc = escapeHtml;
         const emailHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <h1 style="color: #1a1a1a; font-size: 22px;">Booking Confirmed!</h1>
@@ -640,32 +670,44 @@ const Booking = () => {
         {step === 3 && (
           <div className="space-y-6">
             <div>
-              <p className="text-[10px] sm:text-xs tracking-[0.2em] uppercase text-muted-foreground mb-3">{t('Họ và tên')}</p>
+              <p className="text-[10px] sm:text-xs tracking-[0.2em] uppercase text-muted-foreground mb-3">{t('Họ và tên')} <span className="text-destructive">*</span></p>
               <Input
                 value={customerName}
-                onChange={e => setCustomerName(e.target.value)}
+                onChange={e => { setCustomerName(e.target.value); handleFieldChange('customerName', e.target.value); }}
+                onBlur={() => handleBlur('customerName', customerName)}
                 placeholder={t('Nhập họ tên')}
-                className="rounded-none h-11 border-border/60 font-light"
+                className={cn("rounded-none h-11 border-border/60 font-light", touched.customerName && fieldErrors.customerName && "border-destructive focus-visible:ring-destructive")}
               />
+              {touched.customerName && fieldErrors.customerName && (
+                <p className="text-xs text-destructive mt-1.5">{t(fieldErrors.customerName)}</p>
+              )}
             </div>
             <div>
-              <p className="text-[10px] sm:text-xs tracking-[0.2em] uppercase text-muted-foreground mb-3">{t('Số điện thoại')}</p>
+              <p className="text-[10px] sm:text-xs tracking-[0.2em] uppercase text-muted-foreground mb-3">{t('Số điện thoại')} <span className="text-destructive">*</span></p>
               <Input
                 value={customerPhone}
-                onChange={e => setCustomerPhone(e.target.value)}
+                onChange={e => { setCustomerPhone(e.target.value); handleFieldChange('customerPhone', e.target.value); }}
+                onBlur={() => handleBlur('customerPhone', customerPhone)}
                 placeholder="0901234567"
-                className="rounded-none h-11 border-border/60 font-light"
+                className={cn("rounded-none h-11 border-border/60 font-light", touched.customerPhone && fieldErrors.customerPhone && "border-destructive focus-visible:ring-destructive")}
               />
+              {touched.customerPhone && fieldErrors.customerPhone && (
+                <p className="text-xs text-destructive mt-1.5">{t(fieldErrors.customerPhone)}</p>
+              )}
             </div>
             <div>
               <p className="text-[10px] sm:text-xs tracking-[0.2em] uppercase text-muted-foreground mb-3">Email <span className="text-destructive">*</span></p>
               <Input
                 type="email"
                 value={customerEmail}
-                onChange={e => setCustomerEmail(e.target.value)}
+                onChange={e => { setCustomerEmail(e.target.value); handleFieldChange('customerEmail', e.target.value); }}
+                onBlur={() => handleBlur('customerEmail', customerEmail)}
                 placeholder="email@example.com"
-                className="rounded-none h-11 border-border/60 font-light"
+                className={cn("rounded-none h-11 border-border/60 font-light", touched.customerEmail && fieldErrors.customerEmail && "border-destructive focus-visible:ring-destructive")}
               />
+              {touched.customerEmail && fieldErrors.customerEmail && (
+                <p className="text-xs text-destructive mt-1.5">{t(fieldErrors.customerEmail)}</p>
+              )}
             </div>
             <div className="flex gap-3 pt-4 border-t border-border/40">
               <Button variant="outline" onClick={() => setStep(2)} className="rounded-none text-xs tracking-[0.15em] uppercase h-10 border-border/60">
@@ -673,8 +715,23 @@ const Booking = () => {
               </Button>
               <Button
                 className="flex-1 rounded-none text-xs tracking-[0.15em] uppercase h-10"
-                disabled={!customerName.trim() || !customerPhone.trim() || !customerEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail.trim())}
-                onClick={() => setStep(4)}
+                disabled={!isStep3Valid}
+                onClick={() => {
+                  const result = bookingCustomerSchema.safeParse({ customerName, customerPhone, customerEmail });
+                  if (!result.success) {
+                    const errors: Record<string, string | null> = {};
+                    const allTouched: Record<string, boolean> = {};
+                    result.error.errors.forEach(err => {
+                      const field = err.path[0] as string;
+                      errors[field] = err.message;
+                      allTouched[field] = true;
+                    });
+                    setFieldErrors(prev => ({ ...prev, ...errors }));
+                    setTouched(prev => ({ ...prev, ...allTouched }));
+                    return;
+                  }
+                  setStep(4);
+                }}
               >
                 {t('Tiếp tục')}
                 <ArrowRight className="ml-2 h-3 w-3" />
