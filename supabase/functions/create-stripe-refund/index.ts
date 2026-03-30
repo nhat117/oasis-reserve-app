@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { refundSchema, parseBody } from "../_shared/validation.ts";
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -48,14 +49,10 @@ Deno.serve(async (req) => {
 
     const tenantId = userRole.tenant_id;
 
-    const { booking_id } = await req.json();
-
-    if (!booking_id) {
-      return new Response(
-        JSON.stringify({ error: "Missing booking_id" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    const rawBody = await req.json();
+    const parsed = parseBody(refundSchema, rawBody, corsHeaders);
+    if (parsed.response) return parsed.response;
+    const { booking_id } = parsed.data;
 
     // Get booking with payment info (scoped to tenant)
     const { data: booking, error: bookingErr } = await supabase

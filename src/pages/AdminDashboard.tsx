@@ -24,7 +24,11 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { escapeHtml } from '@/lib/validation';
+import {
+  escapeHtml, validateForm,
+  saleSchema, serviceSchema, therapistSchema, adminBookingSchema,
+  membershipTierSchema, discountCodeSchema, holidaySchema, unavailabilitySchema, appSettingSchema,
+} from '@/lib/validation';
 import { useToast } from '@/hooks/use-toast';
 import { Navigate, Link } from 'react-router-dom';
 import { useI18n, LanguageSwitcher } from '@/hooks/useI18n';
@@ -383,6 +387,16 @@ const AdminDashboard = () => {
       const baseAmount = parseFloat(saleAmount) + addOnTotal;
       const surcharge = salePaymentMethod === 'card' ? baseAmount * (parseFloat(cardSurchargeSetting || '0') / 100) : 0;
       const totalAmount = baseAmount + surcharge;
+
+      const vErr = validateForm(saleSchema, {
+        amount: totalAmount,
+        customerName: saleCustomerName || '',
+        customerPhone: saleCustomerPhone || '',
+        notes: saleNotes || '',
+        paymentMethod: salePaymentMethod === 'square' ? 'card' : salePaymentMethod,
+      });
+      if (vErr) throw new Error(vErr);
+
       const payload: any = {
         amount: totalAmount,
         payment_method: salePaymentMethod === 'square' ? 'card' : salePaymentMethod,
@@ -882,6 +896,8 @@ const AdminDashboard = () => {
     mutationFn: async () => {
       requireAdmin();
       const payload = { name: tierName, min_visits: parseInt(tierMinVisits), discount_percent: parseFloat(tierDiscountPercent) };
+      const vErr = validateForm(membershipTierSchema, payload);
+      if (vErr) throw new Error(vErr);
       if (editingTier) {
         const { error } = await supabase.from('membership_tiers').update(payload).eq('id', editingTier.id);
         if (error) throw error;
@@ -921,6 +937,15 @@ const AdminDashboard = () => {
   const saveDiscount = useMutation({
     mutationFn: async () => {
       requireAdmin();
+      const vErr = validateForm(discountCodeSchema, {
+        code: discountCode.toUpperCase().trim(),
+        discount_percent: parseFloat(discountPercent),
+        discount_amount: parseFloat(discountAmount),
+        valid_from: discountValidFrom || '',
+        valid_to: discountValidTo || '',
+        max_uses: discountMaxUses ? parseInt(discountMaxUses) : null,
+      });
+      if (vErr) throw new Error(vErr);
       const payload: any = {
         code: discountCode.toUpperCase().trim(),
         discount_percent: parseFloat(discountPercent),
@@ -1096,6 +1121,8 @@ const AdminDashboard = () => {
 
   const addUnavailability = useMutation({
     mutationFn: async ({ therapistId, date, reason }: { therapistId: string; date: string; reason?: string }) => {
+      const vErr = validateForm(unavailabilitySchema, { therapistId, date, reason: reason || '' });
+      if (vErr) throw new Error(vErr);
       const { error } = await supabase.from('therapist_unavailability').insert({ therapist_id: therapistId, unavailable_date: date, reason });
       if (error) throw error;
     },
@@ -1156,6 +1183,8 @@ const AdminDashboard = () => {
 
   const addHoliday = useMutation({
     mutationFn: async ({ date, reason, earlyCloseHour }: { date: string; reason?: string; earlyCloseHour?: number }) => {
+      const vErr = validateForm(holidaySchema, { date, reason: reason || '', earlyCloseHour: earlyCloseHour ?? null });
+      if (vErr) throw new Error(vErr);
       const { error } = await supabase.from('shop_holidays').insert({
         holiday_date: date,
         reason,
@@ -1266,6 +1295,14 @@ const AdminDashboard = () => {
       }
       if (!therapistId) throw new Error('Missing therapist');
       
+      const vErr = validateForm(adminBookingSchema, {
+        customerName: bookingCustomerName,
+        customerPhone: bookingCustomerPhone,
+        customerEmail: bookingCustomerEmail || '',
+        notes: bookingNotes || '',
+      });
+      if (vErr) throw new Error(vErr);
+
       const [h, m] = bookingTime.split(':').map(Number);
       const endMin = h * 60 + m + service.duration_minutes;
       const endTime = `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
@@ -1354,6 +1391,8 @@ const AdminDashboard = () => {
       }
 
       const payload = { name: serviceName, description: serviceDesc || null, duration_minutes: parseInt(serviceDuration), price: parseInt(servicePrice), image_path: imagePath };
+      const vErr = validateForm(serviceSchema, { name: payload.name, description: payload.description || '', duration_minutes: payload.duration_minutes, price: payload.price });
+      if (vErr) throw new Error(vErr);
       if (editingService) {
         const { error } = await supabase.from('services').update(payload).eq('id', editingService.id);
         if (error) throw error;
@@ -1399,6 +1438,16 @@ const AdminDashboard = () => {
         break_start: therapistBreakStart ? parseInt(therapistBreakStart) : null,
         break_end: therapistBreakEnd ? parseInt(therapistBreakEnd) : null,
       } as any;
+      const vErr = validateForm(therapistSchema, {
+        name: payload.name,
+        phone: payload.phone || '',
+        email: payload.email || '',
+        start_hour: payload.start_hour,
+        end_hour: payload.end_hour,
+        break_start: payload.break_start,
+        break_end: payload.break_end,
+      });
+      if (vErr) throw new Error(vErr);
       if (editingTherapist) {
         const { error } = await supabase.from('therapists').update(payload).eq('id', editingTherapist.id);
         if (error) throw error;

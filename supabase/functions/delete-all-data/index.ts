@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { deleteAllSchema, parseBody } from "../_shared/validation.ts";
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -37,8 +38,10 @@ Deno.serve(async (req) => {
     if (!tenantId) throw new Error('No tenant assigned');
 
     // Verify password
-    const { password } = await req.json();
-    if (!password) throw new Error('Password required');
+    const rawBody = await req.json();
+    const parsed = parseBody(deleteAllSchema, rawBody, corsHeaders);
+    if (parsed.response) return parsed.response;
+    const { password } = parsed.data;
 
     const { error: signInError } = await adminClient.auth.signInWithPassword({
       email: user.email!,

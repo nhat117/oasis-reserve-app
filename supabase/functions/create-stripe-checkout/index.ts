@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { checkoutSchema, parseBody } from "../_shared/validation.ts";
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -13,22 +14,10 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    const {
-      booking_id,
-      service_name,
-      total_amount,
-      customer_email,
-      customer_name,
-      success_url,
-      cancel_url,
-    } = await req.json();
-
-    if (!booking_id || !total_amount || !success_url || !cancel_url) {
-      return new Response(
-        JSON.stringify({ error: "Missing required fields" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    const rawBody = await req.json();
+    const parsed = parseBody(checkoutSchema, rawBody, corsHeaders);
+    if (parsed.response) return parsed.response;
+    const { booking_id, service_name, total_amount, customer_email, customer_name, success_url, cancel_url } = parsed.data;
 
     // Validate booking exists and get tenant_id from the booking
     const { data: booking, error: bookingError } = await supabase

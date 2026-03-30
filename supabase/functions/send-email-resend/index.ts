@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { getCorsHeaders } from "../_shared/cors.ts"
+import { emailSchema, parseBody } from "../_shared/validation.ts"
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req)
@@ -11,14 +12,10 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 
-    const { to, subject, html, from_name, from_email } = await req.json()
-
-    if (!to || !subject || !html) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required fields: to, subject, html' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
+    const rawBody = await req.json()
+    const parsed = parseBody(emailSchema, rawBody, corsHeaders)
+    if (parsed.response) return parsed.response
+    const { to, subject, html, from_name, from_email } = parsed.data
 
     // Get Resend API key from app_settings
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!

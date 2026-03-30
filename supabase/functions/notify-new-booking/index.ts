@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { notifyBookingSchema, parseBody } from "../_shared/validation.ts";
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -14,23 +15,11 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const booking = body.record || body;
-
-    if (!booking?.id || !booking?.customer_name) {
-      return new Response(
-        JSON.stringify({ error: "Invalid booking data" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Use the booking's tenant_id to scope all queries
+    const raw = body.record || body;
+    const parsed = parseBody(notifyBookingSchema, raw, corsHeaders);
+    if (parsed.response) return parsed.response;
+    const booking = parsed.data;
     const tenantId = booking.tenant_id;
-    if (!tenantId) {
-      return new Response(
-        JSON.stringify({ error: "Missing tenant_id in booking data" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
 
     // Get all needed settings including Twilio credentials (scoped to tenant)
     const { data: settingsRows } = await supabase

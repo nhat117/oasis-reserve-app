@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { translateSchema, parseBody } from "../_shared/validation.ts";
 
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -46,12 +47,10 @@ serve(async (req) => {
       });
     }
 
-    const { keys, lang } = await req.json();
-    if (!keys || !lang || !Array.isArray(keys)) {
-      return new Response(JSON.stringify({ error: "keys (array) and lang (string) required" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const rawBody = await req.json();
+    const parsed = parseBody(translateSchema, rawBody, corsHeaders);
+    if (parsed.response) return parsed.response;
+    const { keys, lang } = parsed.data;
 
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);

@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { createAdminSchema, parseBody } from "../_shared/validation.ts";
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -44,15 +45,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { email, password, role } = await req.json();
+    const rawBody = await req.json();
+    const parsed = parseBody(createAdminSchema, rawBody, corsHeaders);
+    if (parsed.response) return parsed.response;
+    const { email, password, role } = parsed.data;
     const assignRole = role === "employee" ? "employee" : "admin";
-    
-    if (!email || !password || password.length < 6) {
-      return new Response(
-        JSON.stringify({ error: "Email and password (min 6 chars) required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
 
     // Create user with service role
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
