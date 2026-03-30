@@ -1,12 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2';
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
@@ -58,6 +56,11 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Get caller's tenant_id
+    const { data: callerRole } = await supabase
+      .from("user_roles").select("tenant_id").eq("user_id", caller.id).single();
+    const tenantId = callerRole?.tenant_id;
+
     // Check cache first
     const { data: cached } = await supabase
       .from("translations")
@@ -76,11 +79,13 @@ serve(async (req) => {
       });
     }
 
-    // Get OpenAI settings from app_settings
-    const { data: settings } = await supabase
+    // Get OpenAI settings from app_settings (scoped to tenant)
+    const settingsQuery = supabase
       .from("app_settings")
       .select("key, value")
       .in("key", ["openai_api_key", "openai_base_url", "openai_model"]);
+    if (tenantId) settingsQuery.eq("tenant_id", tenantId);
+    const { data: settings } = await settingsQuery;
 
     const settingsMap: Record<string, string> = {};
     (settings || []).forEach((r: any) => { settingsMap[r.key] = r.value; });

@@ -19,7 +19,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.translate]
-verify_jwt = false
+verify_jwt = true
 
 [functions.send-sms-reminder]
 verify_jwt = false
@@ -28,7 +28,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.manage-admins]
-verify_jwt = false
+verify_jwt = true
 
 [functions.create-stripe-checkout]
 verify_jwt = false
@@ -37,10 +37,19 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.create-square-terminal-checkout]
-verify_jwt = false
+verify_jwt = true
 
 [functions.square-webhook]
 verify_jwt = false
 
 [functions.send-email-resend]
-verify_jwt = false
+verify_jwt = true
+
+[functions.create-admin]
+verify_jwt = true
+
+[functions.delete-all-data]
+verify_jwt = true
+
+[functions.create-stripe-refund]
+verify_jwt = true

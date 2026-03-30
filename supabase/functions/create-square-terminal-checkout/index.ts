@@ -1,11 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -41,6 +39,11 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(supabaseUrl, supabaseKey);
 
+  // Get caller's tenant_id
+  const { data: callerRole } = await supabase
+    .from("user_roles").select("tenant_id").eq("user_id", caller.id).single();
+  const tenantId = callerRole?.tenant_id;
+
   try {
     const { booking_id, sale_id, amount, note } = await req.json();
 
@@ -51,11 +54,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get Square credentials from app_settings
-    const { data: settingsRows } = await supabase
+    // Get Square credentials from app_settings (scoped to tenant)
+    const query = supabase
       .from("app_settings")
       .select("key, value")
       .in("key", ["square_access_token", "square_location_id", "square_environment"]);
+    if (tenantId) query.eq("tenant_id", tenantId);
+    const { data: settingsRows } = await query;
 
     const s: Record<string, string> = {};
     settingsRows?.forEach((r: any) => { s[r.key] = r.value; });

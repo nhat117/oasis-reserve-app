@@ -1,13 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
-
-// TODO: Restrict CORS to your actual domains once finalized
-// e.g. ["https://yourdomain.com", "http://localhost:5173"]
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
 
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -35,10 +30,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Validate booking exists and get the real price from DB
+    // Validate booking exists and get tenant_id from the booking
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
-      .select("id, service_id, payment_status")
+      .select("id, service_id, payment_status, tenant_id")
       .eq("id", booking_id)
       .single();
 
@@ -49,6 +44,8 @@ Deno.serve(async (req) => {
       );
     }
 
+    const tenantId = booking.tenant_id;
+
     if (booking.payment_status === "paid") {
       return new Response(
         JSON.stringify({ error: "Booking already paid" }),
@@ -56,16 +53,15 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Verify amount matches the service price
+    // Verify amount matches the service price (scoped to tenant)
     const { data: service } = await supabase
       .from("services")
       .select("price, name")
       .eq("id", booking.service_id)
+      .eq("tenant_id", tenantId)
       .single();
 
     if (service) {
-      // Allow small rounding difference (add-ons may increase total)
-      // but reject if client amount is less than the base service price
       if (total_amount < service.price * 0.99) {
         return new Response(
           JSON.stringify({ error: "Invalid amount" }),
@@ -74,10 +70,11 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Get Stripe secret key from app_settings
+    // Get Stripe secret key from app_settings (scoped to tenant)
     const { data: settingsRows } = await supabase
       .from("app_settings")
       .select("key, value")
+      .eq("tenant_id", tenantId)
       .in("key", ["stripe_secret_key", "spa_name", "stripe_payment_enabled"]);
 
     const s: Record<string, string> = {};

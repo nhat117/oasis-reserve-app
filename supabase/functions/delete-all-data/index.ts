@@ -1,11 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -25,16 +23,18 @@ Deno.serve(async (req) => {
     const { data: { user }, error: userError } = await userClient.auth.getUser();
     if (userError || !user) throw new Error('Unauthorized');
 
-    // Check admin role
+    // Check admin role and get tenant_id
     const adminClient = createClient(supabaseUrl, supabaseServiceKey);
     const { data: roleData } = await adminClient
       .from('user_roles')
-      .select('role')
+      .select('role, tenant_id')
       .eq('user_id', user.id)
       .eq('role', 'admin')
       .single();
 
     if (!roleData) throw new Error('Not an admin');
+    const tenantId = roleData.tenant_id;
+    if (!tenantId) throw new Error('No tenant assigned');
 
     // Verify password
     const { password } = await req.json();
@@ -46,11 +46,11 @@ Deno.serve(async (req) => {
     });
     if (signInError) throw new Error('Invalid password');
 
-    // Delete all data from tables (order matters for foreign keys)
+    // Delete all data scoped to this tenant only (order matters for foreign keys)
     const tables = ['sales', 'bookings', 'therapist_unavailability', 'shop_holidays', 'guest_visits', 'discount_codes', 'membership_tiers'];
-    
+
     for (const table of tables) {
-      const { error } = await adminClient.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      const { error } = await adminClient.from(table).delete().eq('tenant_id', tenantId);
       if (error) console.error(`Error deleting ${table}:`, error.message);
     }
 

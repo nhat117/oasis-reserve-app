@@ -1,11 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -25,10 +23,20 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get all needed settings including Twilio credentials
+    // Use the booking's tenant_id to scope all queries
+    const tenantId = booking.tenant_id;
+    if (!tenantId) {
+      return new Response(
+        JSON.stringify({ error: "Missing tenant_id in booking data" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Get all needed settings including Twilio credentials (scoped to tenant)
     const { data: settingsRows } = await supabase
       .from("app_settings")
       .select("key, value")
+      .eq("tenant_id", tenantId)
       .in("key", [
         "notify_sms_enabled",
         "notify_phone",
@@ -70,18 +78,18 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch service and therapist names
+    // Fetch service and therapist names (scoped to tenant)
     let serviceName = "";
     let therapistName = "";
 
     if (booking.service_id) {
       const { data: svc } = await supabase
-        .from("services").select("name").eq("id", booking.service_id).single();
+        .from("services").select("name").eq("id", booking.service_id).eq("tenant_id", tenantId).single();
       serviceName = svc?.name || "";
     }
     if (booking.therapist_id) {
       const { data: thr } = await supabase
-        .from("therapists").select("name").eq("id", booking.therapist_id).single();
+        .from("therapists").select("name").eq("id", booking.therapist_id).eq("tenant_id", tenantId).single();
       therapistName = thr?.name || "";
     }
 

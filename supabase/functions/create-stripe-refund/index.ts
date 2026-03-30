@@ -1,12 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -34,19 +31,22 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check admin/employee role
-    const { data: admin } = await supabase
-      .from("admin_accounts")
-      .select("role")
+    // Check admin/employee role via user_roles and get tenant_id
+    const { data: userRole } = await supabase
+      .from("user_roles")
+      .select("role, tenant_id")
       .eq("user_id", user.id)
+      .in("role", ["admin", "employee"])
       .single();
 
-    if (!admin || !["admin", "employee"].includes(admin.role)) {
+    if (!userRole) {
       return new Response(
         JSON.stringify({ error: "Forbidden" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const tenantId = userRole.tenant_id;
 
     const { booking_id } = await req.json();
 
@@ -57,11 +57,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get booking with payment info
+    // Get booking with payment info (scoped to tenant)
     const { data: booking, error: bookingErr } = await supabase
       .from("bookings")
       .select("id, payment_status, payment_provider, payment_intent_id, total_amount")
       .eq("id", booking_id)
+      .eq("tenant_id", tenantId)
       .single();
 
     if (bookingErr || !booking) {
@@ -92,11 +93,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get Stripe secret key
+    // Get Stripe secret key (scoped to tenant)
     const { data: secretRow } = await supabase
       .from("app_settings")
       .select("value")
       .eq("key", "stripe_secret_key")
+      .eq("tenant_id", tenantId)
       .single();
 
     const stripeSecretKey = secretRow?.value;

@@ -1,12 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -54,12 +51,22 @@ Deno.serve(async (req) => {
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
+    // Get caller's tenant_id for scoping
+    const { data: callerRole } = await adminClient
+      .from("user_roles")
+      .select("tenant_id")
+      .eq("user_id", caller.id)
+      .single();
+    const tenantId = callerRole?.tenant_id;
+
     if (req.method === "GET") {
-      // List all admin/employee users
-      const { data: roles, error: rolesError } = await adminClient
+      // List all admin/employee users scoped to this tenant
+      const query = adminClient
         .from("user_roles")
         .select("user_id, role")
         .in("role", ["admin", "employee"]);
+      if (tenantId) query.eq("tenant_id", tenantId);
+      const { data: roles, error: rolesError } = await query;
 
       if (rolesError) {
         return new Response(JSON.stringify({ error: rolesError.message }), {
