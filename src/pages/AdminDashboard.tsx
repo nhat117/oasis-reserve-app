@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { BookingCalendar } from '@/components/BookingCalendar';
 import { LogoUpload as LogoUploadComponent } from '@/components/LogoUpload';
@@ -195,6 +196,10 @@ const AdminDashboard = () => {
   const [editAccountPassword, setEditAccountPassword] = useState('');
   const [savingPassword, setSavingPassword] = useState(false);
   const [deletingAdminId, setDeletingAdminId] = useState<string | null>(null);
+
+  // Confirm dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{ title: string; description: string; action: () => void } | null>(null);
+  const openConfirm = (title: string, description: string, action: () => void) => setConfirmDialog({ title, description, action });
 
   // Currency settings state
   const [exchangeUSD, setExchangeUSD] = useState('');
@@ -2191,8 +2196,8 @@ const AdminDashboard = () => {
                           <Textarea value={bookingNotes} onChange={e => setBookingNotes(e.target.value)} className="mt-1" placeholder={t('Ghi chú thêm...')} />
                         </div>
                         <Button className="w-full" onClick={() => createBooking.mutate()}
-                          disabled={!bookingServiceId || !bookingTherapistId || !bookingDate || !bookingTime || !bookingCustomerName.trim() || !bookingCustomerPhone.trim()}>
-                          {t('Tạo lịch hẹn')}
+                          disabled={!bookingServiceId || !bookingTherapistId || !bookingDate || !bookingTime || !bookingCustomerName.trim() || !bookingCustomerPhone.trim() || createBooking.isPending}>
+                          {createBooking.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang tạo...')}</> : t('Tạo lịch hẹn')}
                         </Button>
                       </div>
                     </DialogContent>
@@ -2204,14 +2209,10 @@ const AdminDashboard = () => {
                 <BookingCalendar
                   bookings={(bookings as any) || []}
                   onCancel={(id) => cancelBooking.mutate(id)}
-                  onDelete={isAdmin ? (id) => deleteBooking.mutate(id) : undefined}
+                  onDelete={isAdmin ? (id) => openConfirm(t('Xoá lịch hẹn'), t('Bạn có chắc muốn xoá lịch hẹn này? Dữ liệu thanh toán liên quan cũng sẽ bị xoá.'), () => deleteBooking.mutate(id)) : undefined}
                   onMarkCompleted={(id) => updateBookingStatus.mutate({ id, status: 'completed' })}
                   onMarkNoShow={(id) => updateBookingStatus.mutate({ id, status: 'no_show' })}
-                  onRefund={(id) => {
-                    if (confirm(t('Bạn có chắc muốn hoàn tiền cho lịch hẹn này? Hành động không thể hoàn tác.'))) {
-                      refundBooking.mutate(id);
-                    }
-                  }}
+                  onRefund={(id) => openConfirm(t('Hoàn tiền'), t('Bạn có chắc muốn hoàn tiền cho lịch hẹn này? Hành động không thể hoàn tác.'), () => refundBooking.mutate(id))}
                   onReschedule={(id, newDate, newStartTime, newEndTime) =>
                     rescheduleBooking.mutate({ id, newDate, newStartTime, newEndTime })
                   }
@@ -2382,8 +2383,8 @@ const AdminDashboard = () => {
                         <Textarea value={saleNotes} onChange={e => setSaleNotes(e.target.value)} className="mt-1" placeholder={t('Ghi chú thêm...')} />
                       </div>
                       <Button className="w-full" onClick={() => createSale.mutate()}
-                        disabled={!saleAmount || parseFloat(saleAmount) <= 0}>
-                        {t('Ghi nhận thanh toán')}
+                        disabled={!saleAmount || parseFloat(saleAmount) <= 0 || createSale.isPending}>
+                        {createSale.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang xử lý...')}</> : t('Ghi nhận thanh toán')}
                       </Button>
                     </div>
                   </DialogContent>
@@ -2465,11 +2466,11 @@ const AdminDashboard = () => {
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
                                     {!s.is_refunded && (
-                                      <DropdownMenuItem className="text-amber-600" onClick={() => { if (confirm(t('Xác nhận đánh dấu hoàn tiền?'))) refundSale.mutate(s.id); }}>
+                                      <DropdownMenuItem className="text-amber-600" onClick={() => openConfirm(t('Hoàn tiền'), t('Xác nhận đánh dấu hoàn tiền?'), () => refundSale.mutate(s.id))}>
                                         <RotateCcw className="h-3.5 w-3.5 mr-2" /> {t('Hoàn tiền')}
                                       </DropdownMenuItem>
                                     )}
-                                    <DropdownMenuItem className="text-destructive" onClick={() => deleteSale.mutate(s.id)}>
+                                    <DropdownMenuItem className="text-destructive" onClick={() => openConfirm(t('Xoá thanh toán'), t('Bạn có chắc muốn xoá thanh toán này?'), () => deleteSale.mutate(s.id))}>
                                       <Trash2 className="h-3.5 w-3.5 mr-2" /> {t('Xóa')}
                                     </DropdownMenuItem>
                                   </DropdownMenuContent>
@@ -2556,11 +2557,11 @@ const AdminDashboard = () => {
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="w-36">
                                       {!s.is_refunded && (
-                                        <DropdownMenuItem className="text-amber-600 text-xs" onClick={() => { if (confirm(t('Xác nhận đánh dấu hoàn tiền?'))) refundSale.mutate(s.id); }}>
+                                        <DropdownMenuItem className="text-amber-600 text-xs" onClick={() => openConfirm(t('Hoàn tiền'), t('Xác nhận đánh dấu hoàn tiền?'), () => refundSale.mutate(s.id))}>
                                           <RotateCcw className="h-3.5 w-3.5 mr-2" /> {t('Hoàn tiền')}
                                         </DropdownMenuItem>
                                       )}
-                                      <DropdownMenuItem className="text-destructive text-xs" onClick={() => deleteSale.mutate(s.id)}>
+                                      <DropdownMenuItem className="text-destructive text-xs" onClick={() => openConfirm(t('Xoá thanh toán'), t('Bạn có chắc muốn xoá thanh toán này?'), () => deleteSale.mutate(s.id))}>
                                         <Trash2 className="h-3.5 w-3.5 mr-2" /> {t('Xóa')}
                                       </DropdownMenuItem>
                                     </DropdownMenuContent>
@@ -2635,8 +2636,8 @@ const AdminDashboard = () => {
                           </Button>
                         </div>
                       </div>
-                      <Button className="w-full" onClick={() => saveService.mutate()} disabled={!serviceName.trim()}>
-                        {editingService ? t('Cập nhật') : t('Thêm mới')}
+                      <Button className="w-full" onClick={() => saveService.mutate()} disabled={!serviceName.trim() || saveService.isPending}>
+                        {saveService.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : (editingService ? t('Cập nhật') : t('Thêm mới'))}
                       </Button>
                     </div>
                   </DialogContent>
@@ -2686,7 +2687,7 @@ const AdminDashboard = () => {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-36">
-                              <DropdownMenuItem className="text-destructive text-xs" onClick={() => { if (confirm(t('Xoá dịch vụ này?'))) deleteService.mutate(s.id); }}>
+                              <DropdownMenuItem className="text-destructive text-xs" onClick={() => openConfirm(t('Xoá dịch vụ'), t('Xoá dịch vụ này?'), () => deleteService.mutate(s.id))}>
                                 <Trash2 className="h-3.5 w-3.5 mr-2" /> {t('Xóa')}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
@@ -2730,8 +2731,8 @@ const AdminDashboard = () => {
                         <div><Label>{t('Nghỉ trưa từ')}</Label><Input type="number" min="6" max="22" placeholder="VD: 12" value={therapistBreakStart} onChange={e => setTherapistBreakStart(e.target.value)} className="mt-1" /></div>
                         <div><Label>{t('Nghỉ trưa đến')}</Label><Input type="number" min="6" max="22" placeholder="VD: 13" value={therapistBreakEnd} onChange={e => setTherapistBreakEnd(e.target.value)} className="mt-1" /></div>
                       </div>
-                      <Button className="w-full" onClick={() => saveTherapist.mutate()} disabled={!therapistName.trim()}>
-                        {editingTherapist ? t('Cập nhật') : t('Thêm mới')}
+                      <Button className="w-full" onClick={() => saveTherapist.mutate()} disabled={!therapistName.trim() || saveTherapist.isPending}>
+                        {saveTherapist.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : (editingTherapist ? t('Cập nhật') : t('Thêm mới'))}
                       </Button>
                     </div>
                   </DialogContent>
@@ -2761,7 +2762,7 @@ const AdminDashboard = () => {
                         <Calendar mode="single" selected={unavailDate} onSelect={setUnavailDate} className="p-3 pointer-events-auto" />
                       </PopoverContent>
                     </Popover>
-                    <Button size="sm" className="h-9" disabled={!unavailTherapist || !unavailDate}
+                    <Button size="sm" className="h-9" disabled={!unavailTherapist || !unavailDate || addUnavailability.isPending}
                       onClick={() => {
                         if (unavailTherapist && unavailDate) {
                           addUnavailability.mutate({ therapistId: unavailTherapist, date: format(unavailDate, 'yyyy-MM-dd') });
@@ -2823,7 +2824,7 @@ const AdminDashboard = () => {
                         </SelectContent>
                       </Select>
                     </div>
-                    <Button size="sm" className="h-9" disabled={!holidayDate}
+                    <Button size="sm" className="h-9" disabled={!holidayDate || addHoliday.isPending}
                       onClick={() => {
                         if (holidayDate) {
                           addHoliday.mutate({
@@ -2847,7 +2848,7 @@ const AdminDashboard = () => {
                               {h.early_close_hour ? `${t('Đóng cửa lúc')} ${h.early_close_hour}:00` : t('Nghỉ cả ngày')}
                             </span>
                           </span>
-                          <AdminOnlyButton variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/40 hover:text-destructive" onClick={() => removeHoliday.mutate(h.id)}>
+                          <AdminOnlyButton variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/40 hover:text-destructive" onClick={() => openConfirm(t('Xoá ngày nghỉ'), t('Xoá ngày nghỉ tiệm này?'), () => removeHoliday.mutate(h.id))}>
                             <X className="h-3.5 w-3.5" />
                           </AdminOnlyButton>
                         </div>
@@ -2947,7 +2948,7 @@ const AdminDashboard = () => {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-36">
-                                  <DropdownMenuItem className="text-destructive text-xs" onClick={() => { if (confirm(t('Xoá thợ này?'))) deleteTherapist.mutate(th.id); }}>
+                                  <DropdownMenuItem className="text-destructive text-xs" onClick={() => openConfirm(t('Xoá thợ'), t('Xoá thợ này?'), () => deleteTherapist.mutate(th.id))}>
                                     <Trash2 className="h-3.5 w-3.5 mr-2" /> {t('Xóa')}
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
@@ -2999,7 +3000,7 @@ const AdminDashboard = () => {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
-                                  <DropdownMenuItem className="text-destructive text-xs" onClick={() => { if (confirm(t('Xoá thợ này?'))) deleteTherapist.mutate(th.id); }}>
+                                  <DropdownMenuItem className="text-destructive text-xs" onClick={() => openConfirm(t('Xoá thợ'), t('Xoá thợ này?'), () => deleteTherapist.mutate(th.id))}>
                                     <Trash2 className="h-3.5 w-3.5 mr-2" /> {t('Xóa')}
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
@@ -3065,7 +3066,7 @@ const AdminDashboard = () => {
                             <div key={u.id} className="flex items-center justify-between py-1.5 px-3 bg-muted/50 rounded text-sm">
                               <span>{u.unavailable_date}{u.reason ? ` — ${u.reason}` : ''}</span>
                               {isAdmin && (
-                                <button className="text-destructive hover:text-destructive/80 ml-2 shrink-0" onClick={() => removeUnavailability.mutate(u.id)}>
+                                <button className="text-destructive hover:text-destructive/80 ml-2 shrink-0" onClick={() => openConfirm(t('Xoá ngày nghỉ'), t('Xoá ngày nghỉ này?'), () => removeUnavailability.mutate(u.id))}>
                                   <X className="h-3.5 w-3.5" />
                                 </button>
                               )}
@@ -3197,7 +3198,9 @@ const AdminDashboard = () => {
                     </div>
                     <Switch checked={showHolidayClosed} onCheckedChange={setShowHolidayClosed} />
                   </div>
-                  <Button size="sm" onClick={() => { saveShopInfo.mutate(); setSettingsModal(null); }}>{t('Lưu thông tin')}</Button>
+                  <Button size="sm" onClick={() => { saveShopInfo.mutate(); setSettingsModal(null); }} disabled={saveShopInfo.isPending}>
+                    {saveShopInfo.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : t('Lưu thông tin')}
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
@@ -3215,7 +3218,7 @@ const AdminDashboard = () => {
                       <p className="font-medium text-sm">{t('Tự động chọn thợ ngẫu nhiên')}</p>
                       <p className="text-xs text-muted-foreground">{t('Cho phép khách chọn "bất kỳ thợ trống" khi đặt lịch')}</p>
                     </div>
-                    <Switch checked={randomEnabled !== false} onCheckedChange={(v) => toggleRandom.mutate(v)} />
+                    <Switch checked={randomEnabled !== false} onCheckedChange={(v) => toggleRandom.mutate(v)} disabled={toggleRandom.isPending} />
                   </div>
                   <div className="border-t border-border/40" />
 
@@ -3354,8 +3357,7 @@ const AdminDashboard = () => {
                               size="icon"
                               className="h-8 w-8 text-destructive hover:text-destructive"
                               disabled={deletingAdminId === admin.id}
-                              onClick={async () => {
-                                if (!confirm(`${t('Xoá tài khoản')} ${admin.email}?`)) return;
+                              onClick={() => openConfirm(t('Xoá tài khoản'), `${t('Xoá tài khoản')} ${admin.email}?`, async () => {
                                 setDeletingAdminId(admin.id);
                                 try {
                                   const { data: { session: s } } = await supabase.auth.getSession();
@@ -3381,8 +3383,7 @@ const AdminDashboard = () => {
                                 } finally {
                                   setDeletingAdminId(null);
                                 }
-                              }}
-                            >
+                              })}>
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           )}
@@ -3559,8 +3560,8 @@ const AdminDashboard = () => {
                       {t('Dùng')} <code className="text-xs">onboarding@resend.dev</code> {t('để test, hoặc domain đã xác minh trên Resend')}
                     </p>
                   </div>
-                  <Button size="sm" onClick={() => { saveResendSettings.mutate(); setSettingsModal(null); }} disabled={!resendApiKey.trim()}>
-                    {t('Lưu cài đặt email')}
+                  <Button size="sm" onClick={() => { saveResendSettings.mutate(); setSettingsModal(null); }} disabled={!resendApiKey.trim() || saveResendSettings.isPending}>
+                    {saveResendSettings.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : t('Lưu cài đặt email')}
                   </Button>
                   {resendSettings?.['resend_api_key'] && (
                     <div className="bg-muted rounded-lg p-3 text-sm space-y-1">
@@ -3609,8 +3610,8 @@ const AdminDashboard = () => {
                     />
                     <p className="text-xs text-muted-foreground mt-1">{t('Để trống nếu dùng OpenAI mặc định')}</p>
                   </div>
-                  <Button size="sm" onClick={() => { saveOpenaiSettings.mutate(); setSettingsModal(null); }} disabled={!openaiApiKey.trim()}>
-                    {t('Lưu cài đặt dịch thuật')}
+                  <Button size="sm" onClick={() => { saveOpenaiSettings.mutate(); setSettingsModal(null); }} disabled={!openaiApiKey.trim() || saveOpenaiSettings.isPending}>
+                    {saveOpenaiSettings.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : t('Lưu cài đặt dịch thuật')}
                   </Button>
                   {openaiSettings?.['openai_api_key'] && (
                     <div className="bg-muted rounded-lg p-3 text-sm">
@@ -3680,7 +3681,7 @@ const AdminDashboard = () => {
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">{t('Bật/Tắt')}</span>
-                        <Switch checked={membershipEnabled === true} onCheckedChange={(v) => toggleMembership.mutate(v)} />
+                        <Switch checked={membershipEnabled === true} onCheckedChange={(v) => toggleMembership.mutate(v)} disabled={toggleMembership.isPending} />
                       </div>
                       <Button size="sm" variant="outline" onClick={() => { setEditingTier(null); setTierName(''); setTierMinVisits('0'); setTierDiscountPercent('0'); setMembershipDialog(true); }}>
                         <Plus className="h-3.5 w-3.5 mr-1" /> {t('Thêm')}
@@ -3708,7 +3709,7 @@ const AdminDashboard = () => {
                             }}>
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { if (confirm(t('Xoá hạng này?'))) deleteTier.mutate(tier.id); }}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => openConfirm(t('Xoá hạng'), t('Xoá hạng này?'), () => deleteTier.mutate(tier.id))}>
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
@@ -3741,7 +3742,9 @@ const AdminDashboard = () => {
                       <Input type="number" min="0" max="100" step="0.5" value={tierDiscountPercent} onChange={e => setTierDiscountPercent(e.target.value)} className="mt-1" />
                     </div>
                   </div>
-                  <Button onClick={() => saveTier.mutate()} disabled={!tierName.trim()}>{editingTier ? t('Cập nhật') : t('Tạo')}</Button>
+                  <Button onClick={() => saveTier.mutate()} disabled={!tierName.trim() || saveTier.isPending}>
+                    {saveTier.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : (editingTier ? t('Cập nhật') : t('Tạo'))}
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
@@ -3755,7 +3758,7 @@ const AdminDashboard = () => {
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">{t('Bật/Tắt')}</span>
-                        <Switch checked={discountCodesEnabled === true} onCheckedChange={(v) => toggleDiscountCodes.mutate(v)} />
+                        <Switch checked={discountCodesEnabled === true} onCheckedChange={(v) => toggleDiscountCodes.mutate(v)} disabled={toggleDiscountCodes.isPending} />
                       </div>
                       <Button size="sm" variant="outline" onClick={() => {
                         setEditingDiscount(null); setDiscountCode(''); setDiscountPercent('0'); setDiscountAmount('0'); setDiscountValidFrom(''); setDiscountValidTo(''); setDiscountMaxUses(''); setDiscountDialog(true);
@@ -3792,7 +3795,7 @@ const AdminDashboard = () => {
                             }}>
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { if (confirm(t('Xoá mã này?'))) deleteDiscount.mutate(dc.id); }}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => openConfirm(t('Xoá mã giảm giá'), t('Xoá mã này?'), () => deleteDiscount.mutate(dc.id))}>
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
@@ -3839,7 +3842,9 @@ const AdminDashboard = () => {
                     <Label>{t('Giới hạn sử dụng')} ({t('để trống = không giới hạn')})</Label>
                     <Input type="number" min="0" value={discountMaxUses} onChange={e => setDiscountMaxUses(e.target.value)} className="mt-1" placeholder={t('Không giới hạn')} />
                   </div>
-                  <Button onClick={() => saveDiscount.mutate()} disabled={!discountCode.trim()}>{editingDiscount ? t('Cập nhật') : t('Tạo')}</Button>
+                  <Button onClick={() => saveDiscount.mutate()} disabled={!discountCode.trim() || saveDiscount.isPending}>
+                    {saveDiscount.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : (editingDiscount ? t('Cập nhật') : t('Tạo'))}
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
@@ -3952,7 +3957,9 @@ const AdminDashboard = () => {
                       {twilioSettings.twilio_phone_number && <p className="text-xs text-green-600">{t('Số')}: {twilioSettings.twilio_phone_number}</p>}
                     </div>
                   )}
-                  <Button size="sm" onClick={() => { saveTwilioCredentials.mutate(); setSettingsModal(null); }}>{t('Lưu cấu hình Twilio')}</Button>
+                  <Button size="sm" onClick={() => { saveTwilioCredentials.mutate(); setSettingsModal(null); }} disabled={saveTwilioCredentials.isPending}>
+                    {saveTwilioCredentials.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : t('Lưu cấu hình Twilio')}
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
@@ -4007,7 +4014,9 @@ const AdminDashboard = () => {
                               <Input type="password" value={stripeWebhookSecret} onChange={e => setStripeWebhookSecret(e.target.value)} placeholder="whsec_xxxxxxxxxxxxxxxxxxxxxxxx" className="mt-1 font-mono text-xs" />
                               <p className="text-xs text-muted-foreground mt-1">{t('Dùng để xác minh webhook từ Stripe')}</p>
                             </div>
-                            <Button size="sm" onClick={() => { saveStripeCredentials.mutate(); }}>{t('Lưu cấu hình Stripe')}</Button>
+                            <Button size="sm" onClick={() => { saveStripeCredentials.mutate(); }} disabled={saveStripeCredentials.isPending}>
+                              {saveStripeCredentials.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : t('Lưu cấu hình Stripe')}
+                            </Button>
                           </div>
                         )}
                       </div>
@@ -4060,7 +4069,9 @@ const AdminDashboard = () => {
                                 </SelectContent>
                               </Select>
                             </div>
-                            <Button size="sm" onClick={() => { saveSquareCredentials.mutate(); }}>{t('Lưu cấu hình Square')}</Button>
+                            <Button size="sm" onClick={() => { saveSquareCredentials.mutate(); }} disabled={saveSquareCredentials.isPending}>
+                              {saveSquareCredentials.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : t('Lưu cấu hình Square')}
+                            </Button>
                           </div>
                         )}
                       </div>
@@ -4085,7 +4096,9 @@ const AdminDashboard = () => {
                         />
                         <p className="text-xs text-muted-foreground mt-1">{t('Phụ phí sẽ được tự động cộng thêm khi khách thanh toán bằng thẻ')}</p>
                       </div>
-                      <Button size="sm" onClick={() => saveCardSurcharge.mutate()}>{t('Lưu')}</Button>
+                      <Button size="sm" onClick={() => saveCardSurcharge.mutate()} disabled={saveCardSurcharge.isPending}>
+                        {saveCardSurcharge.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : t('Lưu')}
+                      </Button>
                     </div>
                   </div>
 
@@ -4116,7 +4129,9 @@ const AdminDashboard = () => {
                       />
                       <p className="text-xs text-muted-foreground mt-1">{t('Số Twilio dùng để gửi SMS nhắc lịch cho khách')}</p>
                     </div>
-                    <Button size="sm" onClick={() => saveSmsNumber.mutate()}>{t('Lưu số SMS')}</Button>
+                    <Button size="sm" onClick={() => saveSmsNumber.mutate()} disabled={saveSmsNumber.isPending}>
+                      {saveSmsNumber.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : t('Lưu số SMS')}
+                    </Button>
                     {twilioNumber && (
                       <div className="bg-muted rounded-lg p-3 text-sm">
                         <p className="text-muted-foreground">{t('Số SMS hiện tại')}: <strong>{twilioNumber}</strong></p>
@@ -4131,7 +4146,7 @@ const AdminDashboard = () => {
                       <p className="font-medium text-sm">{t('Gửi qua WhatsApp')}</p>
                       <p className="text-xs text-muted-foreground">{t('Gửi thêm tin nhắn WhatsApp cùng với SMS')}</p>
                     </div>
-                    <Switch checked={whatsappEnabled === true} onCheckedChange={(v) => toggleWhatsapp.mutate(v)} />
+                    <Switch checked={whatsappEnabled === true} onCheckedChange={(v) => toggleWhatsapp.mutate(v)} disabled={toggleWhatsapp.isPending} />
                   </div>
                   <div className="border-t border-border/40" />
 
@@ -4215,8 +4230,8 @@ const AdminDashboard = () => {
                     )}
                   </div>
 
-                  <Button size="sm" onClick={() => { saveReminderSettings.mutate(); setSettingsModal(null); }}>
-                    {t('Lưu cài đặt thông báo')}
+                  <Button size="sm" onClick={() => { saveReminderSettings.mutate(); setSettingsModal(null); }} disabled={saveReminderSettings.isPending}>
+                    {saveReminderSettings.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : t('Lưu cài đặt thông báo')}
                   </Button>
                 </div>
               </DialogContent>
@@ -4267,6 +4282,20 @@ const AdminDashboard = () => {
           </div>
         </main>
         </Tabs>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={!!confirmDialog} onOpenChange={(open) => !open && setConfirmDialog(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmDialog?.title}</AlertDialogTitle>
+            <AlertDialogDescription>{confirmDialog?.description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('Huỷ')}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { confirmDialog?.action(); setConfirmDialog(null); }}>{t('Xác nhận')}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
