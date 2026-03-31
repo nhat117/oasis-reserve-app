@@ -572,4 +572,14 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Không đến": "No Show",
   "Đã đánh dấu hoàn thành": "Marked as completed",
   "Đã đánh dấu không đến": "Marked as no-show",
+
+  // About & Terms admin
+  "Chỉnh sửa nội dung trang Về chúng tôi": "Edit About Us page content",
+  "Chỉnh sửa nội dung trang Điều khoản": "Edit Terms & Conditions page content",
+  "Nhập HTML để hiển thị trên trang Về chúng tôi. Hỗ trợ thẻ h2, p, ul, li, strong, em.": "Enter HTML to display on the About Us page. Supports h2, p, ul, li, strong, em tags.",
+  "Nhập HTML để hiển thị trên trang Điều khoản. Hỗ trợ thẻ h2, p, ul, li, strong, em.": "Enter HTML to display on the Terms page. Supports h2, p, ul, li, strong, em tags.",
+  "Xem trước": "Preview",
+  "Lưu nội dung": "Save Content",
+  "Đã lưu nội dung Về chúng tôi": "About Us content saved",
+  "Đã lưu nội dung Điều khoản": "Terms content saved",
 };

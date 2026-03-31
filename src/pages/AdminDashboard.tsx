@@ -17,7 +17,7 @@ import { BookingCalendar } from '@/components/BookingCalendar';
 import { LogoUpload as LogoUploadComponent } from '@/components/LogoUpload';
 import { Textarea } from '@/components/ui/textarea';
 import { BookingStats } from '@/components/BookingStats';
-import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone, CreditCard, Square, RotateCcw } from 'lucide-react';
+import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone, CreditCard, Square, RotateCcw, BookOpen, ScrollText } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ALL_I18N_KEYS } from '@/lib/i18n-keys';
 import { Switch } from '@/components/ui/switch';
@@ -840,6 +840,44 @@ const AdminDashboard = () => {
       }
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['openai-settings'] }); toast({ title: t('Đã lưu cài đặt OpenAI') }); },
+    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+  });
+
+  // About & Terms content
+  const [aboutContent, setAboutContent] = useState('');
+  const [termsContent, setTermsContent] = useState('');
+  const { data: pageContents } = useQuery({
+    queryKey: ['page-contents'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('app_settings').select('key, value').in('key', ['about_content', 'terms_content']);
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      data?.forEach(r => { map[r.key] = r.value; });
+      return map;
+    },
+  });
+  useEffect(() => {
+    if (pageContents) {
+      setAboutContent(pageContents['about_content'] || '');
+      setTermsContent(pageContents['terms_content'] || '');
+    }
+  }, [pageContents]);
+  const saveAboutContent = useMutation({
+    mutationFn: async () => {
+      requireAdmin();
+      const { error } = await supabase.from('app_settings').upsert({ key: 'about_content', value: aboutContent });
+      if (error) throw error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['page-contents'] }); queryClient.invalidateQueries({ queryKey: ['about-settings'] }); toast({ title: t('Đã lưu nội dung Về chúng tôi') }); },
+    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+  });
+  const saveTermsContent = useMutation({
+    mutationFn: async () => {
+      requireAdmin();
+      const { error } = await supabase.from('app_settings').upsert({ key: 'terms_content', value: termsContent });
+      if (error) throw error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['page-contents'] }); queryClient.invalidateQueries({ queryKey: ['terms-content'] }); toast({ title: t('Đã lưu nội dung Điều khoản') }); },
     onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
 
@@ -3096,6 +3134,8 @@ const AdminDashboard = () => {
               { key: 'translation', icon: Languages, label: t('Cài đặt dịch thuật'), desc: openaiSettings?.['openai_api_key'] ? t('Đã cấu hình') : t('Chưa cấu hình') },
               { key: 'membership', icon: Crown, label: t('Hạng thành viên'), desc: `${membershipTiers?.length || 0} ${t('hạng')}` },
               { key: 'discounts', icon: Tag, label: t('Mã giảm giá'), desc: `${discountCodes?.length || 0} ${t('mã')}` },
+              { key: 'about', icon: BookOpen, label: t('Về chúng tôi'), desc: t('Chỉnh sửa nội dung trang Về chúng tôi') },
+              { key: 'terms', icon: ScrollText, label: t('Điều khoản'), desc: t('Chỉnh sửa nội dung trang Điều khoản') },
               ...(isAdmin ? [{ key: 'logs', icon: FileText, label: t('Nhật ký hoạt động'), desc: t('Tải xuống CSV') }] : []),
               { key: 'software', icon: Info, label: t('Thông tin phần mềm'), desc: 'v1.0.0 · Olive Marketing' },
               ...(isAdmin ? [{ key: 'danger', icon: AlertTriangle, label: t('Vùng nguy hiểm'), desc: t('Xoá tất cả dữ liệu') }] : []),
@@ -3880,6 +3920,62 @@ const AdminDashboard = () => {
                     <Download className="h-3.5 w-3.5 mr-1" /> {t('Tải CSV')}
                   </Button>
                   {!activityLogs?.length && <p className="text-xs text-muted-foreground">{t('Chưa có nhật ký nào')}</p>}
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* ── About Us Content Editor ── */}
+            <Dialog open={settingsModal === 'about'} onOpenChange={(open) => !open && setSettingsModal(null)}>
+              <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>{t('Về chúng tôi')}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3 pt-2">
+                  <p className="text-xs text-muted-foreground">{t('Nhập HTML để hiển thị trên trang Về chúng tôi. Hỗ trợ thẻ h2, p, ul, li, strong, em.')}</p>
+                  <textarea
+                    className="w-full min-h-[300px] rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    value={aboutContent}
+                    onChange={(e) => setAboutContent(e.target.value)}
+                    placeholder="<h2>Heading</h2>\n<p>Content here...</p>"
+                  />
+                  <div className="border rounded-md p-4 max-h-[200px] overflow-y-auto">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">{t('Xem trước')}</p>
+                    <div
+                      className="prose prose-sm max-w-none text-muted-foreground [&_h2]:text-base [&_h2]:font-medium [&_h2]:text-foreground [&_h2]:mb-2 [&_h2]:mt-4 [&_p]:leading-relaxed"
+                      dangerouslySetInnerHTML={{ __html: aboutContent }}
+                    />
+                  </div>
+                  <Button size="sm" onClick={() => { saveAboutContent.mutate(); setSettingsModal(null); }} disabled={saveAboutContent.isPending}>
+                    {saveAboutContent.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : t('Lưu nội dung')}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* ── Terms Content Editor ── */}
+            <Dialog open={settingsModal === 'terms'} onOpenChange={(open) => !open && setSettingsModal(null)}>
+              <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>{t('Điều khoản')}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3 pt-2">
+                  <p className="text-xs text-muted-foreground">{t('Nhập HTML để hiển thị trên trang Điều khoản. Hỗ trợ thẻ h2, p, ul, li, strong, em.')}</p>
+                  <textarea
+                    className="w-full min-h-[300px] rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    value={termsContent}
+                    onChange={(e) => setTermsContent(e.target.value)}
+                    placeholder="<h2>1. Introduction</h2>\n<p>Terms content here...</p>"
+                  />
+                  <div className="border rounded-md p-4 max-h-[200px] overflow-y-auto">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">{t('Xem trước')}</p>
+                    <div
+                      className="prose prose-sm max-w-none text-muted-foreground [&_h2]:text-base [&_h2]:font-medium [&_h2]:text-foreground [&_h2]:mb-2 [&_h2]:mt-4 [&_p]:leading-relaxed"
+                      dangerouslySetInnerHTML={{ __html: termsContent }}
+                    />
+                  </div>
+                  <Button size="sm" onClick={() => { saveTermsContent.mutate(); setSettingsModal(null); }} disabled={saveTermsContent.isPending}>
+                    {saveTermsContent.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : t('Lưu nội dung')}
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
