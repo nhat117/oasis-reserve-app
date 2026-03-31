@@ -282,6 +282,14 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Quyền hạn chế": "Limited access",
   "Chỉ admin có quyền thực hiện thao tác này": "Only admin can perform this action",
 
+  // Employee permissions
+  "Quyền nhân viên": "Employee Permissions",
+  "Bật/tắt các tab nhân viên có thể xem": "Toggle which tabs employees can access",
+  "Chọn các tab mà nhân viên có thể xem khi đăng nhập": "Choose which tabs employees can see when logged in",
+  "Đã lưu quyền nhân viên": "Employee permissions saved",
+  "Lưu quyền": "Save Permissions",
+  "Admin luôn có quyền truy cập tất cả": "Admins always have full access",
+
   // Notifications
   "Thông báo & Nhắc lịch": "Notifications & Reminders",
   "SMS, WhatsApp, email nhắc lịch": "SMS, WhatsApp, email reminders",
@@ -363,6 +371,32 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "lần": "times",
   "Đã lưu mã giảm giá": "Discount code saved",
   "Xoá mã này?": "Delete this code?",
+
+  // Coupon in sales
+  "Mã giảm giá / Phiếu quà tặng": "Discount Code / Gift Card",
+  "Áp dụng": "Apply",
+  "Mã không hợp lệ": "Invalid code",
+  "Mã chưa có hiệu lực": "Code not yet active",
+  "Mã đã hết hạn": "Code has expired",
+  "Mã đã hết lượt sử dụng": "Code usage limit reached",
+  "giảm": "off",
+
+  // Gift cards
+  "Phiếu quà tặng": "Gift Cards",
+  "Tạo phiếu quà tặng hàng loạt": "Batch Create Gift Cards",
+  "Tạo nhiều mã quà tặng cùng lúc": "Generate multiple gift card codes at once",
+  "Số lượng": "Quantity",
+  "Giá trị (A$)": "Value (A$)",
+  "Tiền tố mã": "Code Prefix",
+  "Số lần dùng / mã": "Uses per Code",
+  "Hết hạn": "Expiry",
+  "Sẽ tạo": "Will create",
+  "mã có dạng": "codes like",
+  "trị giá": "worth",
+  "Tạo phiếu quà tặng": "Create Gift Cards",
+  "Đã tạo phiếu quà tặng": "Gift cards created",
+  "mã đã được tạo": "codes generated",
+  "Đang tạo...": "Creating...",
 
   // Logs
   "Nhật ký hoạt động": "Activity Logs",

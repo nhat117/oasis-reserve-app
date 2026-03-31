@@ -17,7 +17,7 @@ import { BookingCalendar } from '@/components/BookingCalendar';
 import { LogoUpload as LogoUploadComponent } from '@/components/LogoUpload';
 import { Textarea } from '@/components/ui/textarea';
 import { BookingStats } from '@/components/BookingStats';
-import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone, CreditCard, Square, RotateCcw, BookOpen, ScrollText } from 'lucide-react';
+import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone, CreditCard, Square, RotateCcw, BookOpen, ScrollText, Eye } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ALL_I18N_KEYS } from '@/lib/i18n-keys';
 import { Switch } from '@/components/ui/switch';
@@ -184,6 +184,10 @@ const AdminDashboard = () => {
   const [squareCheckoutPending, setSquareCheckoutPending] = useState(false);
   const [saleNotes, setSaleNotes] = useState('');
   const [saleAddOns, setSaleAddOns] = useState<string[]>([]);
+  const [saleCouponCode, setSaleCouponCode] = useState('');
+  const [saleCouponDiscount, setSaleCouponDiscount] = useState<{ percent: number; amount: number } | null>(null);
+  const [saleCouponError, setSaleCouponError] = useState('');
+  const [saleCouponLoading, setSaleCouponLoading] = useState(false);
 
   // Create admin state
   const [newAdminEmail, setNewAdminEmail] = useState('');
@@ -241,6 +245,11 @@ const AdminDashboard = () => {
 
   // Card surcharge state
   const [cardSurchargePercent, setCardSurchargePercent] = useState('0');
+
+  // Employee visible tabs — default all visible
+  const EMPLOYEE_TABS = ['stats', 'bookings', 'customers', 'sales', 'services', 'therapists'] as const;
+  type EmployeeTab = typeof EMPLOYEE_TABS[number];
+  const [employeeVisibleTabs, setEmployeeVisibleTabs] = useState<EmployeeTab[]>([...EMPLOYEE_TABS]);
 
   // Sales filter state
   const [salesFilterMethod, setSalesFilterMethod] = useState('all');
@@ -333,6 +342,14 @@ const AdminDashboard = () => {
   const [discountValidTo, setDiscountValidTo] = useState('');
   const [discountMaxUses, setDiscountMaxUses] = useState('');
 
+  // Gift card batch state
+  const [giftCardDialog, setGiftCardDialog] = useState(false);
+  const [giftCardCount, setGiftCardCount] = useState('5');
+  const [giftCardAmount, setGiftCardAmount] = useState('50');
+  const [giftCardPrefix, setGiftCardPrefix] = useState('GIFT');
+  const [giftCardMaxUses, setGiftCardMaxUses] = useState('1');
+  const [giftCardValidTo, setGiftCardValidTo] = useState('');
+
   // Delete all data state
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
@@ -383,13 +400,35 @@ const AdminDashboard = () => {
     },
   });
 
+  const applyCoupon = async () => {
+    const code = saleCouponCode.trim().toUpperCase();
+    if (!code) { setSaleCouponDiscount(null); setSaleCouponError(''); return; }
+    setSaleCouponLoading(true);
+    setSaleCouponError('');
+    setSaleCouponDiscount(null);
+    const { data, error } = await supabase.from('discount_codes').select('*').eq('code', code).eq('is_active', true).single();
+    setSaleCouponLoading(false);
+    if (error || !data) { setSaleCouponError(t('Mã không hợp lệ')); return; }
+    const today = format(new Date(), 'yyyy-MM-dd');
+    if (data.valid_from && today < data.valid_from) { setSaleCouponError(t('Mã chưa có hiệu lực')); return; }
+    if (data.valid_to && today > data.valid_to) { setSaleCouponError(t('Mã đã hết hạn')); return; }
+    if (data.max_uses && data.current_uses >= data.max_uses) { setSaleCouponError(t('Mã đã hết lượt sử dụng')); return; }
+    setSaleCouponDiscount({ percent: Number(data.discount_percent) || 0, amount: Number(data.discount_amount) || 0 });
+  };
+
   const createSale = useMutation({
     mutationFn: async () => {
       const addOnTotal = saleAddOns.reduce((sum, id) => {
         const svc = services?.find(s => s.id === id);
         return sum + (svc?.price || 0);
       }, 0);
-      const baseAmount = parseFloat(saleAmount) + addOnTotal;
+      let baseAmount = parseFloat(saleAmount) + addOnTotal;
+      // Apply coupon discount
+      if (saleCouponDiscount) {
+        if (saleCouponDiscount.percent > 0) baseAmount -= baseAmount * (saleCouponDiscount.percent / 100);
+        if (saleCouponDiscount.amount > 0) baseAmount -= saleCouponDiscount.amount;
+        baseAmount = Math.max(0, baseAmount);
+      }
       const surcharge = salePaymentMethod === 'card' ? baseAmount * (parseFloat(cardSurchargeSetting || '0') / 100) : 0;
       const totalAmount = baseAmount + surcharge;
 
@@ -411,8 +450,16 @@ const AdminDashboard = () => {
         customer_name: saleCustomerName || null,
       };
       if (saleType === 'booking' && saleBookingId && saleBookingId !== 'none') payload.booking_id = saleBookingId;
+      if (saleCouponCode.trim()) payload.notes = `${payload.notes || ''} [Coupon: ${saleCouponCode.trim().toUpperCase()}]`.trim();
       const { data: saleData, error } = await supabase.from('sales').insert(payload).select('id').single();
       if (error) throw error;
+
+      // Increment coupon usage
+      if (saleCouponDiscount && saleCouponCode.trim()) {
+        const code = saleCouponCode.trim().toUpperCase();
+        const { data: dc } = await supabase.from('discount_codes').select('id, current_uses').eq('code', code).single();
+        if (dc) await supabase.from('discount_codes').update({ current_uses: (dc.current_uses || 0) + 1 }).eq('id', dc.id);
+      }
 
       // If Square Terminal, trigger terminal checkout
       if (salePaymentMethod === 'square' && saleData?.id) {
@@ -447,6 +494,10 @@ const AdminDashboard = () => {
       setSalePaymentMethod('cash');
       setSaleNotes('');
       setSaleAddOns([]);
+      setSaleCouponCode('');
+      setSaleCouponDiscount(null);
+      setSaleCouponError('');
+      queryClient.invalidateQueries({ queryKey: ['discount-codes'] });
       toast({ title: t('Đã ghi nhận thanh toán') });
     },
     onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
@@ -476,6 +527,33 @@ const AdminDashboard = () => {
       toast({ title: t('Đã đánh dấu hoàn tiền') });
     },
     onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+  });
+
+  // Employee visible tabs setting
+  const { data: employeeTabsSetting } = useQuery({
+    queryKey: ['employee-visible-tabs'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'employee_visible_tabs').single();
+      if (error) return [...EMPLOYEE_TABS];
+      try { return JSON.parse(data.value) as EmployeeTab[]; } catch { return [...EMPLOYEE_TABS]; }
+    },
+  });
+
+  useEffect(() => {
+    if (employeeTabsSetting) setEmployeeVisibleTabs(employeeTabsSetting);
+  }, [employeeTabsSetting]);
+
+  const saveEmployeeTabs = useMutation({
+    mutationFn: async (tabs: EmployeeTab[]) => {
+      requireAdmin();
+      const { error } = await supabase.from('app_settings').upsert({ key: 'employee_visible_tabs', value: JSON.stringify(tabs) });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      logActivity('update_employee_tabs', `Visible tabs: ${employeeVisibleTabs.join(', ')}`);
+      queryClient.invalidateQueries({ queryKey: ['employee-visible-tabs'] });
+      toast({ title: t('Đã lưu quyền nhân viên') });
+    },
   });
 
   // Random therapist setting
@@ -1021,6 +1099,41 @@ const AdminDashboard = () => {
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['discount-codes'] }); },
+  });
+
+  const createGiftCardBatch = useMutation({
+    mutationFn: async () => {
+      requireAdmin();
+      const count = parseInt(giftCardCount);
+      const amount = parseFloat(giftCardAmount);
+      const maxUses = parseInt(giftCardMaxUses) || 1;
+      const prefix = giftCardPrefix.trim().toUpperCase() || 'GIFT';
+      if (count < 1 || count > 100) throw new Error('Batch size must be 1-100');
+      if (amount <= 0) throw new Error('Amount must be positive');
+      const codes = Array.from({ length: count }, () => {
+        const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
+        return `${prefix}-${rand}`;
+      });
+      const rows = codes.map(code => ({
+        code,
+        discount_percent: 0,
+        discount_amount: amount,
+        valid_from: format(new Date(), 'yyyy-MM-dd'),
+        valid_to: giftCardValidTo || null,
+        max_uses: maxUses,
+        is_active: true,
+      }));
+      const { error } = await supabase.from('discount_codes').insert(rows);
+      if (error) throw error;
+      return codes;
+    },
+    onSuccess: (codes) => {
+      logActivity('create_gift_cards', `Created ${codes.length} gift cards: ${codes.slice(0, 3).join(', ')}...`);
+      queryClient.invalidateQueries({ queryKey: ['discount-codes'] });
+      setGiftCardDialog(false);
+      toast({ title: t('Đã tạo phiếu quà tặng'), description: `${codes.length} ${t('mã đã được tạo')}` });
+    },
+    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
 
   // Membership & discount enabled toggles
@@ -1673,13 +1786,17 @@ const AdminDashboard = () => {
     </div>
   );
 
-  const sidebarNavItems = [
+  const allNavItems = [
     { value: 'stats', icon: BarChart3, label: t('Thống kê') },
     { value: 'bookings', icon: CalendarDays, label: t('Lịch hẹn') },
     { value: 'customers', icon: UserCheck, label: t('Khách hàng') },
     { value: 'sales', icon: DollarSign, label: t('Thanh toán') },
     { value: 'services', icon: Scissors, label: t('Dịch vụ') },
     { value: 'therapists', icon: Users, label: t('Thợ') },
+  ];
+
+  const sidebarNavItems = [
+    ...allNavItems.filter(item => isAdmin || employeeVisibleTabs.includes(item.value as EmployeeTab)),
     ...(canAccessSettings ? [{ value: 'settings', icon: Settings, label: t('Cài đặt') }] : []),
   ];
 
@@ -2140,100 +2257,112 @@ const AdminDashboard = () => {
                     <DialogTrigger asChild>
                       <Button size="sm" className="h-9 px-4"><Plus className="h-4 w-4 mr-1.5" /> {t('Tạo lịch')}</Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[90vh] overflow-y-auto">
+                    <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[460px] max-h-[90vh] overflow-y-auto">
                       <DialogHeader>
-                        <DialogTitle>{t('Tạo lịch hẹn mới')}</DialogTitle>
-                        <DialogDescription>{t('Điền thông tin để tạo lịch hẹn cho khách hàng')}</DialogDescription>
+                        <DialogTitle className="text-[#3d2b1f]">{t('Tạo lịch hẹn mới')}</DialogTitle>
+                        <DialogDescription className="text-muted-foreground/60">{t('Điền thông tin để tạo lịch hẹn cho khách hàng')}</DialogDescription>
                       </DialogHeader>
-                      <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-                        <div>
-                          <Label>{t('Dịch vụ')}</Label>
-                          <Select value={bookingServiceId} onValueChange={setBookingServiceId}>
-                            <SelectTrigger className="mt-1"><SelectValue placeholder={t('Chọn dịch vụ')} /></SelectTrigger>
-                            <SelectContent>
-                              {services?.filter(s => s.is_active).map(s => (
-                                <SelectItem key={s.id} value={s.id}>{s.name} ({s.duration_minutes} {t('phút')} — {formatPrice(s.price)})</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                      <div className="space-y-5 max-h-[70vh] overflow-y-auto pr-1 pt-1">
+                        {/* Service & Therapist */}
+                        <div className="space-y-4">
+                          <div>
+                            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Dịch vụ')}</Label>
+                            <Select value={bookingServiceId} onValueChange={setBookingServiceId}>
+                              <SelectTrigger className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60"><SelectValue placeholder={t('Chọn dịch vụ')} /></SelectTrigger>
+                              <SelectContent>
+                                {services?.filter(s => s.is_active).map(s => (
+                                  <SelectItem key={s.id} value={s.id}>{s.name} ({s.duration_minutes} {t('phút')} — {formatPrice(s.price)})</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Thợ')}</Label>
+                            <Select value={bookingTherapistId} onValueChange={(v) => { setBookingTherapistId(v); setBookingTime(''); }}>
+                              <SelectTrigger className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60"><SelectValue placeholder={t('Chọn thợ')} /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="random">{t('Tự động (ai rảnh)')}</SelectItem>
+                                {therapists?.filter(t => t.is_active).map(t => (
+                                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
-                        <div>
-                          <Label>{t('Thợ')}</Label>
-                          <Select value={bookingTherapistId} onValueChange={(v) => { setBookingTherapistId(v); setBookingTime(''); }}>
-                            <SelectTrigger className="mt-1"><SelectValue placeholder={t('Chọn thợ')} /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="random">{t('Tự động (ai rảnh)')}</SelectItem>
-                              {therapists?.filter(t => t.is_active).map(t => (
-                                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+
+                        {/* Date & Time */}
+                        <div className="border-t border-[#ebe3d9]/30 pt-4 space-y-4">
+                          <div>
+                            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Ngày')}</Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button variant="outline" className={cn("w-full mt-1.5 justify-start bg-[#faf8f5] border-[#ebe3d9]/60", !bookingDate && "text-muted-foreground")}>
+                                  {bookingDate ? format(bookingDate, 'dd/MM/yyyy') : t('Chọn ngày')}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar mode="single" selected={bookingDate} onSelect={(d) => { setBookingDate(d); setBookingTime(''); }} className="p-3 pointer-events-auto" />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                          <div>
+                            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Giờ')}</Label>
+                            {!bookingServiceId || !bookingDate ? (
+                              <p className="text-sm text-muted-foreground/50 mt-1.5 italic">{t('Chọn dịch vụ và ngày trước')}</p>
+                            ) : availableSlots.length === 0 && bookingTherapistId && bookingTherapistId !== 'random' && (unavailabilities || []).some(u => u.therapist_id === bookingTherapistId && u.unavailable_date === format(bookingDate, 'yyyy-MM-dd')) ? (
+                              <p className="text-sm text-destructive mt-1.5">{t('Thợ nghỉ ngày này')} - {(unavailabilities || []).find(u => u.therapist_id === bookingTherapistId && u.unavailable_date === format(bookingDate, 'yyyy-MM-dd'))?.reason || t('Không có lý do')}</p>
+                            ) : availableSlots.length === 0 ? (
+                              <p className="text-sm text-destructive mt-1.5">{t('Không có khung giờ trống')}</p>
+                            ) : (
+                              <div className="flex flex-wrap gap-1.5 mt-2 max-h-[200px] overflow-y-auto">
+                                {availableSlots.filter((_, i) => i % 2 === 0).map(slot => (
+                                  <button key={slot.time} type="button" disabled={!slot.available}
+                                    onClick={() => {
+                                      setBookingTime(slot.time);
+                                      if (slot.therapistId && (bookingTherapistId === 'random' || !bookingTherapistId)) {
+                                        setBookingTherapistId(slot.therapistId);
+                                      }
+                                    }}
+                                    className={cn(
+                                      "px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all",
+                                      slot.available && bookingTime !== slot.time && "border-[#ebe3d9]/60 hover:border-[#8b7355] hover:bg-[#f7f2ec] cursor-pointer",
+                                      slot.available && bookingTime === slot.time && "border-[#6b4c3b] bg-[#6b4c3b] text-white",
+                                      !slot.available && "border-border/30 bg-muted/30 text-muted-foreground/40 line-through cursor-not-allowed"
+                                    )}
+                                    title={slot.available ? (slot.therapistName || '') : t('Đã đặt')}
+                                  >
+                                    {slot.time}
+                                    {slot.available && bookingTherapistId === 'random' && slot.therapistName && (
+                                      <span className="block text-[9px] opacity-70">{slot.therapistName.split(' ').pop()}</span>
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <Label>{t('Ngày')}</Label>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button variant="outline" className={cn("w-full mt-1 justify-start", !bookingDate && "text-muted-foreground")}>
-                                {bookingDate ? format(bookingDate, 'dd/MM/yyyy') : t('Chọn ngày')}
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                              <Calendar mode="single" selected={bookingDate} onSelect={(d) => { setBookingDate(d); setBookingTime(''); }} className="p-3 pointer-events-auto" />
-                            </PopoverContent>
-                          </Popover>
+
+                        {/* Customer info */}
+                        <div className="border-t border-[#ebe3d9]/30 pt-4 space-y-4">
+                          <div>
+                            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Tên khách hàng')}</Label>
+                            <Input value={bookingCustomerName} onChange={e => setBookingCustomerName(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" placeholder={t('Họ và tên')} />
+                          </div>
+                          <div>
+                            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Số điện thoại')}</Label>
+                            <Input value={bookingCustomerPhone} onChange={e => setBookingCustomerPhone(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" placeholder="04xx xxx xxx" />
+                          </div>
+                          <div>
+                            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Email (tuỳ chọn)')}</Label>
+                            <Input value={bookingCustomerEmail} onChange={e => setBookingCustomerEmail(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" placeholder="email@example.com" />
+                          </div>
+                          <div>
+                            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Ghi chú')}</Label>
+                            <Textarea value={bookingNotes} onChange={e => setBookingNotes(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20 min-h-[60px]" placeholder={t('Ghi chú thêm...')} />
+                          </div>
                         </div>
-                        <div>
-                          <Label>{t('Giờ')}</Label>
-                          {!bookingServiceId || !bookingDate ? (
-                            <p className="text-sm text-muted-foreground mt-1">{t('Chọn dịch vụ và ngày trước')}</p>
-                          ) : availableSlots.length === 0 && bookingTherapistId && bookingTherapistId !== 'random' && (unavailabilities || []).some(u => u.therapist_id === bookingTherapistId && u.unavailable_date === format(bookingDate, 'yyyy-MM-dd')) ? (
-                            <p className="text-sm text-destructive mt-1">{t('Thợ nghỉ ngày này')} - {(unavailabilities || []).find(u => u.therapist_id === bookingTherapistId && u.unavailable_date === format(bookingDate, 'yyyy-MM-dd'))?.reason || t('Không có lý do')}</p>
-                          ) : availableSlots.length === 0 ? (
-                            <p className="text-sm text-destructive mt-1">{t('Không có khung giờ trống')}</p>
-                          ) : (
-                            <div className="flex flex-wrap gap-1.5 mt-2 max-h-[200px] overflow-y-auto">
-                              {availableSlots.filter((_, i) => i % 2 === 0).map(slot => (
-                                <button key={slot.time} type="button" disabled={!slot.available}
-                                  onClick={() => {
-                                    setBookingTime(slot.time);
-                                    if (slot.therapistId && (bookingTherapistId === 'random' || !bookingTherapistId)) {
-                                      setBookingTherapistId(slot.therapistId);
-                                    }
-                                  }}
-                                  className={cn(
-                                    "px-2.5 py-1.5 rounded-md text-xs font-medium border transition-all",
-                                    slot.available && bookingTime !== slot.time && "border-border hover:border-primary hover:bg-primary/5 cursor-pointer",
-                                    slot.available && bookingTime === slot.time && "border-primary bg-primary text-primary-foreground",
-                                    !slot.available && "border-border bg-muted text-muted-foreground line-through opacity-50 cursor-not-allowed"
-                                  )}
-                                  title={slot.available ? (slot.therapistName || '') : t('Đã đặt')}
-                                >
-                                  {slot.time}
-                                  {slot.available && bookingTherapistId === 'random' && slot.therapistName && (
-                                    <span className="block text-[9px] opacity-70">{slot.therapistName.split(' ').pop()}</span>
-                                  )}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <div>
-                          <Label>{t('Tên khách hàng')}</Label>
-                          <Input value={bookingCustomerName} onChange={e => setBookingCustomerName(e.target.value)} className="mt-1" placeholder={t('Họ và tên')} />
-                        </div>
-                        <div>
-                          <Label>{t('Số điện thoại')}</Label>
-                          <Input value={bookingCustomerPhone} onChange={e => setBookingCustomerPhone(e.target.value)} className="mt-1" placeholder="0912345678" />
-                        </div>
-                        <div>
-                          <Label>{t('Email (tuỳ chọn)')}</Label>
-                          <Input value={bookingCustomerEmail} onChange={e => setBookingCustomerEmail(e.target.value)} className="mt-1" placeholder="email@example.com" />
-                        </div>
-                        <div>
-                          <Label>{t('Ghi chú')}</Label>
-                          <Textarea value={bookingNotes} onChange={e => setBookingNotes(e.target.value)} className="mt-1" placeholder={t('Ghi chú thêm...')} />
-                        </div>
-                        <Button className="w-full" onClick={() => createBooking.mutate()}
+
+                        <Button className="w-full h-10 bg-[#6b4c3b] hover:bg-[#5a3d2e] text-white" onClick={() => createBooking.mutate()}
                           disabled={!bookingServiceId || !bookingTherapistId || !bookingDate || !bookingTime || !bookingCustomerName.trim() || !bookingCustomerPhone.trim() || createBooking.isPending}>
                           {createBooking.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang tạo...')}</> : t('Tạo lịch hẹn')}
                         </Button>
@@ -2273,16 +2402,16 @@ const AdminDashboard = () => {
                   <h2 className="text-xl font-semibold text-[#3d2b1f] tracking-tight">{t('Thanh toán')}</h2>
                   <p className="text-sm text-muted-foreground mt-0.5">{t('Quản lý giao dịch và doanh thu')}</p>
                 </div>
-                <Dialog open={saleDialog} onOpenChange={(open) => { setSaleDialog(open); if (!open) { setSaleType('booking'); setSaleBookingId(''); setSaleServiceId(''); setSaleCustomerName(''); setSaleCustomerPhone(''); setSaleAmount(''); setSalePaymentMethod('cash'); setSaleNotes(''); setSaleAddOns([]); } }}>
+                <Dialog open={saleDialog} onOpenChange={(open) => { setSaleDialog(open); if (!open) { setSaleType('booking'); setSaleBookingId(''); setSaleServiceId(''); setSaleCustomerName(''); setSaleCustomerPhone(''); setSaleAmount(''); setSalePaymentMethod('cash'); setSaleNotes(''); setSaleAddOns([]); setSaleCouponCode(''); setSaleCouponDiscount(null); setSaleCouponError(''); } }}>
                   <DialogTrigger asChild>
                     <Button size="sm" className="w-full sm:w-auto h-9 px-4"><Plus className="h-4 w-4 mr-1.5" /> {t('Tạo thanh toán')}</Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[90vh] overflow-y-auto">
+                  <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[460px] max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                      <DialogTitle>{t('Ghi nhận thanh toán')}</DialogTitle>
-                      <DialogDescription>{t('Ghi nhận thanh toán cho dịch vụ')}</DialogDescription>
+                      <DialogTitle className="text-[#3d2b1f]">{t('Ghi nhận thanh toán')}</DialogTitle>
+                      <DialogDescription className="text-muted-foreground/60">{t('Ghi nhận thanh toán cho dịch vụ')}</DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4">
+                    <div className="space-y-5 pt-1">
                       {/* Sale type toggle */}
                       <div>
                         <Label>{t('Loại')}</Label>
@@ -2380,6 +2509,39 @@ const AdminDashboard = () => {
                         )}
                       </div>
 
+                      {/* Coupon code */}
+                      {discountCodesEnabled && (
+                        <div>
+                          <Label>{t('Mã giảm giá / Phiếu quà tặng')}</Label>
+                          <div className="flex gap-2 mt-1">
+                            <Input
+                              value={saleCouponCode}
+                              onChange={e => { setSaleCouponCode(e.target.value.toUpperCase()); setSaleCouponDiscount(null); setSaleCouponError(''); }}
+                              className="flex-1 font-mono bg-[#faf8f5] border-[#ebe3d9]/60"
+                              placeholder="WELCOME10"
+                            />
+                            <Button type="button" variant="outline" size="sm" onClick={applyCoupon} disabled={!saleCouponCode.trim() || saleCouponLoading}>
+                              {saleCouponLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t('Áp dụng')}
+                            </Button>
+                          </div>
+                          {saleCouponError && <p className="text-xs text-destructive mt-1">{saleCouponError}</p>}
+                          {saleCouponDiscount && (
+                            <div className="mt-1.5 flex items-center gap-2">
+                              <Badge variant="secondary" className="bg-green-50 text-green-700 border-green-200">
+                                <Tag className="h-3 w-3 mr-1" />
+                                {saleCouponDiscount.percent > 0 && `${saleCouponDiscount.percent}%`}
+                                {saleCouponDiscount.percent > 0 && saleCouponDiscount.amount > 0 && ' + '}
+                                {saleCouponDiscount.amount > 0 && `A$ ${saleCouponDiscount.amount}`}
+                                {' '}{t('giảm')}
+                              </Badge>
+                              <button type="button" className="text-xs text-muted-foreground hover:text-destructive" onClick={() => { setSaleCouponCode(''); setSaleCouponDiscount(null); setSaleCouponError(''); }}>
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <div>
                         <Label>{t('Số tiền (AUD)')}</Label>
                         <Input type="number" value={saleAmount} onChange={e => setSaleAmount(e.target.value)} className="mt-1" placeholder="0" />
@@ -2401,13 +2563,23 @@ const AdminDashboard = () => {
                         </div>
                         {(() => {
                           const addOnTotal = saleAddOns.reduce((sum, id) => sum + (services?.find(s => s.id === id)?.price || 0), 0);
-                          const base = parseFloat(saleAmount || '0') + addOnTotal;
+                          let base = parseFloat(saleAmount || '0') + addOnTotal;
+                          let discountAmt = 0;
+                          if (saleCouponDiscount) {
+                            if (saleCouponDiscount.percent > 0) discountAmt += base * (saleCouponDiscount.percent / 100);
+                            if (saleCouponDiscount.amount > 0) discountAmt += saleCouponDiscount.amount;
+                            discountAmt = Math.min(discountAmt, base);
+                          }
+                          const afterDiscount = Math.max(0, base - discountAmt);
                           const surchargeRate = parseFloat(cardSurchargeSetting || '0');
-                          const surchargeAmt = base * surchargeRate / 100;
-                          const grandTotal = base + (salePaymentMethod === 'card' ? surchargeAmt : 0);
+                          const surchargeAmt = afterDiscount * surchargeRate / 100;
+                          const grandTotal = afterDiscount + (salePaymentMethod === 'card' ? surchargeAmt : 0);
                           return (base > 0) ? (
                             <div className="mt-2 p-2 bg-muted rounded text-sm">
                               {addOnTotal > 0 && <div>{t('Dịch vụ chính')}: {formatPrice(parseFloat(saleAmount || '0'))} + {t('Thêm')}: {formatPrice(addOnTotal)}</div>}
+                              {discountAmt > 0 && (
+                                <div className="text-green-700">{t('Giảm giá')}: -{formatPrice(discountAmt)}</div>
+                              )}
                               {salePaymentMethod === 'card' && surchargeRate > 0 && (
                                 <div>{t('Phụ phí thẻ')}: {surchargeRate}% = <strong>{formatPrice(surchargeAmt)}</strong></div>
                               )}
@@ -2630,28 +2802,44 @@ const AdminDashboard = () => {
                   <DialogTrigger asChild>
                     <Button size="sm" className="w-full sm:w-auto h-9 px-4" onClick={() => openServiceEdit()}><Plus className="h-4 w-4 mr-1.5" /> {t('Thêm dịch vụ')}</Button>
                   </DialogTrigger>
-                  <DialogContent>
+                  <DialogContent className="sm:max-w-[440px]">
                     <DialogHeader>
-                      <DialogTitle>{editingService ? t('Sửa dịch vụ') : t('Thêm dịch vụ')}</DialogTitle>
-                      <DialogDescription>{editingService ? t('Chỉnh sửa thông tin dịch vụ') : t('Thêm dịch vụ mới vào hệ thống')}</DialogDescription>
+                      <DialogTitle className="text-[#3d2b1f]">{editingService ? t('Sửa dịch vụ') : t('Thêm dịch vụ')}</DialogTitle>
+                      <DialogDescription className="text-muted-foreground/60">{editingService ? t('Chỉnh sửa thông tin dịch vụ') : t('Thêm dịch vụ mới vào hệ thống')}</DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4">
-                      <div><Label>{t('Tên')}</Label><Input value={serviceName} onChange={e => setServiceName(e.target.value)} className="mt-1" /></div>
-                      <div><Label>{t('Mô tả')}</Label><Textarea value={serviceDesc} onChange={e => setServiceDesc(e.target.value)} className="mt-1" /></div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div><Label>{t('Thời gian (phút)')}</Label><Input type="number" value={serviceDuration} onChange={e => setServiceDuration(e.target.value)} className="mt-1" /></div>
-                        <div><Label>{t('Giá (AUD)')}</Label><Input type="number" value={servicePrice} onChange={e => setServicePrice(e.target.value)} className="mt-1" /></div>
+                    <div className="space-y-5 pt-1">
+                      <div className="space-y-4">
+                        <div>
+                          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Tên')}</Label>
+                          <Input value={serviceName} onChange={e => setServiceName(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" placeholder={t('Tên dịch vụ')} />
+                        </div>
+                        <div>
+                          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Mô tả')}</Label>
+                          <Textarea value={serviceDesc} onChange={e => setServiceDesc(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20 min-h-[80px]" placeholder={t('Mô tả ngắn về dịch vụ...')} />
+                        </div>
                       </div>
-                      <div>
-                        <Label>{t('Hình ảnh')}</Label>
-                        <div className="mt-1 space-y-2">
+                      <div className="border-t border-[#ebe3d9]/30 pt-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Thời gian (phút)')}</Label>
+                            <Input type="number" value={serviceDuration} onChange={e => setServiceDuration(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" />
+                          </div>
+                          <div>
+                            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Giá (AUD)')}</Label>
+                            <Input type="number" value={servicePrice} onChange={e => setServicePrice(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="border-t border-[#ebe3d9]/30 pt-4">
+                        <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Hình ảnh')}</Label>
+                        <div className="mt-2 space-y-2">
                           {serviceImagePreview && (
-                            <div className="relative w-full aspect-[4/3] rounded-lg overflow-hidden border border-[#ebe3d9]">
+                            <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden border border-[#ebe3d9]/60 shadow-sm">
                               <img src={serviceImagePreview} alt="Preview" className="w-full h-full object-cover" />
                               <button
                                 type="button"
                                 onClick={() => { setServiceImageFile(null); setServiceImagePreview(null); }}
-                                className="absolute top-1 right-1 h-6 w-6 rounded-full bg-black/50 text-white flex items-center justify-center text-xs hover:bg-black/70"
+                                className="absolute top-2 right-2 h-7 w-7 rounded-full bg-black/40 backdrop-blur-sm text-white flex items-center justify-center text-xs hover:bg-black/60 transition-colors"
                               >×</button>
                             </div>
                           )}
@@ -2669,12 +2857,13 @@ const AdminDashboard = () => {
                               }
                             }}
                           />
-                          <Button type="button" variant="outline" size="sm" onClick={() => serviceImageRef.current?.click()}>
+                          <Button type="button" variant="outline" size="sm" className="border-[#ebe3d9]/60 hover:bg-[#f7f2ec]" onClick={() => serviceImageRef.current?.click()}>
+                            <Image className="h-3.5 w-3.5 mr-1.5" />
                             {serviceImagePreview ? t('Đổi ảnh') : t('Chọn ảnh')}
                           </Button>
                         </div>
                       </div>
-                      <Button className="w-full" onClick={() => saveService.mutate()} disabled={!serviceName.trim() || saveService.isPending}>
+                      <Button className="w-full h-10 bg-[#6b4c3b] hover:bg-[#5a3d2e] text-white" onClick={() => saveService.mutate()} disabled={!serviceName.trim() || saveService.isPending}>
                         {saveService.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : (editingService ? t('Cập nhật') : t('Thêm mới'))}
                       </Button>
                     </div>
@@ -2752,24 +2941,53 @@ const AdminDashboard = () => {
                   <DialogTrigger asChild>
                     <Button size="sm" className="w-full sm:w-auto h-9 px-4" onClick={() => openTherapistEdit()}><Plus className="h-4 w-4 mr-1.5" /> {t('Thêm nhân viên')}</Button>
                   </DialogTrigger>
-                  <DialogContent>
+                  <DialogContent className="sm:max-w-[440px]">
                     <DialogHeader>
-                      <DialogTitle>{editingTherapist ? t('Sửa thông tin thợ') : t('Thêm thợ')}</DialogTitle>
-                      <DialogDescription>{editingTherapist ? t('Chỉnh sửa thông tin thợ') : t('Thêm thợ mới vào hệ thống')}</DialogDescription>
+                      <DialogTitle className="text-[#3d2b1f]">{editingTherapist ? t('Sửa thông tin thợ') : t('Thêm thợ')}</DialogTitle>
+                      <DialogDescription className="text-muted-foreground/60">{editingTherapist ? t('Chỉnh sửa thông tin thợ') : t('Thêm thợ mới vào hệ thống')}</DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4">
-                      <div><Label>{t('Tên')}</Label><Input value={therapistName} onChange={e => setTherapistName(e.target.value)} className="mt-1" /></div>
-                      <div><Label>{t('Email')}</Label><Input type="email" value={therapistEmail} onChange={e => setTherapistEmail(e.target.value)} className="mt-1" placeholder="staff@example.com" /></div>
-                      <div><Label>{t('SĐT')}</Label><Input value={therapistPhone} onChange={e => setTherapistPhone(e.target.value)} className="mt-1" /></div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div><Label>{t('Giờ bắt đầu')}</Label><Input type="number" min="6" max="22" value={therapistStartHour} onChange={e => setTherapistStartHour(e.target.value)} className="mt-1" /></div>
-                        <div><Label>{t('Giờ kết thúc')}</Label><Input type="number" min="6" max="22" value={therapistEndHour} onChange={e => setTherapistEndHour(e.target.value)} className="mt-1" /></div>
+                    <div className="space-y-5 pt-1">
+                      <div className="space-y-4">
+                        <div>
+                          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Tên')}</Label>
+                          <Input value={therapistName} onChange={e => setTherapistName(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" placeholder={t('Họ và tên')} />
+                        </div>
+                        <div>
+                          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Email')}</Label>
+                          <Input type="email" value={therapistEmail} onChange={e => setTherapistEmail(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" placeholder="staff@example.com" />
+                        </div>
+                        <div>
+                          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('SĐT')}</Label>
+                          <Input value={therapistPhone} onChange={e => setTherapistPhone(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" placeholder="04xx xxx xxx" />
+                        </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div><Label>{t('Nghỉ trưa từ')}</Label><Input type="number" min="6" max="22" placeholder="VD: 12" value={therapistBreakStart} onChange={e => setTherapistBreakStart(e.target.value)} className="mt-1" /></div>
-                        <div><Label>{t('Nghỉ trưa đến')}</Label><Input type="number" min="6" max="22" placeholder="VD: 13" value={therapistBreakEnd} onChange={e => setTherapistBreakEnd(e.target.value)} className="mt-1" /></div>
+                      <div className="border-t border-[#ebe3d9]/30 pt-4">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">{t('Giờ làm việc')}</p>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-xs text-muted-foreground">{t('Giờ bắt đầu')}</Label>
+                            <Input type="number" min="6" max="22" value={therapistStartHour} onChange={e => setTherapistStartHour(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">{t('Giờ kết thúc')}</Label>
+                            <Input type="number" min="6" max="22" value={therapistEndHour} onChange={e => setTherapistEndHour(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" />
+                          </div>
+                        </div>
                       </div>
-                      <Button className="w-full" onClick={() => saveTherapist.mutate()} disabled={!therapistName.trim() || saveTherapist.isPending}>
+                      <div className="border-t border-[#ebe3d9]/30 pt-4">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">{t('Nghỉ trưa')}</p>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-xs text-muted-foreground">{t('Nghỉ trưa từ')}</Label>
+                            <Input type="number" min="6" max="22" placeholder="12" value={therapistBreakStart} onChange={e => setTherapistBreakStart(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">{t('Nghỉ trưa đến')}</Label>
+                            <Input type="number" min="6" max="22" placeholder="13" value={therapistBreakEnd} onChange={e => setTherapistBreakEnd(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" />
+                          </div>
+                        </div>
+                      </div>
+                      <Button className="w-full h-10 bg-[#6b4c3b] hover:bg-[#5a3d2e] text-white" onClick={() => saveTherapist.mutate()} disabled={!therapistName.trim() || saveTherapist.isPending}>
                         {saveTherapist.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : (editingTherapist ? t('Cập nhật') : t('Thêm mới'))}
                       </Button>
                     </div>
@@ -3127,6 +3345,7 @@ const AdminDashboard = () => {
               { key: 'shop', icon: Store, label: t('Thông tin tiệm'), desc: t('Tên, địa chỉ, giờ mở cửa, ngày lễ') },
               { key: 'display', icon: Palette, label: t('Hiển thị & Giao diện'), desc: t('Logo, hero, thợ ngẫu nhiên, phụ phí thẻ') },
               { key: 'accounts', icon: Users, label: t('Quản lý tài khoản'), desc: `${adminAccounts?.length || 0} ${t('tài khoản')}` },
+              { key: 'employee_permissions', icon: Eye, label: t('Quyền nhân viên'), desc: t('Bật/tắt các tab nhân viên có thể xem') },
               { key: 'payments', icon: CreditCard, label: t('Thanh toán'), desc: stripePaymentEnabled || squareTerminalEnabled ? t('Đã bật') : t('Chưa bật') },
               { key: 'twilio', icon: Phone, label: t('Cấu hình Twilio'), desc: twilioSettings?.twilio_account_sid ? t('Đã cấu hình') : t('Chưa cấu hình') },
               { key: 'notifications', icon: Bell, label: t('Thông báo & Nhắc lịch'), desc: t('SMS, WhatsApp, email nhắc lịch') },
@@ -3437,37 +3656,39 @@ const AdminDashboard = () => {
 
             {/* Create Account Dialog (nested) */}
             <Dialog open={accountDialog} onOpenChange={(open) => { setAccountDialog(open); if (!open) { setNewAdminEmail(''); setNewAdminPassword(''); setNewAdminRole('employee'); } }}>
-              <DialogContent>
+              <DialogContent className="sm:max-w-[420px]">
                 <DialogHeader>
-                  <DialogTitle>{t('Tạo tài khoản mới')}</DialogTitle>
+                  <DialogTitle className="text-[#3d2b1f]">{t('Tạo tài khoản mới')}</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4 pt-2">
+                <div className="space-y-5 pt-1">
                   <div>
-                    <Label className="text-sm">{t('Loại tài khoản')}</Label>
-                    <div className="flex gap-2 mt-1.5">
-                      <Button type="button" variant={newAdminRole === 'employee' ? 'default' : 'outline'} size="sm" className="flex-1" onClick={() => setNewAdminRole('employee')}>
+                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Loại tài khoản')}</Label>
+                    <div className="flex gap-2 mt-2">
+                      <Button type="button" variant={newAdminRole === 'employee' ? 'default' : 'outline'} size="sm" className={cn("flex-1", newAdminRole === 'employee' && "bg-[#6b4c3b] hover:bg-[#5a3d2e]")} onClick={() => setNewAdminRole('employee')}>
                         Employee
                       </Button>
-                      <Button type="button" variant={newAdminRole === 'admin' ? 'default' : 'outline'} size="sm" className="flex-1" onClick={() => setNewAdminRole('admin')}>
+                      <Button type="button" variant={newAdminRole === 'admin' ? 'default' : 'outline'} size="sm" className={cn("flex-1", newAdminRole === 'admin' && "bg-[#6b4c3b] hover:bg-[#5a3d2e]")} onClick={() => setNewAdminRole('admin')}>
                         Admin
                       </Button>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1.5">
+                    <p className="text-xs text-muted-foreground/60 mt-2">
                       {newAdminRole === 'employee'
                         ? t('Employee: có thể xem và tạo, không thể xoá hoặc xem nhật ký')
                         : t('Admin: toàn quyền quản lý hệ thống')}
                     </p>
                   </div>
-                  <div>
-                    <Label className="text-sm">Email</Label>
-                    <Input type="email" value={newAdminEmail} onChange={e => setNewAdminEmail(e.target.value)} placeholder="staff@example.com" className="mt-1" />
-                  </div>
-                  <div>
-                    <Label className="text-sm">{t('Mật khẩu')}</Label>
-                    <Input type="password" value={newAdminPassword} onChange={e => setNewAdminPassword(e.target.value)} placeholder={t('Tối thiểu 6 ký tự')} className="mt-1" />
+                  <div className="border-t border-[#ebe3d9]/30 pt-4 space-y-4">
+                    <div>
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Email</Label>
+                      <Input type="email" value={newAdminEmail} onChange={e => setNewAdminEmail(e.target.value)} placeholder="staff@example.com" className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" />
+                    </div>
+                    <div>
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Mật khẩu')}</Label>
+                      <Input type="password" value={newAdminPassword} onChange={e => setNewAdminPassword(e.target.value)} placeholder={t('Tối thiểu 6 ký tự')} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" />
+                    </div>
                   </div>
                   <Button
-                    className="w-full"
+                    className="w-full h-10 bg-[#6b4c3b] hover:bg-[#5a3d2e] text-white"
                     disabled={creatingAdmin || !newAdminEmail.trim() || newAdminPassword.length < 6}
                     onClick={async () => {
                       setCreatingAdmin(true);
@@ -3565,6 +3786,61 @@ const AdminDashboard = () => {
                     </Button>
                   </div>
                 )}
+              </DialogContent>
+            </Dialog>
+
+            {/* ── Employee Permissions Modal ── */}
+            <Dialog open={settingsModal === 'employee_permissions'} onOpenChange={(open) => !open && setSettingsModal(null)}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>{t('Quyền nhân viên')}</DialogTitle>
+                  <DialogDescription>{t('Chọn các tab mà nhân viên có thể xem khi đăng nhập')}</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-1 pt-2">
+                  {([
+                    { value: 'stats' as EmployeeTab, icon: BarChart3, label: t('Thống kê') },
+                    { value: 'bookings' as EmployeeTab, icon: CalendarDays, label: t('Lịch hẹn') },
+                    { value: 'customers' as EmployeeTab, icon: UserCheck, label: t('Khách hàng') },
+                    { value: 'sales' as EmployeeTab, icon: DollarSign, label: t('Thanh toán') },
+                    { value: 'services' as EmployeeTab, icon: Scissors, label: t('Dịch vụ') },
+                    { value: 'therapists' as EmployeeTab, icon: Users, label: t('Thợ') },
+                  ]).map(tab => {
+                    const checked = employeeVisibleTabs.includes(tab.value);
+                    return (
+                      <button
+                        key={tab.value}
+                        type="button"
+                        className={cn(
+                          'w-full flex items-center gap-3 px-4 py-3 rounded-lg border transition-colors text-left',
+                          checked ? 'border-[#6b4c3b]/30 bg-[#faf8f5]' : 'border-border/40 hover:bg-muted/30'
+                        )}
+                        onClick={() => {
+                          setEmployeeVisibleTabs(prev =>
+                            checked ? prev.filter(v => v !== tab.value) : [...prev, tab.value]
+                          );
+                        }}
+                      >
+                        <tab.icon className={cn('h-4 w-4 shrink-0', checked ? 'text-[#6b4c3b]' : 'text-muted-foreground/50')} />
+                        <span className={cn('text-sm flex-1', checked ? 'font-medium text-[#3d2b1f]' : 'text-muted-foreground')}>{tab.label}</span>
+                        <Switch checked={checked} onCheckedChange={() => {
+                          setEmployeeVisibleTabs(prev =>
+                            checked ? prev.filter(v => v !== tab.value) : [...prev, tab.value]
+                          );
+                        }} />
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="pt-2">
+                  <Button
+                    className="w-full"
+                    onClick={() => saveEmployeeTabs.mutate(employeeVisibleTabs)}
+                    disabled={saveEmployeeTabs.isPending}
+                  >
+                    {saveEmployeeTabs.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : t('Lưu quyền')}
+                  </Button>
+                  <p className="text-xs text-muted-foreground text-center mt-2">{t('Admin luôn có quyền truy cập tất cả')}</p>
+                </div>
               </DialogContent>
             </Dialog>
 
@@ -3800,6 +4076,9 @@ const AdminDashboard = () => {
                         <span className="text-xs text-muted-foreground">{t('Bật/Tắt')}</span>
                         <Switch checked={discountCodesEnabled === true} onCheckedChange={(v) => toggleDiscountCodes.mutate(v)} disabled={toggleDiscountCodes.isPending} />
                       </div>
+                      <Button size="sm" variant="outline" onClick={() => setGiftCardDialog(true)}>
+                        <Crown className="h-3.5 w-3.5 mr-1" /> {t('Phiếu quà tặng')}
+                      </Button>
                       <Button size="sm" variant="outline" onClick={() => {
                         setEditingDiscount(null); setDiscountCode(''); setDiscountPercent('0'); setDiscountAmount('0'); setDiscountValidFrom(''); setDiscountValidTo(''); setDiscountMaxUses(''); setDiscountDialog(true);
                       }}>
@@ -3884,6 +4163,48 @@ const AdminDashboard = () => {
                   </div>
                   <Button onClick={() => saveDiscount.mutate()} disabled={!discountCode.trim() || saveDiscount.isPending}>
                     {saveDiscount.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : (editingDiscount ? t('Cập nhật') : t('Tạo'))}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* ── Gift Card Batch Dialog ── */}
+            <Dialog open={giftCardDialog} onOpenChange={setGiftCardDialog}>
+              <DialogContent className="sm:max-w-[420px]">
+                <DialogHeader>
+                  <DialogTitle className="text-[#3d2b1f]">{t('Tạo phiếu quà tặng hàng loạt')}</DialogTitle>
+                  <DialogDescription className="text-muted-foreground/60">{t('Tạo nhiều mã quà tặng cùng lúc')}</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 pt-2">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Số lượng')}</Label>
+                      <Input type="number" min="1" max="100" value={giftCardCount} onChange={e => setGiftCardCount(e.target.value)} className="mt-1 bg-[#faf8f5] border-[#ebe3d9]/60" />
+                    </div>
+                    <div>
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Giá trị (A$)')}</Label>
+                      <Input type="number" min="1" value={giftCardAmount} onChange={e => setGiftCardAmount(e.target.value)} className="mt-1 bg-[#faf8f5] border-[#ebe3d9]/60" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Tiền tố mã')}</Label>
+                      <Input value={giftCardPrefix} onChange={e => setGiftCardPrefix(e.target.value.toUpperCase())} className="mt-1 font-mono bg-[#faf8f5] border-[#ebe3d9]/60" placeholder="GIFT" />
+                    </div>
+                    <div>
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Số lần dùng / mã')}</Label>
+                      <Input type="number" min="1" value={giftCardMaxUses} onChange={e => setGiftCardMaxUses(e.target.value)} className="mt-1 bg-[#faf8f5] border-[#ebe3d9]/60" />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Hết hạn')} ({t('tuỳ chọn')})</Label>
+                    <Input type="date" value={giftCardValidTo} onChange={e => setGiftCardValidTo(e.target.value)} className="mt-1 bg-[#faf8f5] border-[#ebe3d9]/60" />
+                  </div>
+                  <div className="p-3 bg-[#faf8f5] rounded-lg border border-[#ebe3d9]/40 text-sm text-muted-foreground">
+                    {t('Sẽ tạo')} <strong className="text-[#3d2b1f]">{giftCardCount}</strong> {t('mã có dạng')} <code className="font-mono text-xs bg-white px-1.5 py-0.5 rounded border">{giftCardPrefix || 'GIFT'}-XXXXXX</code> {t('trị giá')} <strong className="text-[#3d2b1f]">A$ {giftCardAmount}</strong>
+                  </div>
+                  <Button className="w-full bg-[#6b4c3b] hover:bg-[#5a3d2e]" onClick={() => createGiftCardBatch.mutate()} disabled={createGiftCardBatch.isPending || parseInt(giftCardCount) < 1 || parseFloat(giftCardAmount) <= 0}>
+                    {createGiftCardBatch.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang tạo...')}</> : <><Crown className="h-4 w-4 mr-2" />{t('Tạo phiếu quà tặng')}</>}
                   </Button>
                 </div>
               </DialogContent>
