@@ -35,6 +35,7 @@ import { Navigate, Link } from 'react-router-dom';
 import { useI18n, LanguageSwitcher } from '@/hooks/useI18n';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useLoadMore } from '@/hooks/useLoadMore';
+import DOMPurify from 'dompurify';
 
 const CURRENCIES = ['VND', 'USD', 'EUR', 'AUD'] as const;
 
@@ -1767,7 +1768,7 @@ const AdminDashboard = () => {
   const availableSlots = getAvailableTimeSlots();
 
   if (loading) return (
-    <div className="min-h-screen bg-[#faf8f5] flex items-center justify-center">
+    <div className="min-h-screen bg-[#F5F5F5] flex items-center justify-center">
       <div className="flex flex-col items-center gap-3">
         <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-amber-700 to-yellow-800 flex items-center justify-center animate-pulse">
           <Leaf className="h-5 w-5 text-white" />
@@ -1778,7 +1779,7 @@ const AdminDashboard = () => {
   );
   if (!user) return <Navigate to="/admin/login" />;
   if (!isStaff) return (
-    <div className="min-h-screen bg-[#faf8f5] flex items-center justify-center">
+    <div className="min-h-screen bg-[#F5F5F5] flex items-center justify-center">
       <div className="text-center space-y-2">
         <Shield className="h-10 w-10 text-gray-300 mx-auto" />
         <p className="text-sm text-gray-500 font-medium">{t('Bạn không có quyền truy cập.')}</p>
@@ -1801,28 +1802,28 @@ const AdminDashboard = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-[#faf8f5] admin-shell">
+    <div className="min-h-screen bg-[#F5F5F5] admin-shell">
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         {/* Desktop Sidebar */}
         <aside className={cn(
-          "hidden sm:flex fixed inset-y-0 left-0 z-40 flex-col bg-[#f9f5f0] border-r border-[#ebe3d9] transition-all duration-300 ease-in-out",
+          "hidden sm:flex fixed inset-y-0 left-0 z-40 flex-col bg-[#FAFAFA] border-r border-[#E5E5E5] transition-all duration-300 ease-in-out",
           sidebarOpen ? "w-[220px]" : "w-[68px]"
         )}>
           {/* Floating toggle on sidebar edge */}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="absolute -right-3 top-7 z-50 h-6 w-6 rounded-full bg-white border border-[#ebe3d9] shadow-sm flex items-center justify-center text-[#8b7355] hover:text-[#5a3d2e] hover:bg-[#f7f2ec] transition-all hover:scale-110"
+            className="absolute -right-3 top-7 z-50 h-6 w-6 rounded-full bg-white border border-[#E5E5E5] shadow-sm flex items-center justify-center text-[#737373] hover:text-[#1B1B1B] hover:bg-[#F5F5F5] transition-all hover:scale-110"
           >
             {sidebarOpen ? <ChevronLeft className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           </button>
 
           {/* Sidebar header / brand */}
-          <div className={cn("border-b border-[#ebe3d9]", sidebarOpen ? "px-3 py-4" : "px-2 py-4 flex flex-col items-center")}>
+          <div className={cn("border-b border-[#E5E5E5]", sidebarOpen ? "px-3 py-4" : "px-2 py-4 flex flex-col items-center")}>
             <Link to="/" className={cn("flex items-center overflow-hidden", sidebarOpen ? "gap-2.5" : "justify-center")}>
               <div className="h-8 w-8 shrink-0 rounded-lg bg-gradient-to-br from-amber-700 to-yellow-800 flex items-center justify-center">
                 <Leaf className="h-4 w-4 text-white" />
               </div>
-              {sidebarOpen && <span className="font-semibold text-[15px] text-[#3d2b1f] tracking-tight whitespace-nowrap truncate">{spaName}</span>}
+              {sidebarOpen && <span className="font-semibold text-[15px] text-[#1B1B1B] tracking-tight whitespace-nowrap truncate">{spaName}</span>}
             </Link>
           </div>
 
@@ -1837,25 +1838,25 @@ const AdminDashboard = () => {
                         value={item.value}
                         style={activeTab === item.value ? {
                           background: '#fff',
-                          border: '1.5px solid #c9b99a',
+                          border: '1.5px solid #006AFF',
                           boxShadow: '0 2px 8px rgba(90, 61, 46, 0.15)',
-                          color: '#3d2b1f',
+                          color: '#1B1B1B',
                           fontWeight: 600,
                         } : {}}
                         className={cn(
-                          "group relative w-full justify-start gap-3 rounded-lg py-2.5 text-[13px] font-medium text-[#8b7355] border border-transparent hover:text-[#5a3d2e] hover:bg-[#f0e8dd] transition-all",
+                          "group relative w-full justify-start gap-3 rounded-lg py-2.5 text-[13px] font-medium text-[#737373] border border-transparent hover:text-[#1B1B1B] hover:bg-[#F5F5F5] transition-all",
                           sidebarOpen ? "px-3" : "px-2 justify-center"
                         )}
                       >
                         {activeTab === item.value && (
                           <div className={cn(
-                            "absolute top-1/2 -translate-y-1/2 w-[3px] rounded-r-full bg-[#6b4c3b]",
+                            "absolute top-1/2 -translate-y-1/2 w-[3px] rounded-r-full bg-[#006AFF]",
                             sidebarOpen ? "left-0 h-6" : "left-0 h-5"
                           )} />
                         )}
                         <item.icon className={cn(
                           "shrink-0 transition-all",
-                          activeTab === item.value ? "scale-110 text-[#3d2b1f]" : "",
+                          activeTab === item.value ? "scale-110 text-[#1B1B1B]" : "",
                           sidebarOpen ? "h-[18px] w-[18px]" : "h-5 w-5"
                         )} />
                         {sidebarOpen && <span className="whitespace-nowrap">{item.label}</span>}
@@ -1873,7 +1874,7 @@ const AdminDashboard = () => {
           </nav>
 
           {/* Sidebar footer - user info */}
-          <div className={cn("border-t border-[#ebe3d9] transition-all duration-300", sidebarOpen ? "p-4" : "p-2 flex flex-col items-center")}>
+          <div className={cn("border-t border-[#E5E5E5] transition-all duration-300", sidebarOpen ? "p-4" : "p-2 flex flex-col items-center")}>
             {isEmployee && !isAdmin && sidebarOpen && (
               <div className="mb-3 flex items-center gap-1.5 rounded-md bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-700 border border-amber-100">
                 <Lock className="h-3 w-3 shrink-0" />
@@ -1909,17 +1910,17 @@ const AdminDashboard = () => {
         </aside>
 
         {/* Mobile top header — minimal, just brand + hamburger */}
-        <header className="sm:hidden sticky top-0 z-50 bg-[#faf8f5]/95 backdrop-blur-md border-b border-[#ebe3d9]/60">
+        <header className="sm:hidden sticky top-0 z-50 bg-[#F5F5F5]/95 backdrop-blur-md border-b border-[#E5E5E5]/60">
           <div className="px-4 py-2.5 flex items-center justify-between">
             <Link to="/" className="flex items-center gap-2">
               <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-amber-700 to-yellow-800 flex items-center justify-center">
                 <Leaf className="h-3.5 w-3.5 text-white" />
               </div>
-              <span className="font-semibold text-[13px] text-[#3d2b1f] tracking-tight">{spaName}</span>
+              <span className="font-semibold text-[13px] text-[#1B1B1B] tracking-tight">{spaName}</span>
             </Link>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="h-8 w-8 rounded-lg flex items-center justify-center text-[#8b7355] hover:bg-[#ede4d8] transition-colors"
+              className="h-8 w-8 rounded-lg flex items-center justify-center text-[#737373] hover:bg-[#F0F0F0] transition-colors"
               aria-label="Menu"
             >
               {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
@@ -1932,32 +1933,32 @@ const AdminDashboard = () => {
           <div className="sm:hidden fixed inset-0 z-[60]" onClick={() => setMobileMenuOpen(false)}>
             <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
             <div
-              className="absolute top-0 left-0 right-0 bg-[#faf8f5] shadow-xl rounded-b-2xl overflow-hidden animate-[slideDown_0.2s_ease-out]"
+              className="absolute top-0 left-0 right-0 bg-[#F5F5F5] shadow-xl rounded-b-2xl overflow-hidden animate-[slideDown_0.2s_ease-out]"
               onClick={e => e.stopPropagation()}
             >
               {/* Header inside overlay */}
-              <div className="px-4 py-2.5 flex items-center justify-between border-b border-[#ebe3d9]/40">
+              <div className="px-4 py-2.5 flex items-center justify-between border-b border-[#E5E5E5]/40">
                 <div className="flex items-center gap-2">
                   <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-amber-700 to-yellow-800 flex items-center justify-center">
                     <Leaf className="h-3.5 w-3.5 text-white" />
                   </div>
-                  <span className="font-semibold text-[13px] text-[#3d2b1f] tracking-tight">{spaName}</span>
+                  <span className="font-semibold text-[13px] text-[#1B1B1B] tracking-tight">{spaName}</span>
                 </div>
                 <button
                   onClick={() => setMobileMenuOpen(false)}
-                  className="h-8 w-8 rounded-lg flex items-center justify-center text-[#8b7355] hover:bg-[#ede4d8] transition-colors"
+                  className="h-8 w-8 rounded-lg flex items-center justify-center text-[#737373] hover:bg-[#F0F0F0] transition-colors"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
 
               {/* User info */}
-              <div className="px-4 py-3 flex items-center gap-3 border-b border-[#ebe3d9]/30">
+              <div className="px-4 py-3 flex items-center gap-3 border-b border-[#E5E5E5]/30">
                 <div className="h-9 w-9 rounded-full bg-gradient-to-br from-amber-600 to-yellow-700 flex items-center justify-center text-white text-sm font-semibold shrink-0">
                   {(user?.email || '?').charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[12px] font-medium text-[#3d2b1f] truncate">{user?.email}</p>
+                  <p className="text-[12px] font-medium text-[#1B1B1B] truncate">{user?.email}</p>
                   <p className={cn('text-[10px] font-semibold', isAdmin ? 'text-amber-700' : 'text-amber-600')}>
                     {isAdmin ? 'Admin' : 'Employee'}
                   </p>
@@ -1969,7 +1970,7 @@ const AdminDashboard = () => {
               <div className="px-2 py-2">
                 <button
                   onClick={() => { signOut(); setMobileMenuOpen(false); }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-gray-500 hover:bg-[#f0e8dd] hover:text-[#5a3d2e] transition-colors"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-gray-500 hover:bg-[#F5F5F5] hover:text-[#1B1B1B] transition-colors"
                 >
                   <LogOut className="h-4 w-4" />
                   {t('Đăng xuất')}
@@ -1996,7 +1997,7 @@ const AdminDashboard = () => {
 
           return (
             <div className="fixed bottom-0 left-0 right-0 z-50 sm:hidden safe-bottom">
-              <div className="bg-[#faf8f5]/80 backdrop-blur-xl border-t border-[#e8dfd4]/50">
+              <div className="bg-[#F5F5F5]/80 backdrop-blur-xl border-t border-[#E5E5E5]/50">
                 <div className="grid grid-cols-5 px-2 pt-2 pb-1">
                   {primaryTabs.map(tab => {
                     const isActive = activeTab === tab.value;
@@ -2009,15 +2010,15 @@ const AdminDashboard = () => {
                         <div className={`transition-all duration-200 ${isActive ? 'scale-105' : 'scale-100'}`}>
                           <tab.icon
                             className={`h-[22px] w-[22px] transition-colors duration-200 ${
-                              isActive ? 'text-[#5a3d2e]' : 'text-[#c4b5a4]'
+                              isActive ? 'text-[#1B1B1B]' : 'text-[#BDBDBD]'
                             }`}
                             strokeWidth={isActive ? 2 : 1.5}
                           />
                         </div>
                         <span className={`text-[10px] leading-none transition-all duration-200 ${
                           isActive
-                            ? 'text-[#5a3d2e] font-medium opacity-100'
-                            : 'text-[#c4b5a4] font-normal opacity-80'
+                            ? 'text-[#1B1B1B] font-medium opacity-100'
+                            : 'text-[#BDBDBD] font-normal opacity-80'
                         }`}>
                           {tab.label}
                         </span>
@@ -2033,15 +2034,15 @@ const AdminDashboard = () => {
                     <div className={`transition-all duration-200 ${isMoreActive ? 'scale-105' : 'scale-100'}`}>
                       <Ellipsis
                         className={`h-[22px] w-[22px] transition-colors duration-200 ${
-                          isMoreActive ? 'text-[#5a3d2e]' : 'text-[#c4b5a4]'
+                          isMoreActive ? 'text-[#1B1B1B]' : 'text-[#BDBDBD]'
                         }`}
                         strokeWidth={isMoreActive ? 2 : 1.5}
                       />
                     </div>
                     <span className={`text-[10px] leading-none transition-all duration-200 ${
                       isMoreActive
-                        ? 'text-[#5a3d2e] font-medium opacity-100'
-                        : 'text-[#c4b5a4] font-normal opacity-80'
+                        ? 'text-[#1B1B1B] font-medium opacity-100'
+                        : 'text-[#BDBDBD] font-normal opacity-80'
                     }`}>
                       {t('Thêm')}
                     </span>
@@ -2054,16 +2055,16 @@ const AdminDashboard = () => {
                 <div className="fixed inset-0 z-[70]" onClick={() => setMoreSheetOpen(false)}>
                   <div className="absolute inset-0 bg-black/25 backdrop-blur-[2px] transition-opacity" />
                   <div
-                    className="absolute bottom-0 left-0 right-0 bg-[#faf8f5] rounded-t-2xl shadow-2xl animate-[sheetUp_0.25s_ease-out]"
+                    className="absolute bottom-0 left-0 right-0 bg-[#F5F5F5] rounded-t-2xl shadow-2xl animate-[sheetUp_0.25s_ease-out]"
                     onClick={e => e.stopPropagation()}
                   >
                     {/* Handle bar */}
                     <div className="flex justify-center pt-3 pb-1">
-                      <div className="w-9 h-1 rounded-full bg-[#d4c9bc]" />
+                      <div className="w-9 h-1 rounded-full bg-[#CCCCCC]" />
                     </div>
 
                     <div className="px-5 pb-2">
-                      <p className="text-[11px] tracking-[0.1em] uppercase text-[#a89680] font-medium mb-3">{t('Thêm')}</p>
+                      <p className="text-[11px] tracking-[0.1em] uppercase text-[#9E9E9E] font-medium mb-3">{t('Thêm')}</p>
                     </div>
 
                     <div className="px-3 pb-6 safe-bottom space-y-0.5">
@@ -2075,8 +2076,8 @@ const AdminDashboard = () => {
                             onClick={() => { setActiveTab(tab.value); setMoreSheetOpen(false); }}
                             className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl transition-all duration-150 ${
                               isActive
-                                ? 'bg-[#ede4d8] text-[#3d2b1f]'
-                                : 'text-[#6b5c4c] hover:bg-[#f2ece4]'
+                                ? 'bg-[#F0F0F0] text-[#1B1B1B]'
+                                : 'text-[#737373] hover:bg-[#F5F5F5]'
                             }`}
                           >
                             <tab.icon className="h-5 w-5" strokeWidth={isActive ? 2 : 1.5} />
@@ -2109,7 +2110,7 @@ const AdminDashboard = () => {
               {/* Header */}
               <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
                 <div>
-                  <h2 className="text-xl font-semibold text-[#3d2b1f] tracking-tight">{t('Khách hàng')}</h2>
+                  <h2 className="text-xl font-semibold text-[#1B1B1B] tracking-tight">{t('Khách hàng')}</h2>
                   <p className="text-sm text-muted-foreground/70 mt-0.5">{filteredCustomers.length} {t('khách hàng')}{hasMoreCustomers ? ` (${visibleCustomers.length} ${t('hiển thị')})` : ''}</p>
                 </div>
                 <div className="relative w-full sm:w-[280px]">
@@ -2118,7 +2119,7 @@ const AdminDashboard = () => {
                     placeholder={t('Tìm theo tên hoặc SĐT...')}
                     value={customerSearch}
                     onChange={e => setCustomerSearch(e.target.value)}
-                    className="pl-9 h-10 text-sm bg-[#faf8f5] border-[#ebe3d9]/50 rounded-xl focus:bg-white"
+                    className="pl-9 h-10 text-sm bg-[#F5F5F5] border-[#E5E5E5]/50 rounded-xl focus:bg-white"
                   />
                 </div>
               </div>
@@ -2133,9 +2134,9 @@ const AdminDashboard = () => {
               ) : (
                 <>
                   {/* Desktop rows */}
-                  <div className="hidden sm:block rounded-xl border border-[#ebe3d9]/50 bg-white overflow-hidden">
+                  <div className="hidden sm:block rounded-xl border border-[#E5E5E5]/50 bg-white overflow-hidden">
                     {/* Column headers */}
-                    <div className="grid grid-cols-[1fr_auto_auto_auto] gap-6 px-5 py-3 text-[11px] font-medium tracking-wider uppercase text-muted-foreground/50 border-b border-[#ebe3d9]/30 bg-[#faf8f5]/50">
+                    <div className="grid grid-cols-[1fr_auto_auto_auto] gap-6 px-5 py-3 text-[11px] font-medium tracking-wider uppercase text-muted-foreground/50 border-b border-[#E5E5E5]/30 bg-[#F5F5F5]/50">
                       <span>{t('Khách hàng')}</span>
                       <span className="w-16 text-center">{t('Lần ghé')}</span>
                       <span className="w-32">{t('Hạng thành viên')}</span>
@@ -2148,22 +2149,22 @@ const AdminDashboard = () => {
                         return (
                           <div
                             key={g.id}
-                            className="group grid grid-cols-[1fr_auto_auto_auto] gap-6 items-center px-5 py-4 rounded-xl transition-colors hover:bg-[#f7f2ec]/60"
+                            className="group grid grid-cols-[1fr_auto_auto_auto] gap-6 items-center px-5 py-4 rounded-xl transition-colors hover:bg-[#F5F5F5]/60"
                           >
                             {/* Avatar + name + phone stacked */}
                             <div className="flex items-center gap-3.5 min-w-0">
-                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#ede4d8] to-[#e0d4c4] flex items-center justify-center text-[13px] font-semibold text-[#6b5c4c] shrink-0">
+                              <div className="w-10 h-10 rounded-full bg-[#F0F0F0] flex items-center justify-center text-[13px] font-semibold text-[#737373] shrink-0">
                                 {(g.customer_name || '?').charAt(0).toUpperCase()}
                               </div>
                               <div className="min-w-0">
-                                <p className="text-[14px] font-medium text-[#3d2b1f] truncate">{g.customer_name || '—'}</p>
+                                <p className="text-[14px] font-medium text-[#1B1B1B] truncate">{g.customer_name || '—'}</p>
                                 <p className="text-[12px] text-muted-foreground/60 font-mono mt-0.5">{g.customer_phone}</p>
                               </div>
                             </div>
 
                             {/* Visit count */}
                             <div className="w-16 flex justify-center">
-                              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#f0ebe4] text-[12px] font-medium text-[#6b5c4c] tabular-nums">
+                              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#F0F0F0] text-[12px] font-medium text-[#737373] tabular-nums">
                                 {g.visit_count}
                               </span>
                             </div>
@@ -2200,18 +2201,18 @@ const AdminDashboard = () => {
                     {visibleCustomers.map(g => {
                       const tier = (g as any).membership_tiers;
                       return (
-                        <div key={g.id} className="bg-white rounded-xl border border-[#ebe3d9]/40 p-4 transition-colors hover:border-[#d4c9bc]">
+                        <div key={g.id} className="bg-white rounded-xl border border-[#E5E5E5]/40 p-4 transition-colors hover:border-[#CCCCCC]">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3 min-w-0">
-                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#ede4d8] to-[#e0d4c4] flex items-center justify-center text-[13px] font-semibold text-[#6b5c4c] shrink-0">
+                              <div className="w-10 h-10 rounded-full bg-[#F0F0F0] flex items-center justify-center text-[13px] font-semibold text-[#737373] shrink-0">
                                 {(g.customer_name || '?').charAt(0).toUpperCase()}
                               </div>
                               <div className="min-w-0">
-                                <p className="text-[14px] font-medium text-[#3d2b1f] truncate">{g.customer_name || '—'}</p>
+                                <p className="text-[14px] font-medium text-[#1B1B1B] truncate">{g.customer_name || '—'}</p>
                                 <p className="text-[12px] text-muted-foreground/60 font-mono mt-0.5">{g.customer_phone}</p>
                               </div>
                             </div>
-                            <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#f0ebe4] text-[12px] font-medium text-[#6b5c4c] tabular-nums shrink-0">
+                            <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#F0F0F0] text-[12px] font-medium text-[#737373] tabular-nums shrink-0">
                               {g.visit_count}
                             </span>
                           </div>
@@ -2242,12 +2243,12 @@ const AdminDashboard = () => {
               {/* Header */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <h2 className="text-xl font-semibold text-[#3d2b1f] tracking-tight">{t('Lịch hẹn')}</h2>
+                  <h2 className="text-xl font-semibold text-[#1B1B1B] tracking-tight">{t('Lịch hẹn')}</h2>
                   <p className="text-sm text-muted-foreground/70 mt-0.5">{t('Quản lý lịch hẹn và đặt chỗ')}</p>
                 </div>
                 <div className="flex items-center gap-2.5">
                   <Select value={filterTherapist} onValueChange={setFilterTherapist}>
-                    <SelectTrigger className="w-[160px] h-9 text-sm bg-[#faf8f5] border-[#ebe3d9]/50"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-[160px] h-9 text-sm bg-[#F5F5F5] border-[#E5E5E5]/50"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">{t('Tất cả thợ')}</SelectItem>
                       {therapists?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
@@ -2259,7 +2260,7 @@ const AdminDashboard = () => {
                     </DialogTrigger>
                     <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[460px] max-h-[90vh] overflow-y-auto">
                       <DialogHeader>
-                        <DialogTitle className="text-[#3d2b1f]">{t('Tạo lịch hẹn mới')}</DialogTitle>
+                        <DialogTitle className="text-[#1B1B1B]">{t('Tạo lịch hẹn mới')}</DialogTitle>
                         <DialogDescription className="text-muted-foreground/60">{t('Điền thông tin để tạo lịch hẹn cho khách hàng')}</DialogDescription>
                       </DialogHeader>
                       <div className="space-y-5 max-h-[70vh] overflow-y-auto pr-1 pt-1">
@@ -2268,7 +2269,7 @@ const AdminDashboard = () => {
                           <div>
                             <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Dịch vụ')}</Label>
                             <Select value={bookingServiceId} onValueChange={setBookingServiceId}>
-                              <SelectTrigger className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60"><SelectValue placeholder={t('Chọn dịch vụ')} /></SelectTrigger>
+                              <SelectTrigger className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60"><SelectValue placeholder={t('Chọn dịch vụ')} /></SelectTrigger>
                               <SelectContent>
                                 {services?.filter(s => s.is_active).map(s => (
                                   <SelectItem key={s.id} value={s.id}>{s.name} ({s.duration_minutes} {t('phút')} — {formatPrice(s.price)})</SelectItem>
@@ -2279,7 +2280,7 @@ const AdminDashboard = () => {
                           <div>
                             <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Thợ')}</Label>
                             <Select value={bookingTherapistId} onValueChange={(v) => { setBookingTherapistId(v); setBookingTime(''); }}>
-                              <SelectTrigger className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60"><SelectValue placeholder={t('Chọn thợ')} /></SelectTrigger>
+                              <SelectTrigger className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60"><SelectValue placeholder={t('Chọn thợ')} /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="random">{t('Tự động (ai rảnh)')}</SelectItem>
                                 {therapists?.filter(t => t.is_active).map(t => (
@@ -2291,12 +2292,12 @@ const AdminDashboard = () => {
                         </div>
 
                         {/* Date & Time */}
-                        <div className="border-t border-[#ebe3d9]/30 pt-4 space-y-4">
+                        <div className="border-t border-[#E5E5E5]/30 pt-4 space-y-4">
                           <div>
                             <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Ngày')}</Label>
                             <Popover>
                               <PopoverTrigger asChild>
-                                <Button variant="outline" className={cn("w-full mt-1.5 justify-start bg-[#faf8f5] border-[#ebe3d9]/60", !bookingDate && "text-muted-foreground")}>
+                                <Button variant="outline" className={cn("w-full mt-1.5 justify-start bg-[#F5F5F5] border-[#E5E5E5]/60", !bookingDate && "text-muted-foreground")}>
                                   {bookingDate ? format(bookingDate, 'dd/MM/yyyy') : t('Chọn ngày')}
                                 </Button>
                               </PopoverTrigger>
@@ -2325,8 +2326,8 @@ const AdminDashboard = () => {
                                     }}
                                     className={cn(
                                       "px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all",
-                                      slot.available && bookingTime !== slot.time && "border-[#ebe3d9]/60 hover:border-[#8b7355] hover:bg-[#f7f2ec] cursor-pointer",
-                                      slot.available && bookingTime === slot.time && "border-[#6b4c3b] bg-[#6b4c3b] text-white",
+                                      slot.available && bookingTime !== slot.time && "border-[#E5E5E5]/60 hover:border-[#737373] hover:bg-[#F5F5F5] cursor-pointer",
+                                      slot.available && bookingTime === slot.time && "border-[#006AFF] bg-[#006AFF] text-white",
                                       !slot.available && "border-border/30 bg-muted/30 text-muted-foreground/40 line-through cursor-not-allowed"
                                     )}
                                     title={slot.available ? (slot.therapistName || '') : t('Đã đặt')}
@@ -2343,26 +2344,26 @@ const AdminDashboard = () => {
                         </div>
 
                         {/* Customer info */}
-                        <div className="border-t border-[#ebe3d9]/30 pt-4 space-y-4">
+                        <div className="border-t border-[#E5E5E5]/30 pt-4 space-y-4">
                           <div>
                             <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Tên khách hàng')}</Label>
-                            <Input value={bookingCustomerName} onChange={e => setBookingCustomerName(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" placeholder={t('Họ và tên')} />
+                            <Input value={bookingCustomerName} onChange={e => setBookingCustomerName(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" placeholder={t('Họ và tên')} />
                           </div>
                           <div>
                             <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Số điện thoại')}</Label>
-                            <Input value={bookingCustomerPhone} onChange={e => setBookingCustomerPhone(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" placeholder="04xx xxx xxx" />
+                            <Input value={bookingCustomerPhone} onChange={e => setBookingCustomerPhone(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" placeholder="04xx xxx xxx" />
                           </div>
                           <div>
                             <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Email (tuỳ chọn)')}</Label>
-                            <Input value={bookingCustomerEmail} onChange={e => setBookingCustomerEmail(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" placeholder="email@example.com" />
+                            <Input value={bookingCustomerEmail} onChange={e => setBookingCustomerEmail(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" placeholder="email@example.com" />
                           </div>
                           <div>
                             <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Ghi chú')}</Label>
-                            <Textarea value={bookingNotes} onChange={e => setBookingNotes(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20 min-h-[60px]" placeholder={t('Ghi chú thêm...')} />
+                            <Textarea value={bookingNotes} onChange={e => setBookingNotes(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20 min-h-[60px]" placeholder={t('Ghi chú thêm...')} />
                           </div>
                         </div>
 
-                        <Button className="w-full h-10 bg-[#6b4c3b] hover:bg-[#5a3d2e] text-white" onClick={() => createBooking.mutate()}
+                        <Button className="w-full h-10 bg-[#006AFF] hover:bg-[#1B1B1B] text-white" onClick={() => createBooking.mutate()}
                           disabled={!bookingServiceId || !bookingTherapistId || !bookingDate || !bookingTime || !bookingCustomerName.trim() || !bookingCustomerPhone.trim() || createBooking.isPending}>
                           {createBooking.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang tạo...')}</> : t('Tạo lịch hẹn')}
                         </Button>
@@ -2372,7 +2373,7 @@ const AdminDashboard = () => {
                 </div>
               </div>
               {/* Calendar */}
-              <div className="rounded-xl border border-[#ebe3d9]/40 bg-white overflow-hidden">
+              <div className="rounded-xl border border-[#E5E5E5]/40 bg-white overflow-hidden">
                 <BookingCalendar
                   bookings={(bookings as any) || []}
                   onCancel={(id) => cancelBooking.mutate(id)}
@@ -2399,7 +2400,7 @@ const AdminDashboard = () => {
               {/* Header row */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <h2 className="text-xl font-semibold text-[#3d2b1f] tracking-tight">{t('Thanh toán')}</h2>
+                  <h2 className="text-xl font-semibold text-[#1B1B1B] tracking-tight">{t('Thanh toán')}</h2>
                   <p className="text-sm text-muted-foreground mt-0.5">{t('Quản lý giao dịch và doanh thu')}</p>
                 </div>
                 <Dialog open={saleDialog} onOpenChange={(open) => { setSaleDialog(open); if (!open) { setSaleType('booking'); setSaleBookingId(''); setSaleServiceId(''); setSaleCustomerName(''); setSaleCustomerPhone(''); setSaleAmount(''); setSalePaymentMethod('cash'); setSaleNotes(''); setSaleAddOns([]); setSaleCouponCode(''); setSaleCouponDiscount(null); setSaleCouponError(''); } }}>
@@ -2408,7 +2409,7 @@ const AdminDashboard = () => {
                   </DialogTrigger>
                   <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[460px] max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                      <DialogTitle className="text-[#3d2b1f]">{t('Ghi nhận thanh toán')}</DialogTitle>
+                      <DialogTitle className="text-[#1B1B1B]">{t('Ghi nhận thanh toán')}</DialogTitle>
                       <DialogDescription className="text-muted-foreground/60">{t('Ghi nhận thanh toán cho dịch vụ')}</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-5 pt-1">
@@ -2517,7 +2518,7 @@ const AdminDashboard = () => {
                             <Input
                               value={saleCouponCode}
                               onChange={e => { setSaleCouponCode(e.target.value.toUpperCase()); setSaleCouponDiscount(null); setSaleCouponError(''); }}
-                              className="flex-1 font-mono bg-[#faf8f5] border-[#ebe3d9]/60"
+                              className="flex-1 font-mono bg-[#F5F5F5] border-[#E5E5E5]/60"
                               placeholder="WELCOME10"
                             />
                             <Button type="button" variant="outline" size="sm" onClick={applyCoupon} disabled={!saleCouponCode.trim() || saleCouponLoading}>
@@ -2602,23 +2603,23 @@ const AdminDashboard = () => {
               </div>
 
               {/* Filters bar */}
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 bg-[#faf8f5] rounded-xl border border-[#ebe3d9]/50">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 bg-[#F5F5F5] rounded-xl border border-[#E5E5E5]/50">
                 <div className="relative flex-1 max-w-xs">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/60" />
                   <Input
                     placeholder={t('Tìm khách hàng...')}
                     value={salesFilterSearch}
                     onChange={e => setSalesFilterSearch(e.target.value)}
-                    className="pl-9 h-9 text-sm bg-white border-[#ebe3d9]/60"
+                    className="pl-9 h-9 text-sm bg-white border-[#E5E5E5]/60"
                   />
                 </div>
                 <div className="flex items-center gap-2">
-                  <Input type="date" value={salesFilterDateFrom} onChange={e => setSalesFilterDateFrom(e.target.value)} className="w-[140px] h-9 text-sm bg-white border-[#ebe3d9]/60" />
+                  <Input type="date" value={salesFilterDateFrom} onChange={e => setSalesFilterDateFrom(e.target.value)} className="w-[140px] h-9 text-sm bg-white border-[#E5E5E5]/60" />
                   <span className="text-xs text-muted-foreground/50">→</span>
-                  <Input type="date" value={salesFilterDateTo} onChange={e => setSalesFilterDateTo(e.target.value)} className="w-[140px] h-9 text-sm bg-white border-[#ebe3d9]/60" />
+                  <Input type="date" value={salesFilterDateTo} onChange={e => setSalesFilterDateTo(e.target.value)} className="w-[140px] h-9 text-sm bg-white border-[#E5E5E5]/60" />
                 </div>
                 <Select value={salesFilterMethod} onValueChange={setSalesFilterMethod}>
-                  <SelectTrigger className="w-[120px] h-9 text-sm bg-white border-[#ebe3d9]/60"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-[120px] h-9 text-sm bg-white border-[#E5E5E5]/60"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">{t('Tất cả')}</SelectItem>
                     <SelectItem value="cash">{t('Tiền mặt')}</SelectItem>
@@ -2647,10 +2648,10 @@ const AdminDashboard = () => {
                         const customerName = s.customer_name || s.bookings?.customer_name || '—';
                         const customerPhone = s.customer_phone || s.bookings?.customer_phone || '';
                         return (
-                          <div key={s.id} className="bg-white rounded-xl border border-[#ebe3d9]/40 p-4 space-y-2.5 transition-colors hover:border-[#d4c9bc]">
+                          <div key={s.id} className="bg-white rounded-xl border border-[#E5E5E5]/40 p-4 space-y-2.5 transition-colors hover:border-[#CCCCCC]">
                             <div className="flex items-start justify-between">
                               <div>
-                                <p className="text-[15px] font-semibold text-[#3d2b1f]">{formatPrice(Number(s.amount))}</p>
+                                <p className="text-[15px] font-semibold text-[#1B1B1B]">{formatPrice(Number(s.amount))}</p>
                                 <p className="text-xs text-muted-foreground mt-0.5">{s.sale_date}</p>
                               </div>
                               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium tracking-wide ${
@@ -2663,7 +2664,7 @@ const AdminDashboard = () => {
                             </div>
                             <div className="flex items-center justify-between">
                               <div className="space-y-0.5">
-                                <p className="text-sm text-[#3d2b1f]">{customerName}</p>
+                                <p className="text-sm text-[#1B1B1B]">{customerName}</p>
                                 {customerPhone && <p className="text-xs text-muted-foreground font-mono">{customerPhone}</p>}
                                 <p className="text-xs text-muted-foreground">{s.bookings?.services?.name || '—'}</p>
                               </div>
@@ -2697,9 +2698,9 @@ const AdminDashboard = () => {
                     </div>
 
                     {/* Desktop row layout */}
-                    <div className="hidden sm:block rounded-xl border border-[#ebe3d9]/50 bg-white overflow-hidden">
+                    <div className="hidden sm:block rounded-xl border border-[#E5E5E5]/50 bg-white overflow-hidden">
                       {/* Column headers */}
-                      <div className="grid grid-cols-[1fr_1fr_auto_auto_44px] gap-4 px-5 py-3 text-[11px] font-medium tracking-wider uppercase text-muted-foreground/60 border-b border-[#ebe3d9]/30 bg-[#faf8f5]/50">
+                      <div className="grid grid-cols-[1fr_1fr_auto_auto_44px] gap-4 px-5 py-3 text-[11px] font-medium tracking-wider uppercase text-muted-foreground/60 border-b border-[#E5E5E5]/30 bg-[#F5F5F5]/50">
                         <span>{t('Khách hàng')}</span>
                         <span>{t('Dịch vụ')}</span>
                         <span className="text-right w-24">{t('Số tiền')}</span>
@@ -2715,11 +2716,11 @@ const AdminDashboard = () => {
                           return (
                             <div
                               key={s.id}
-                              className="group grid grid-cols-[1fr_1fr_auto_auto_44px] gap-4 items-center px-5 py-3.5 rounded-xl transition-colors hover:bg-[#f7f2ec]/60"
+                              className="group grid grid-cols-[1fr_1fr_auto_auto_44px] gap-4 items-center px-5 py-3.5 rounded-xl transition-colors hover:bg-[#F5F5F5]/60"
                             >
                               {/* Customer + phone stacked */}
                               <div className="min-w-0">
-                                <p className="text-[13px] font-medium text-[#3d2b1f] truncate">{customerName}</p>
+                                <p className="text-[13px] font-medium text-[#1B1B1B] truncate">{customerName}</p>
                                 <div className="flex items-center gap-2 mt-0.5">
                                   {customerPhone && <span className="text-[11px] text-muted-foreground/60 font-mono">{customerPhone}</span>}
                                   <span className="text-[11px] text-muted-foreground/40">{s.sale_date}</span>
@@ -2728,13 +2729,13 @@ const AdminDashboard = () => {
 
                               {/* Service + notes stacked */}
                               <div className="min-w-0">
-                                <p className="text-[13px] text-[#5a4a3a] truncate">{s.bookings?.services?.name || '—'}</p>
+                                <p className="text-[13px] text-[#555555] truncate">{s.bookings?.services?.name || '—'}</p>
                                 {s.notes && <p className="text-[11px] text-muted-foreground/50 truncate mt-0.5">{s.notes}</p>}
                               </div>
 
                               {/* Amount */}
                               <div className="text-right w-24">
-                                <span className="text-[14px] font-semibold text-[#3d2b1f] tabular-nums">{formatPrice(Number(s.amount))}</span>
+                                <span className="text-[14px] font-semibold text-[#1B1B1B] tabular-nums">{formatPrice(Number(s.amount))}</span>
                               </div>
 
                               {/* Method badge */}
@@ -2795,7 +2796,7 @@ const AdminDashboard = () => {
               {/* Header */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <h2 className="text-xl font-semibold text-[#3d2b1f] tracking-tight">{t('Quản lý dịch vụ')}</h2>
+                  <h2 className="text-xl font-semibold text-[#1B1B1B] tracking-tight">{t('Quản lý dịch vụ')}</h2>
                   <p className="text-sm text-muted-foreground/70 mt-0.5">{services?.length || 0} {t('dịch vụ')}</p>
                 </div>
                 <Dialog open={serviceDialog} onOpenChange={setServiceDialog}>
@@ -2804,37 +2805,37 @@ const AdminDashboard = () => {
                   </DialogTrigger>
                   <DialogContent className="sm:max-w-[440px]">
                     <DialogHeader>
-                      <DialogTitle className="text-[#3d2b1f]">{editingService ? t('Sửa dịch vụ') : t('Thêm dịch vụ')}</DialogTitle>
+                      <DialogTitle className="text-[#1B1B1B]">{editingService ? t('Sửa dịch vụ') : t('Thêm dịch vụ')}</DialogTitle>
                       <DialogDescription className="text-muted-foreground/60">{editingService ? t('Chỉnh sửa thông tin dịch vụ') : t('Thêm dịch vụ mới vào hệ thống')}</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-5 pt-1">
                       <div className="space-y-4">
                         <div>
                           <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Tên')}</Label>
-                          <Input value={serviceName} onChange={e => setServiceName(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" placeholder={t('Tên dịch vụ')} />
+                          <Input value={serviceName} onChange={e => setServiceName(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" placeholder={t('Tên dịch vụ')} />
                         </div>
                         <div>
                           <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Mô tả')}</Label>
-                          <Textarea value={serviceDesc} onChange={e => setServiceDesc(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20 min-h-[80px]" placeholder={t('Mô tả ngắn về dịch vụ...')} />
+                          <Textarea value={serviceDesc} onChange={e => setServiceDesc(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20 min-h-[80px]" placeholder={t('Mô tả ngắn về dịch vụ...')} />
                         </div>
                       </div>
-                      <div className="border-t border-[#ebe3d9]/30 pt-4">
+                      <div className="border-t border-[#E5E5E5]/30 pt-4">
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Thời gian (phút)')}</Label>
-                            <Input type="number" value={serviceDuration} onChange={e => setServiceDuration(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" />
+                            <Input type="number" value={serviceDuration} onChange={e => setServiceDuration(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" />
                           </div>
                           <div>
                             <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Giá (AUD)')}</Label>
-                            <Input type="number" value={servicePrice} onChange={e => setServicePrice(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" />
+                            <Input type="number" value={servicePrice} onChange={e => setServicePrice(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" />
                           </div>
                         </div>
                       </div>
-                      <div className="border-t border-[#ebe3d9]/30 pt-4">
+                      <div className="border-t border-[#E5E5E5]/30 pt-4">
                         <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Hình ảnh')}</Label>
                         <div className="mt-2 space-y-2">
                           {serviceImagePreview && (
-                            <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden border border-[#ebe3d9]/60 shadow-sm">
+                            <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden border border-[#E5E5E5]/60 shadow-sm">
                               <img src={serviceImagePreview} alt="Preview" className="w-full h-full object-cover" />
                               <button
                                 type="button"
@@ -2857,13 +2858,13 @@ const AdminDashboard = () => {
                               }
                             }}
                           />
-                          <Button type="button" variant="outline" size="sm" className="border-[#ebe3d9]/60 hover:bg-[#f7f2ec]" onClick={() => serviceImageRef.current?.click()}>
+                          <Button type="button" variant="outline" size="sm" className="border-[#E5E5E5]/60 hover:bg-[#F5F5F5]" onClick={() => serviceImageRef.current?.click()}>
                             <Image className="h-3.5 w-3.5 mr-1.5" />
                             {serviceImagePreview ? t('Đổi ảnh') : t('Chọn ảnh')}
                           </Button>
                         </div>
                       </div>
-                      <Button className="w-full h-10 bg-[#6b4c3b] hover:bg-[#5a3d2e] text-white" onClick={() => saveService.mutate()} disabled={!serviceName.trim() || saveService.isPending}>
+                      <Button className="w-full h-10 bg-[#006AFF] hover:bg-[#1B1B1B] text-white" onClick={() => saveService.mutate()} disabled={!serviceName.trim() || saveService.isPending}>
                         {saveService.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : (editingService ? t('Cập nhật') : t('Thêm mới'))}
                       </Button>
                     </div>
@@ -2878,16 +2879,16 @@ const AdminDashboard = () => {
                   <p className="text-sm font-medium">{t('Chưa có dịch vụ')}</p>
                 </div>
               ) : (
-                <div className="rounded-xl border border-[#ebe3d9]/50 bg-white overflow-hidden divide-y divide-[#ebe3d9]/20">
+                <div className="rounded-xl border border-[#E5E5E5]/50 bg-white overflow-hidden divide-y divide-[#E5E5E5]/20">
                   {services.map(s => (
                     <div
                       key={s.id}
-                      className="group flex items-center justify-between px-5 py-4 transition-colors hover:bg-[#f7f2ec]/40"
+                      className="group flex items-center justify-between px-5 py-4 transition-colors hover:bg-[#F5F5F5]/40"
                     >
                       {/* Left: name + details */}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2.5">
-                          <p className="text-[14px] font-medium text-[#3d2b1f] truncate">{s.name}</p>
+                          <p className="text-[14px] font-medium text-[#1B1B1B] truncate">{s.name}</p>
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${
                             s.is_active
                               ? 'bg-emerald-50 text-emerald-600'
@@ -2903,7 +2904,7 @@ const AdminDashboard = () => {
 
                       {/* Right: actions */}
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/50 hover:text-[#3d2b1f]" onClick={() => openServiceEdit(s)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/50 hover:text-[#1B1B1B]" onClick={() => openServiceEdit(s)}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
                         {isAdmin && (
@@ -2934,7 +2935,7 @@ const AdminDashboard = () => {
               {/* Header */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <h2 className="text-xl font-semibold text-[#3d2b1f] tracking-tight">{t('Nhân viên & Lịch nghỉ')}</h2>
+                  <h2 className="text-xl font-semibold text-[#1B1B1B] tracking-tight">{t('Nhân viên & Lịch nghỉ')}</h2>
                   <p className="text-sm text-muted-foreground/70 mt-0.5">{therapists?.length || 0} {t('nhân viên')}</p>
                 </div>
                 <Dialog open={therapistDialog} onOpenChange={setTherapistDialog}>
@@ -2943,51 +2944,51 @@ const AdminDashboard = () => {
                   </DialogTrigger>
                   <DialogContent className="sm:max-w-[440px]">
                     <DialogHeader>
-                      <DialogTitle className="text-[#3d2b1f]">{editingTherapist ? t('Sửa thông tin thợ') : t('Thêm thợ')}</DialogTitle>
+                      <DialogTitle className="text-[#1B1B1B]">{editingTherapist ? t('Sửa thông tin thợ') : t('Thêm thợ')}</DialogTitle>
                       <DialogDescription className="text-muted-foreground/60">{editingTherapist ? t('Chỉnh sửa thông tin thợ') : t('Thêm thợ mới vào hệ thống')}</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-5 pt-1">
                       <div className="space-y-4">
                         <div>
                           <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Tên')}</Label>
-                          <Input value={therapistName} onChange={e => setTherapistName(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" placeholder={t('Họ và tên')} />
+                          <Input value={therapistName} onChange={e => setTherapistName(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" placeholder={t('Họ và tên')} />
                         </div>
                         <div>
                           <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Email')}</Label>
-                          <Input type="email" value={therapistEmail} onChange={e => setTherapistEmail(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" placeholder="staff@example.com" />
+                          <Input type="email" value={therapistEmail} onChange={e => setTherapistEmail(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" placeholder="staff@example.com" />
                         </div>
                         <div>
                           <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('SĐT')}</Label>
-                          <Input value={therapistPhone} onChange={e => setTherapistPhone(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" placeholder="04xx xxx xxx" />
+                          <Input value={therapistPhone} onChange={e => setTherapistPhone(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" placeholder="04xx xxx xxx" />
                         </div>
                       </div>
-                      <div className="border-t border-[#ebe3d9]/30 pt-4">
+                      <div className="border-t border-[#E5E5E5]/30 pt-4">
                         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">{t('Giờ làm việc')}</p>
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <Label className="text-xs text-muted-foreground">{t('Giờ bắt đầu')}</Label>
-                            <Input type="number" min="6" max="22" value={therapistStartHour} onChange={e => setTherapistStartHour(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" />
+                            <Input type="number" min="6" max="22" value={therapistStartHour} onChange={e => setTherapistStartHour(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" />
                           </div>
                           <div>
                             <Label className="text-xs text-muted-foreground">{t('Giờ kết thúc')}</Label>
-                            <Input type="number" min="6" max="22" value={therapistEndHour} onChange={e => setTherapistEndHour(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" />
+                            <Input type="number" min="6" max="22" value={therapistEndHour} onChange={e => setTherapistEndHour(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" />
                           </div>
                         </div>
                       </div>
-                      <div className="border-t border-[#ebe3d9]/30 pt-4">
+                      <div className="border-t border-[#E5E5E5]/30 pt-4">
                         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">{t('Nghỉ trưa')}</p>
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <Label className="text-xs text-muted-foreground">{t('Nghỉ trưa từ')}</Label>
-                            <Input type="number" min="6" max="22" placeholder="12" value={therapistBreakStart} onChange={e => setTherapistBreakStart(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" />
+                            <Input type="number" min="6" max="22" placeholder="12" value={therapistBreakStart} onChange={e => setTherapistBreakStart(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" />
                           </div>
                           <div>
                             <Label className="text-xs text-muted-foreground">{t('Nghỉ trưa đến')}</Label>
-                            <Input type="number" min="6" max="22" placeholder="13" value={therapistBreakEnd} onChange={e => setTherapistBreakEnd(e.target.value)} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" />
+                            <Input type="number" min="6" max="22" placeholder="13" value={therapistBreakEnd} onChange={e => setTherapistBreakEnd(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" />
                           </div>
                         </div>
                       </div>
-                      <Button className="w-full h-10 bg-[#6b4c3b] hover:bg-[#5a3d2e] text-white" onClick={() => saveTherapist.mutate()} disabled={!therapistName.trim() || saveTherapist.isPending}>
+                      <Button className="w-full h-10 bg-[#006AFF] hover:bg-[#1B1B1B] text-white" onClick={() => saveTherapist.mutate()} disabled={!therapistName.trim() || saveTherapist.isPending}>
                         {saveTherapist.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : (editingTherapist ? t('Cập nhật') : t('Thêm mới'))}
                       </Button>
                     </div>
@@ -2996,13 +2997,13 @@ const AdminDashboard = () => {
               </div>
 
               {/* Scheduling section — Day off + Shop holidays merged */}
-              <div className="rounded-xl border border-[#ebe3d9]/40 bg-white overflow-hidden">
+              <div className="rounded-xl border border-[#E5E5E5]/40 bg-white overflow-hidden">
                 {/* Day off controls */}
                 <div className="p-5 sm:p-6">
-                  <p className="text-[13px] font-semibold text-[#3d2b1f] mb-3">{t('Ngày nghỉ nhân viên')}</p>
+                  <p className="text-[13px] font-semibold text-[#1B1B1B] mb-3">{t('Ngày nghỉ nhân viên')}</p>
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
                     <Select value={unavailTherapist} onValueChange={setUnavailTherapist}>
-                      <SelectTrigger className="w-full sm:w-[160px] h-9 text-sm bg-[#faf8f5] border-[#ebe3d9]/50"><SelectValue placeholder={t('Chọn thợ')} /></SelectTrigger>
+                      <SelectTrigger className="w-full sm:w-[160px] h-9 text-sm bg-[#F5F5F5] border-[#E5E5E5]/50"><SelectValue placeholder={t('Chọn thợ')} /></SelectTrigger>
                       <SelectContent>
                         {therapists?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                       </SelectContent>
@@ -3038,11 +3039,11 @@ const AdminDashboard = () => {
                         return (
                           <button
                             key={th.id}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#faf8f5] border border-[#ebe3d9]/60 text-xs text-[#6b5c4c] hover:bg-[#f0e8dd] transition-colors"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F5F5F5] border border-[#E5E5E5]/60 text-xs text-[#737373] hover:bg-[#F5F5F5] transition-colors"
                             onClick={() => { setViewingTherapist(th); setUnavailMonthFilter(format(new Date(), 'yyyy-MM')); setTherapistInfoDialog(true); }}
                           >
                             <span className="font-medium">{th.name}</span>
-                            <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-[#ede4d8] text-[10px] font-semibold text-[#5a3d2e]">{count}</span>
+                            <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-[#F0F0F0] text-[10px] font-semibold text-[#1B1B1B]">{count}</span>
                           </button>
                         );
                       })}
@@ -3051,11 +3052,11 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Divider */}
-                <div className="border-t border-[#ebe3d9]/30" />
+                <div className="border-t border-[#E5E5E5]/30" />
 
                 {/* Shop holidays */}
                 <div className="p-5 sm:p-6">
-                  <p className="text-[13px] font-semibold text-[#3d2b1f] mb-3">{t('Ngày nghỉ tiệm / Đóng cửa sớm')}</p>
+                  <p className="text-[13px] font-semibold text-[#1B1B1B] mb-3">{t('Ngày nghỉ tiệm / Đóng cửa sớm')}</p>
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
                     <Popover>
                       <PopoverTrigger asChild>
@@ -3071,7 +3072,7 @@ const AdminDashboard = () => {
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground/70 whitespace-nowrap">{t('Đóng cửa sớm lúc')}</span>
                       <Select value={earlyCloseHour} onValueChange={setEarlyCloseHour}>
-                        <SelectTrigger className="w-[100px] h-9 text-sm bg-[#faf8f5] border-[#ebe3d9]/50"><SelectValue placeholder={t('Không')} /></SelectTrigger>
+                        <SelectTrigger className="w-[100px] h-9 text-sm bg-[#F5F5F5] border-[#E5E5E5]/50"><SelectValue placeholder={t('Không')} /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">{t('Nghỉ cả ngày')}</SelectItem>
                           {Array.from({ length: 13 }, (_, i) => i + 10).map(h => (
@@ -3099,7 +3100,7 @@ const AdminDashboard = () => {
                       {shopHolidays.filter((h: any) => h.holiday_date >= format(new Date(), 'yyyy-MM-dd')).map((h: any) => (
                         <div key={h.id} className="flex items-center justify-between py-2.5 px-4 bg-red-50/60 rounded-lg text-sm border border-red-100/50">
                           <span className="text-[13px]">
-                            <span className="font-medium text-[#3d2b1f]">{h.holiday_date}</span>
+                            <span className="font-medium text-[#1B1B1B]">{h.holiday_date}</span>
                             <span className="text-muted-foreground ml-2">
                               {h.early_close_hour ? `${t('Đóng cửa lúc')} ${h.early_close_hour}:00` : t('Nghỉ cả ngày')}
                             </span>
@@ -3123,28 +3124,28 @@ const AdminDashboard = () => {
               ) : (
                 <>
                   {/* Desktop rows */}
-                  <div className="hidden sm:block rounded-xl border border-[#ebe3d9]/50 bg-white overflow-hidden">
-                    <div className="grid grid-cols-[1fr_1fr_auto_auto_44px] gap-4 px-5 py-3 text-[11px] font-medium tracking-wider uppercase text-muted-foreground/50 border-b border-[#ebe3d9]/30 bg-[#faf8f5]/50">
+                  <div className="hidden sm:block rounded-xl border border-[#E5E5E5]/50 bg-white overflow-hidden">
+                    <div className="grid grid-cols-[1fr_1fr_auto_auto_44px] gap-4 px-5 py-3 text-[11px] font-medium tracking-wider uppercase text-muted-foreground/50 border-b border-[#E5E5E5]/30 bg-[#F5F5F5]/50">
                       <span>{t('Nhân viên')}</span>
                       <span>{t('Giờ làm việc')}</span>
                       <span className="w-24">{t('Trạng thái')}</span>
                       <span className="w-16"></span>
                       <span></span>
                     </div>
-                    <div className="divide-y divide-[#ebe3d9]/20">
+                    <div className="divide-y divide-[#E5E5E5]/20">
                       {therapists.map(th => (
                         <div
                           key={th.id}
-                          className="group grid grid-cols-[1fr_1fr_auto_auto_44px] gap-4 items-center px-5 py-4 rounded-xl transition-colors hover:bg-[#f7f2ec]/60"
+                          className="group grid grid-cols-[1fr_1fr_auto_auto_44px] gap-4 items-center px-5 py-4 rounded-xl transition-colors hover:bg-[#F5F5F5]/60"
                         >
                           {/* Name + contact stacked */}
                           <div className="flex items-center gap-3.5 min-w-0">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#ede4d8] to-[#e0d4c4] flex items-center justify-center text-[13px] font-semibold text-[#6b5c4c] shrink-0">
+                            <div className="w-10 h-10 rounded-full bg-[#F0F0F0] flex items-center justify-center text-[13px] font-semibold text-[#737373] shrink-0">
                               {(th.name || '?').charAt(0).toUpperCase()}
                             </div>
                             <div className="min-w-0">
                               <button
-                                className="text-[14px] font-medium text-[#3d2b1f] truncate block text-left hover:text-[#6b4c3b] transition-colors"
+                                className="text-[14px] font-medium text-[#1B1B1B] truncate block text-left hover:text-[#006AFF] transition-colors"
                                 onClick={() => { setViewingTherapist(th); setTherapistInfoDialog(true); }}
                               >{th.name}</button>
                               <div className="flex items-center gap-2 mt-0.5">
@@ -3156,7 +3157,7 @@ const AdminDashboard = () => {
 
                           {/* Working hours */}
                           <div className="min-w-0">
-                            <p className="text-[13px] text-[#5a4a3a]">
+                            <p className="text-[13px] text-[#555555]">
                               {th.start_hour}:00 – {th.end_hour}:00
                             </p>
                             {th.break_start != null && th.break_end != null && (
@@ -3193,7 +3194,7 @@ const AdminDashboard = () => {
 
                           {/* Actions — visible on hover */}
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/50 hover:text-[#3d2b1f]" onClick={() => openTherapistEdit(th)}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/50 hover:text-[#1B1B1B]" onClick={() => openTherapistEdit(th)}>
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
                             {isAdmin && (
@@ -3219,15 +3220,15 @@ const AdminDashboard = () => {
                   {/* Mobile cards */}
                   <div className="sm:hidden space-y-2">
                     {therapists.map(th => (
-                      <div key={th.id} className="bg-white rounded-xl border border-[#ebe3d9]/40 p-4 transition-colors hover:border-[#d4c9bc]">
+                      <div key={th.id} className="bg-white rounded-xl border border-[#E5E5E5]/40 p-4 transition-colors hover:border-[#CCCCCC]">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#ede4d8] to-[#e0d4c4] flex items-center justify-center text-[13px] font-semibold text-[#6b5c4c] shrink-0">
+                            <div className="w-10 h-10 rounded-full bg-[#F0F0F0] flex items-center justify-center text-[13px] font-semibold text-[#737373] shrink-0">
                               {(th.name || '?').charAt(0).toUpperCase()}
                             </div>
                             <div className="min-w-0">
                               <button
-                                className="text-[14px] font-medium text-[#3d2b1f] truncate block text-left"
+                                className="text-[14px] font-medium text-[#1B1B1B] truncate block text-left"
                                 onClick={() => { setViewingTherapist(th); setTherapistInfoDialog(true); }}
                               >{th.name}</button>
                               <p className="text-[11px] text-muted-foreground/60 mt-0.5">{th.start_hour}:00 – {th.end_hour}:00</p>
@@ -3413,8 +3414,8 @@ const AdminDashboard = () => {
                           type="button"
                           className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
                             openDays.includes(day)
-                              ? 'bg-[#6b4c3b] text-white border-[#6b4c3b]'
-                              : 'bg-white text-muted-foreground border-border hover:border-[#8b7355]'
+                              ? 'bg-[#006AFF] text-white border-[#006AFF]'
+                              : 'bg-white text-muted-foreground border-border hover:border-[#737373]'
                           }`}
                           onClick={() => setOpenDays(prev =>
                             prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day].sort()
@@ -3506,7 +3507,7 @@ const AdminDashboard = () => {
                       <Label>{heroMode === 'video' ? t('Upload video') : t('Upload hình ảnh')}</Label>
                       <div className="mt-1.5 space-y-2">
                         {heroMediaPreview && (
-                          <div className="relative w-full h-32 rounded-lg overflow-hidden border border-[#ebe3d9]">
+                          <div className="relative w-full h-32 rounded-lg overflow-hidden border border-[#E5E5E5]">
                             {heroMode === 'video' && (heroMediaPreview.match(/\.(mp4|webm|mov)/) || heroMediaFile?.type.startsWith('video')) ? (
                               <video src={heroMediaPreview} className="w-full h-full object-cover" muted />
                             ) : (
@@ -3658,16 +3659,16 @@ const AdminDashboard = () => {
             <Dialog open={accountDialog} onOpenChange={(open) => { setAccountDialog(open); if (!open) { setNewAdminEmail(''); setNewAdminPassword(''); setNewAdminRole('employee'); } }}>
               <DialogContent className="sm:max-w-[420px]">
                 <DialogHeader>
-                  <DialogTitle className="text-[#3d2b1f]">{t('Tạo tài khoản mới')}</DialogTitle>
+                  <DialogTitle className="text-[#1B1B1B]">{t('Tạo tài khoản mới')}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-5 pt-1">
                   <div>
                     <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Loại tài khoản')}</Label>
                     <div className="flex gap-2 mt-2">
-                      <Button type="button" variant={newAdminRole === 'employee' ? 'default' : 'outline'} size="sm" className={cn("flex-1", newAdminRole === 'employee' && "bg-[#6b4c3b] hover:bg-[#5a3d2e]")} onClick={() => setNewAdminRole('employee')}>
+                      <Button type="button" variant={newAdminRole === 'employee' ? 'default' : 'outline'} size="sm" className={cn("flex-1", newAdminRole === 'employee' && "bg-[#006AFF] hover:bg-[#1B1B1B]")} onClick={() => setNewAdminRole('employee')}>
                         Employee
                       </Button>
-                      <Button type="button" variant={newAdminRole === 'admin' ? 'default' : 'outline'} size="sm" className={cn("flex-1", newAdminRole === 'admin' && "bg-[#6b4c3b] hover:bg-[#5a3d2e]")} onClick={() => setNewAdminRole('admin')}>
+                      <Button type="button" variant={newAdminRole === 'admin' ? 'default' : 'outline'} size="sm" className={cn("flex-1", newAdminRole === 'admin' && "bg-[#006AFF] hover:bg-[#1B1B1B]")} onClick={() => setNewAdminRole('admin')}>
                         Admin
                       </Button>
                     </div>
@@ -3677,18 +3678,18 @@ const AdminDashboard = () => {
                         : t('Admin: toàn quyền quản lý hệ thống')}
                     </p>
                   </div>
-                  <div className="border-t border-[#ebe3d9]/30 pt-4 space-y-4">
+                  <div className="border-t border-[#E5E5E5]/30 pt-4 space-y-4">
                     <div>
                       <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Email</Label>
-                      <Input type="email" value={newAdminEmail} onChange={e => setNewAdminEmail(e.target.value)} placeholder="staff@example.com" className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" />
+                      <Input type="email" value={newAdminEmail} onChange={e => setNewAdminEmail(e.target.value)} placeholder="staff@example.com" className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" />
                     </div>
                     <div>
                       <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Mật khẩu')}</Label>
-                      <Input type="password" value={newAdminPassword} onChange={e => setNewAdminPassword(e.target.value)} placeholder={t('Tối thiểu 6 ký tự')} className="mt-1.5 bg-[#faf8f5] border-[#ebe3d9]/60 focus:border-[#8b7355] focus:ring-[#8b7355]/20" />
+                      <Input type="password" value={newAdminPassword} onChange={e => setNewAdminPassword(e.target.value)} placeholder={t('Tối thiểu 6 ký tự')} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" />
                     </div>
                   </div>
                   <Button
-                    className="w-full h-10 bg-[#6b4c3b] hover:bg-[#5a3d2e] text-white"
+                    className="w-full h-10 bg-[#006AFF] hover:bg-[#1B1B1B] text-white"
                     disabled={creatingAdmin || !newAdminEmail.trim() || newAdminPassword.length < 6}
                     onClick={async () => {
                       setCreatingAdmin(true);
@@ -3812,7 +3813,7 @@ const AdminDashboard = () => {
                         type="button"
                         className={cn(
                           'w-full flex items-center gap-3 px-4 py-3 rounded-lg border transition-colors text-left',
-                          checked ? 'border-[#6b4c3b]/30 bg-[#faf8f5]' : 'border-border/40 hover:bg-muted/30'
+                          checked ? 'border-[#006AFF]/30 bg-[#F5F5F5]' : 'border-border/40 hover:bg-muted/30'
                         )}
                         onClick={() => {
                           setEmployeeVisibleTabs(prev =>
@@ -3820,8 +3821,8 @@ const AdminDashboard = () => {
                           );
                         }}
                       >
-                        <tab.icon className={cn('h-4 w-4 shrink-0', checked ? 'text-[#6b4c3b]' : 'text-muted-foreground/50')} />
-                        <span className={cn('text-sm flex-1', checked ? 'font-medium text-[#3d2b1f]' : 'text-muted-foreground')}>{tab.label}</span>
+                        <tab.icon className={cn('h-4 w-4 shrink-0', checked ? 'text-[#006AFF]' : 'text-muted-foreground/50')} />
+                        <span className={cn('text-sm flex-1', checked ? 'font-medium text-[#1B1B1B]' : 'text-muted-foreground')}>{tab.label}</span>
                         <Switch checked={checked} onCheckedChange={() => {
                           setEmployeeVisibleTabs(prev =>
                             checked ? prev.filter(v => v !== tab.value) : [...prev, tab.value]
@@ -4172,38 +4173,38 @@ const AdminDashboard = () => {
             <Dialog open={giftCardDialog} onOpenChange={setGiftCardDialog}>
               <DialogContent className="sm:max-w-[420px]">
                 <DialogHeader>
-                  <DialogTitle className="text-[#3d2b1f]">{t('Tạo phiếu quà tặng hàng loạt')}</DialogTitle>
+                  <DialogTitle className="text-[#1B1B1B]">{t('Tạo phiếu quà tặng hàng loạt')}</DialogTitle>
                   <DialogDescription className="text-muted-foreground/60">{t('Tạo nhiều mã quà tặng cùng lúc')}</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 pt-2">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Số lượng')}</Label>
-                      <Input type="number" min="1" max="100" value={giftCardCount} onChange={e => setGiftCardCount(e.target.value)} className="mt-1 bg-[#faf8f5] border-[#ebe3d9]/60" />
+                      <Input type="number" min="1" max="100" value={giftCardCount} onChange={e => setGiftCardCount(e.target.value)} className="mt-1 bg-[#F5F5F5] border-[#E5E5E5]/60" />
                     </div>
                     <div>
                       <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Giá trị (A$)')}</Label>
-                      <Input type="number" min="1" value={giftCardAmount} onChange={e => setGiftCardAmount(e.target.value)} className="mt-1 bg-[#faf8f5] border-[#ebe3d9]/60" />
+                      <Input type="number" min="1" value={giftCardAmount} onChange={e => setGiftCardAmount(e.target.value)} className="mt-1 bg-[#F5F5F5] border-[#E5E5E5]/60" />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Tiền tố mã')}</Label>
-                      <Input value={giftCardPrefix} onChange={e => setGiftCardPrefix(e.target.value.toUpperCase())} className="mt-1 font-mono bg-[#faf8f5] border-[#ebe3d9]/60" placeholder="GIFT" />
+                      <Input value={giftCardPrefix} onChange={e => setGiftCardPrefix(e.target.value.toUpperCase())} className="mt-1 font-mono bg-[#F5F5F5] border-[#E5E5E5]/60" placeholder="GIFT" />
                     </div>
                     <div>
                       <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Số lần dùng / mã')}</Label>
-                      <Input type="number" min="1" value={giftCardMaxUses} onChange={e => setGiftCardMaxUses(e.target.value)} className="mt-1 bg-[#faf8f5] border-[#ebe3d9]/60" />
+                      <Input type="number" min="1" value={giftCardMaxUses} onChange={e => setGiftCardMaxUses(e.target.value)} className="mt-1 bg-[#F5F5F5] border-[#E5E5E5]/60" />
                     </div>
                   </div>
                   <div>
                     <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Hết hạn')} ({t('tuỳ chọn')})</Label>
-                    <Input type="date" value={giftCardValidTo} onChange={e => setGiftCardValidTo(e.target.value)} className="mt-1 bg-[#faf8f5] border-[#ebe3d9]/60" />
+                    <Input type="date" value={giftCardValidTo} onChange={e => setGiftCardValidTo(e.target.value)} className="mt-1 bg-[#F5F5F5] border-[#E5E5E5]/60" />
                   </div>
-                  <div className="p-3 bg-[#faf8f5] rounded-lg border border-[#ebe3d9]/40 text-sm text-muted-foreground">
-                    {t('Sẽ tạo')} <strong className="text-[#3d2b1f]">{giftCardCount}</strong> {t('mã có dạng')} <code className="font-mono text-xs bg-white px-1.5 py-0.5 rounded border">{giftCardPrefix || 'GIFT'}-XXXXXX</code> {t('trị giá')} <strong className="text-[#3d2b1f]">A$ {giftCardAmount}</strong>
+                  <div className="p-3 bg-[#F5F5F5] rounded-lg border border-[#E5E5E5]/40 text-sm text-muted-foreground">
+                    {t('Sẽ tạo')} <strong className="text-[#1B1B1B]">{giftCardCount}</strong> {t('mã có dạng')} <code className="font-mono text-xs bg-white px-1.5 py-0.5 rounded border">{giftCardPrefix || 'GIFT'}-XXXXXX</code> {t('trị giá')} <strong className="text-[#1B1B1B]">A$ {giftCardAmount}</strong>
                   </div>
-                  <Button className="w-full bg-[#6b4c3b] hover:bg-[#5a3d2e]" onClick={() => createGiftCardBatch.mutate()} disabled={createGiftCardBatch.isPending || parseInt(giftCardCount) < 1 || parseFloat(giftCardAmount) <= 0}>
+                  <Button className="w-full bg-[#006AFF] hover:bg-[#1B1B1B]" onClick={() => createGiftCardBatch.mutate()} disabled={createGiftCardBatch.isPending || parseInt(giftCardCount) < 1 || parseFloat(giftCardAmount) <= 0}>
                     {createGiftCardBatch.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang tạo...')}</> : <><Crown className="h-4 w-4 mr-2" />{t('Tạo phiếu quà tặng')}</>}
                   </Button>
                 </div>
@@ -4263,7 +4264,7 @@ const AdminDashboard = () => {
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">{t('Xem trước')}</p>
                     <div
                       className="prose prose-sm max-w-none text-muted-foreground [&_h2]:text-base [&_h2]:font-medium [&_h2]:text-foreground [&_h2]:mb-2 [&_h2]:mt-4 [&_p]:leading-relaxed"
-                      dangerouslySetInnerHTML={{ __html: aboutContent }}
+                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(aboutContent, { ALLOWED_TAGS: ['h2', 'h3', 'p', 'ul', 'ol', 'li', 'strong', 'em', 'a', 'br'], ALLOWED_ATTR: ['href', 'target', 'rel'] }) }}
                     />
                   </div>
                   <Button size="sm" onClick={() => { saveAboutContent.mutate(); setSettingsModal(null); }} disabled={saveAboutContent.isPending}>
@@ -4291,7 +4292,7 @@ const AdminDashboard = () => {
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">{t('Xem trước')}</p>
                     <div
                       className="prose prose-sm max-w-none text-muted-foreground [&_h2]:text-base [&_h2]:font-medium [&_h2]:text-foreground [&_h2]:mb-2 [&_h2]:mt-4 [&_p]:leading-relaxed"
-                      dangerouslySetInnerHTML={{ __html: termsContent }}
+                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(termsContent, { ALLOWED_TAGS: ['h2', 'h3', 'p', 'ul', 'ol', 'li', 'strong', 'em', 'a', 'br'], ALLOWED_ATTR: ['href', 'target', 'rel'] }) }}
                     />
                   </div>
                   <Button size="sm" onClick={() => { saveTermsContent.mutate(); setSettingsModal(null); }} disabled={saveTermsContent.isPending}>
@@ -4336,7 +4337,7 @@ const AdminDashboard = () => {
                 </DialogHeader>
                 <div className="space-y-4 pt-2">
                   <div className="rounded-lg bg-muted/50 border border-border/40 p-3">
-                    <p className="text-xs text-muted-foreground">{t('Nhập thông tin tài khoản Twilio để gửi SMS và WhatsApp. Bạn có thể tìm thông tin này tại')} <a href="https://console.twilio.com" target="_blank" rel="noopener noreferrer" className="text-[#6b4c3b] underline">console.twilio.com</a></p>
+                    <p className="text-xs text-muted-foreground">{t('Nhập thông tin tài khoản Twilio để gửi SMS và WhatsApp. Bạn có thể tìm thông tin này tại')} <a href="https://console.twilio.com" target="_blank" rel="noopener noreferrer" className="text-[#006AFF] underline">console.twilio.com</a></p>
                   </div>
                   <div>
                     <Label>Account SID</Label>
@@ -4414,7 +4415,7 @@ const AdminDashboard = () => {
                         {paymentSection === 'stripe' && (
                           <div className="space-y-3 p-4 pt-0">
                             <div className="rounded-lg bg-muted/50 border border-border/40 p-3">
-                              <p className="text-xs text-muted-foreground">{t('Nhập thông tin tài khoản Stripe để nhận thanh toán trực tuyến. Bạn có thể tìm thông tin này tại')} <a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noopener noreferrer" className="text-[#6b4c3b] underline">dashboard.stripe.com</a></p>
+                              <p className="text-xs text-muted-foreground">{t('Nhập thông tin tài khoản Stripe để nhận thanh toán trực tuyến. Bạn có thể tìm thông tin này tại')} <a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noopener noreferrer" className="text-[#006AFF] underline">dashboard.stripe.com</a></p>
                             </div>
                             <div>
                               <Label>Publishable Key</Label>
@@ -4465,7 +4466,7 @@ const AdminDashboard = () => {
                         {paymentSection === 'square' && (
                           <div className="space-y-3 p-4 pt-0">
                             <div className="rounded-lg bg-muted/50 border border-border/40 p-3">
-                              <p className="text-xs text-muted-foreground">{t('Nhập thông tin tài khoản Square để sử dụng máy thanh toán tại quầy. Bạn có thể tìm thông tin này tại')} <a href="https://developer.squareup.com/apps" target="_blank" rel="noopener noreferrer" className="text-[#6b4c3b] underline">developer.squareup.com</a></p>
+                              <p className="text-xs text-muted-foreground">{t('Nhập thông tin tài khoản Square để sử dụng máy thanh toán tại quầy. Bạn có thể tìm thông tin này tại')} <a href="https://developer.squareup.com/apps" target="_blank" rel="noopener noreferrer" className="text-[#006AFF] underline">developer.squareup.com</a></p>
                             </div>
                             <div>
                               <Label>Access Token</Label>

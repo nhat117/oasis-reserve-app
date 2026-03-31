@@ -20,21 +20,35 @@ Deno.serve(async (req) => {
       .eq("key", "square_webhook_secret")
       .single();
 
-    if (squareWebhookSecret?.value && signatureHeader) {
-      const notificationUrl = `${supabaseUrl}/functions/v1/square-webhook`;
-      const verified = await verifySquareSignature(
-        body,
-        signatureHeader,
-        squareWebhookSecret.value,
-        notificationUrl
-      );
-      if (!verified) {
-        console.error("Square webhook signature verification failed");
-        return new Response(JSON.stringify({ error: "Invalid signature" }), {
-          status: 401,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
+    if (!squareWebhookSecret?.value) {
+      console.error("Square webhook secret not configured — rejecting request");
+      return new Response(JSON.stringify({ error: "Webhook not configured" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    if (!signatureHeader) {
+      console.error("Missing x-square-hmacsha256-signature header");
+      return new Response(JSON.stringify({ error: "Missing signature" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    const notificationUrl = `${supabaseUrl}/functions/v1/square-webhook`;
+    const verified = await verifySquareSignature(
+      body,
+      signatureHeader,
+      squareWebhookSecret.value,
+      notificationUrl
+    );
+    if (!verified) {
+      console.error("Square webhook signature verification failed");
+      return new Response(JSON.stringify({ error: "Invalid signature" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     const event = JSON.parse(body);

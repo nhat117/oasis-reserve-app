@@ -2,78 +2,78 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Outfit:wght@200;300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 @layer base {
   :root {
-    --background: 36 25% 96%;
-    --foreground: 30 20% 10%;
+    --background: 0 0% 100%;
+    --foreground: 0 0% 11%;
 
-    --card: 36 20% 98%;
-    --card-foreground: 30 20% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 11%;
 
-    --popover: 36 20% 98%;
-    --popover-foreground: 30 20% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 11%;
 
-    --primary: 28 28% 22%;
-    --primary-foreground: 36 25% 96%;
+    --primary: 213 100% 50%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 33 18% 90%;
-    --secondary-foreground: 30 20% 10%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 11%;
 
-    --muted: 33 14% 92%;
-    --muted-foreground: 28 10% 48%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
 
-    --accent: 33 20% 86%;
-    --accent-foreground: 30 20% 10%;
+    --accent: 0 0% 96%;
+    --accent-foreground: 0 0% 11%;
 
-    --destructive: 0 60% 48%;
+    --destructive: 0 52% 52%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 33 15% 88%;
-    --input: 33 15% 88%;
-    --ring: 28 28% 22%;
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 213 100% 50%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
-    --sidebar-background: 33 16% 95%;
-    --sidebar-foreground: 28 18% 18%;
-    --sidebar-primary: 28 28% 22%;
-    --sidebar-primary-foreground: 36 25% 96%;
-    --sidebar-accent: 33 14% 92%;
-    --sidebar-accent-foreground: 28 18% 18%;
-    --sidebar-border: 33 15% 88%;
-    --sidebar-ring: 28 28% 22%;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 0 0% 11%;
+    --sidebar-primary: 213 100% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 96%;
+    --sidebar-accent-foreground: 0 0% 11%;
+    --sidebar-border: 0 0% 90%;
+    --sidebar-ring: 213 100% 50%;
   }
 
   .dark {
-    --background: 25 20% 8%;
-    --foreground: 35 20% 90%;
-    --card: 25 20% 10%;
-    --card-foreground: 35 20% 90%;
-    --popover: 25 20% 10%;
-    --popover-foreground: 35 20% 90%;
-    --primary: 35 30% 55%;
-    --primary-foreground: 25 20% 8%;
-    --secondary: 25 15% 18%;
-    --secondary-foreground: 35 20% 90%;
-    --muted: 25 15% 18%;
-    --muted-foreground: 35 12% 55%;
-    --accent: 35 20% 22%;
-    --accent-foreground: 35 20% 90%;
-    --destructive: 0 55% 40%;
+    --background: 0 0% 11%;
+    --foreground: 0 0% 92%;
+    --card: 0 0% 15%;
+    --card-foreground: 0 0% 92%;
+    --popover: 0 0% 15%;
+    --popover-foreground: 0 0% 92%;
+    --primary: 213 100% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 18%;
+    --secondary-foreground: 0 0% 92%;
+    --muted: 0 0% 18%;
+    --muted-foreground: 0 0% 55%;
+    --accent: 0 0% 20%;
+    --accent-foreground: 0 0% 92%;
+    --destructive: 0 52% 48%;
     --destructive-foreground: 0 0% 100%;
-    --border: 25 15% 18%;
-    --input: 25 15% 18%;
-    --ring: 35 30% 55%;
-    --sidebar-background: 25 20% 6%;
-    --sidebar-foreground: 35 15% 88%;
-    --sidebar-primary: 35 30% 55%;
-    --sidebar-primary-foreground: 25 20% 6%;
-    --sidebar-accent: 25 12% 15%;
-    --sidebar-accent-foreground: 35 15% 88%;
-    --sidebar-border: 25 12% 15%;
-    --sidebar-ring: 35 30% 55%;
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
+    --ring: 213 100% 50%;
+    --sidebar-background: 0 0% 9%;
+    --sidebar-foreground: 0 0% 88%;
+    --sidebar-primary: 213 100% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 15%;
+    --sidebar-accent-foreground: 0 0% 88%;
+    --sidebar-border: 0 0% 15%;
+    --sidebar-ring: 213 100% 50%;
   }
 }
 
@@ -84,14 +84,14 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: 'Outfit', sans-serif;
-    font-weight: 300;
-    letter-spacing: 0.01em;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-weight: 400;
+    letter-spacing: -0.011em;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Cormorant Garamond', serif;
-    font-weight: 400;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-weight: 600;
   }
 }
 
@@ -174,13 +174,13 @@
 }
 
 /* ═══════════════════════════════════
-   Fresha-style Admin Dashboard
+   Square-style Admin Dashboard
    ═══════════════════════════════════ */
 
 /* --- Layout & Cards --- */
 .admin-shell [data-slot="card"] {
-  background: #fffdf9;
-  border: 1px solid #ebe3d9;
+  background: #FFFFFF;
+  border: 1px solid #E5E5E5;
   box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.03);
   border-radius: 1rem;
   transition: box-shadow 0.25s ease, transform 0.25s ease;
@@ -215,12 +215,12 @@
   transition: background 0.15s ease;
 }
 .admin-shell table tbody tr:hover {
-  background: #f7f2ec;
+  background: #F5F5F5;
 }
 
-/* --- Badges (brown theme) --- */
+/* --- Badges --- */
 .admin-shell [data-slot="badge"][data-variant="default"] {
-  background: linear-gradient(135deg, #6b4c3b, #8b6f47);
+  background: #1B1B1B;
   border: none;
 }
 
@@ -263,7 +263,7 @@
 /* --- Mobile bottom nav pill indicator --- */
 .admin-shell .safe-bottom [data-state="active"] svg {
   transform: scale(1.15);
-  color: #5a3d2e;
+  color: #006AFF;
 }
 
 /* --- Responsive table scroll on mobile --- */
@@ -281,32 +281,32 @@
   }
 }
 
-/* --- Input focus brown ring --- */
+/* --- Input focus ring --- */
 .admin-shell input:focus,
 .admin-shell textarea:focus,
 .admin-shell [role="combobox"]:focus {
-  border-color: #6b4c3b !important;
-  box-shadow: 0 0 0 2px rgb(107 76 59 / 0.15) !important;
+  border-color: #006AFF !important;
+  box-shadow: 0 0 0 2px rgba(0, 106, 255, 0.15) !important;
   outline: none;
 }
 
-/* --- Switch brown theme --- */
+/* --- Switch theme --- */
 .admin-shell button[role="switch"][data-state="checked"] {
-  background: linear-gradient(135deg, #6b4c3b, #8b6f47) !important;
+  background: #006AFF !important;
 }
 
-/* --- Primary button brown gradient --- */
+/* --- Primary button --- */
 .admin-shell button[data-slot="button"]:not([data-variant]):not([variant]) {
-  background: linear-gradient(135deg, #6b4c3b, #8b6f47);
+  background: #1B1B1B;
   border: none;
 }
 .admin-shell button[data-slot="button"]:not([data-variant]):not([variant]):hover {
-  background: linear-gradient(135deg, #5a3d2e, #7a5e38);
+  background: #333333;
 }
 
 /* --- Destructive buttons --- */
 .admin-shell button[data-variant="destructive"] {
-  background: linear-gradient(135deg, #ef4444, #dc2626);
+  background: #CD3D3D;
 }
 
 /* --- Scrollbar --- */
@@ -347,11 +347,11 @@
   --fc-now-indicator-color: hsl(var(--primary));
   --fc-event-border-color: transparent;
   --fc-page-bg-color: transparent;
-  font-family: 'Outfit', system-ui, sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
 }
 
 .fc-custom .fc .fc-toolbar-title {
-  font-family: 'Outfit', system-ui, sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
   font-size: 1.1rem;
   font-weight: 500;
   letter-spacing: 0.02em;

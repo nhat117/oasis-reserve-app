@@ -114,8 +114,8 @@ Deno.serve(async (req) => {
       }
 
       const { user_id } = await req.json();
-      if (!user_id) {
-        return new Response(JSON.stringify({ error: "user_id required" }), {
+      if (!user_id || typeof user_id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user_id)) {
+        return new Response(JSON.stringify({ error: "Valid user_id (UUID) required" }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -128,10 +128,23 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Verify target user belongs to caller's tenant
+      if (tenantId) {
+        const { data: targetRole } = await adminClient
+          .from("user_roles").select("tenant_id").eq("user_id", user_id).single();
+        if (!targetRole || targetRole.tenant_id !== tenantId) {
+          return new Response(JSON.stringify({ error: "Access denied" }), {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
       const { error: roleError } = await adminClient
         .from("user_roles")
         .delete()
-        .eq("user_id", user_id);
+        .eq("user_id", user_id)
+        .eq("tenant_id", tenantId);
 
       if (roleError) {
         return new Response(JSON.stringify({ error: roleError.message }), {
@@ -164,11 +177,29 @@ Deno.serve(async (req) => {
       }
 
       const { user_id, password } = await req.json();
-      if (!user_id || !password || password.length < 6) {
-        return new Response(JSON.stringify({ error: "user_id and password (min 6 chars) required" }), {
+      if (!user_id || typeof user_id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user_id)) {
+        return new Response(JSON.stringify({ error: "Valid user_id (UUID) required" }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
+      }
+      if (!password || password.length < 6) {
+        return new Response(JSON.stringify({ error: "Password (min 6 chars) required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Verify target user belongs to caller's tenant
+      if (tenantId) {
+        const { data: targetRole } = await adminClient
+          .from("user_roles").select("tenant_id").eq("user_id", user_id).single();
+        if (!targetRole || targetRole.tenant_id !== tenantId) {
+          return new Response(JSON.stringify({ error: "Access denied" }), {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
       }
 
       const { error: updateError } = await adminClient.auth.admin.updateUserById(user_id, { password });

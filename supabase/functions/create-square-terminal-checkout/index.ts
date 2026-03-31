@@ -45,9 +45,28 @@ Deno.serve(async (req) => {
   const tenantId = callerRole?.tenant_id;
 
   try {
-    const { booking_id, sale_id, amount, note } = await req.json();
+    const body = await req.json();
+    const booking_id = typeof body.booking_id === 'string' ? body.booking_id : undefined;
+    const sale_id = typeof body.sale_id === 'string' ? body.sale_id : undefined;
+    const amount = typeof body.amount === 'number' ? body.amount : NaN;
+    const note = typeof body.note === 'string' ? body.note.slice(0, 500) : undefined;
 
-    if (!amount || amount <= 0) {
+    // UUID validation regex
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (booking_id && !uuidRegex.test(booking_id)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid booking_id format" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (sale_id && !uuidRegex.test(sale_id)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid sale_id format" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!amount || amount <= 0 || amount > 100000) {
       return new Response(
         JSON.stringify({ error: "Invalid amount" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }

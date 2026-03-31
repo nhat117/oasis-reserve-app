@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useI18n } from '@/hooks/useI18n';
 import { ArrowLeft } from 'lucide-react';
+import DOMPurify from 'dompurify';
 
 const SoftwareTerms = () => {
   const { t } = useI18n();
@@ -31,7 +32,7 @@ const SoftwareTerms = () => {
         {termsHtml ? (
           <div
             className="prose prose-sm max-w-none text-muted-foreground [&_h2]:text-base [&_h2]:font-medium [&_h2]:text-foreground [&_h2]:mb-2 [&_h2]:mt-6 [&_p]:leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: termsHtml }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(termsHtml, { ALLOWED_TAGS: ['h2', 'h3', 'p', 'ul', 'ol', 'li', 'strong', 'em', 'a', 'br'], ALLOWED_ATTR: ['href', 'target', 'rel'] }) }}
           />
         ) : (
           <div className="text-sm text-muted-foreground space-y-6 leading-relaxed">

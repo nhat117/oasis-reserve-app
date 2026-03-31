@@ -11,6 +11,32 @@ Deno.serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!
+
+    // Auth: require admin or employee
+    const authHeader = req.headers.get('authorization')
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Missing auth' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+    const callerClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    })
+    const { data: { user: caller } } = await callerClient.auth.getUser()
+    if (!caller) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+    const { data: isAdmin } = await callerClient.rpc('has_role', { _user_id: caller.id, _role: 'admin' })
+    const { data: isEmployee } = await callerClient.rpc('has_role', { _user_id: caller.id, _role: 'employee' })
+    if (!isAdmin && !isEmployee) {
+      return new Response(JSON.stringify({ error: 'Access denied' }), {
+        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     const rawBody = await req.json()
     const parsed = parseBody(emailSchema, rawBody, corsHeaders)
@@ -18,7 +44,6 @@ Deno.serve(async (req) => {
     const { to, subject, html, from_name, from_email } = parsed.data
 
     // Get Resend API key from app_settings
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     const { data: apiKeySetting, error: settingError } = await supabase

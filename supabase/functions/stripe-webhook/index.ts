@@ -23,18 +23,26 @@ Deno.serve(async (req) => {
 
     const webhookSecret = webhookSecretSetting?.value;
 
-    if (webhookSecret && sigHeader) {
-      const verified = await verifyStripeSignature(body, sigHeader, webhookSecret);
-      if (!verified) {
-        console.error("Stripe webhook signature verification failed");
-        return new Response(JSON.stringify({ error: "Invalid signature" }), {
-          status: 401,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-    } else if (webhookSecret && !sigHeader) {
-      console.error("Stripe webhook secret configured but no signature header received");
+    if (!webhookSecret) {
+      console.error("Stripe webhook secret not configured — rejecting request");
+      return new Response(JSON.stringify({ error: "Webhook not configured" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    if (!sigHeader) {
+      console.error("Missing stripe-signature header");
       return new Response(JSON.stringify({ error: "Missing signature" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    const verified = await verifyStripeSignature(body, sigHeader, webhookSecret);
+    if (!verified) {
+      console.error("Stripe webhook signature verification failed");
+      return new Response(JSON.stringify({ error: "Invalid signature" }), {
         status: 401,
         headers: { "Content-Type": "application/json" },
       });

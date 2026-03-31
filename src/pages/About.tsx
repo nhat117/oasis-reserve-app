@@ -5,6 +5,7 @@ import { useLogo } from '@/hooks/useLogo';
 import { useI18n } from '@/hooks/useI18n';
 import { ArrowLeft } from 'lucide-react';
 import Header from '@/components/Header';
+import DOMPurify from 'dompurify';
 
 const About = () => {
   const logoImg = useLogo();
@@ -40,7 +41,7 @@ const About = () => {
         {aboutHtml ? (
           <div
             className="prose prose-sm max-w-none text-muted-foreground [&_h2]:text-base [&_h2]:font-medium [&_h2]:text-foreground [&_h2]:mb-2 [&_h2]:mt-6 [&_p]:leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: aboutHtml }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(aboutHtml, { ALLOWED_TAGS: ['h2', 'h3', 'p', 'ul', 'ol', 'li', 'strong', 'em', 'a', 'br'], ALLOWED_ATTR: ['href', 'target', 'rel'] }) }}
           />
         ) : (
           <div className="text-sm text-muted-foreground space-y-6 leading-relaxed">

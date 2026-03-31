@@ -332,7 +332,15 @@ const Booking = () => {
             setBookingComplete(true);
             toast({ title: t('Đặt lịch thành công'), description: t('Nhưng không thể chuyển đến trang thanh toán. Vui lòng thanh toán tại quầy.') });
           } else {
-            window.location.href = checkoutData.url;
+            const checkoutUrl = checkoutData.url;
+            if (typeof checkoutUrl !== 'string' || !checkoutUrl.startsWith('https://checkout.stripe.com/')) {
+              console.error('Invalid Stripe checkout URL');
+              setRedirectingToPayment(false);
+              setBookingComplete(true);
+              toast({ title: t('Đặt lịch thành công'), description: t('Nhưng không thể chuyển đến trang thanh toán. Vui lòng thanh toán tại quầy.') });
+              return;
+            }
+            window.location.href = checkoutUrl;
             return;
           }
         } catch (err) {
