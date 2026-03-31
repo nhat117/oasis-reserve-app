@@ -679,4 +679,9 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Lịch sử thanh toán": "Payment history",
   "Tên khách (tuỳ chọn)": "Customer name (optional)",
   "Nhập thẻ": "Enter card",
+
+  // Receipt & About editor
+  "In hoá đơn": "Print Receipt",
+  "Tự động in hoá đơn cho khách sau khi thanh toán": "Automatically print receipt for customer after payment",
+  "Sử dụng trình soạn thảo bên dưới để chỉnh sửa nội dung trang Về chúng tôi.": "Use the editor below to edit the About Us page content.",
 };

@@ -16,6 +16,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { BookingCalendar } from '@/components/BookingCalendar';
 import { LogoUpload as LogoUploadComponent } from '@/components/LogoUpload';
 import { Textarea } from '@/components/ui/textarea';
+import { TipTapEditor } from '@/components/TipTapEditor';
 import { BookingStats } from '@/components/BookingStats';
 import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone, CreditCard, Square, RotateCcw, BookOpen, ScrollText, Eye, Clock, Check } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -508,6 +509,26 @@ const AdminDashboard = () => {
     },
     onSuccess: () => {
       logActivity('create_sale', `Amount: ${saleAmount}, Method: ${salePaymentMethod}, Customer: ${saleCustomerName || saleCustomerPhone || 'N/A'}`);
+      // Print receipt if enabled
+      if (printReceiptEnabled) {
+        const svc = services?.find(s => s.id === saleServiceId);
+        const addOnDetails = saleAddOns.map(id => {
+          const a = services?.find(s => s.id === id);
+          return a ? { name: a.name, price: a.price } : { name: '', price: 0 };
+        }).filter(a => a.name);
+        printReceipt({
+          amount: parseFloat(saleAmount) || 0,
+          customerName: saleCustomerName,
+          customerPhone: saleCustomerPhone,
+          serviceName: svc?.name || '',
+          addOns: addOnDetails,
+          paymentMethod: salePaymentMethod,
+          discount: saleCouponDiscount ? (saleCouponDiscount.discount_amount || 0) : 0,
+          surcharge: 0,
+          coupon: saleCouponCode || undefined,
+          date: format(new Date(), 'dd/MM/yyyy HH:mm'),
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ['admin-sales'] });
       queryClient.invalidateQueries({ queryKey: ['stats-bookings'] });
       setSaleDialog(false);
@@ -1205,6 +1226,64 @@ const AdminDashboard = () => {
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['discount-codes-enabled'] }); toast({ title: t('Đã cập nhật') }); },
   });
+
+  // Receipt printing
+  const { data: printReceiptEnabled } = useQuery({
+    queryKey: ['print-receipt-enabled'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'print_receipt_enabled').single();
+      if (error) return false;
+      return data.value === 'true';
+    },
+  });
+
+  const togglePrintReceipt = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      requireAdmin();
+      const { error } = await supabase.from('app_settings').upsert({ key: 'print_receipt_enabled', value: String(enabled) });
+      if (error) throw error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['print-receipt-enabled'] }); toast({ title: t('Đã cập nhật') }); },
+  });
+
+  const printReceipt = (sale: { amount: number; customerName: string; customerPhone: string; serviceName: string; addOns: { name: string; price: number }[]; paymentMethod: string; discount?: number; surcharge?: number; coupon?: string; date: string }) => {
+    const win = window.open('', '_blank', 'width=320,height=600');
+    if (!win) return;
+    const addOnLines = sale.addOns.map(a => `<tr><td style="padding:2px 0">&nbsp;&nbsp;${a.name}</td><td style="text-align:right;padding:2px 0">A$ ${a.price.toLocaleString()}</td></tr>`).join('');
+    const subtotal = sale.amount + (sale.discount || 0) - (sale.surcharge || 0);
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt</title><style>
+      body{font-family:'Courier New',monospace;font-size:12px;width:280px;margin:0 auto;padding:16px;color:#000}
+      h2{text-align:center;font-size:14px;margin:0 0 4px}
+      .center{text-align:center}
+      .line{border-top:1px dashed #000;margin:8px 0}
+      table{width:100%;border-collapse:collapse}
+      td{padding:3px 0;vertical-align:top}
+      .right{text-align:right}
+      .bold{font-weight:bold}
+      .total{font-size:14px;font-weight:bold}
+      @media print{body{margin:0;padding:8px}}
+    </style></head><body>
+      <h2>${spaName}</h2>
+      <p class="center" style="font-size:10px;color:#666">${sale.date}</p>
+      <div class="line"></div>
+      ${sale.customerName ? `<p><b>${sale.customerName}</b>${sale.customerPhone ? ` · ${sale.customerPhone}` : ''}</p>` : ''}
+      <div class="line"></div>
+      <table>
+        <tr><td class="bold">${sale.serviceName}</td><td class="right">A$ ${subtotal.toLocaleString()}</td></tr>
+        ${addOnLines}
+        ${(sale.discount || 0) > 0 ? `<tr><td>${sale.coupon ? `Discount (${sale.coupon})` : 'Discount'}</td><td class="right" style="color:#16a34a">-A$ ${(sale.discount || 0).toLocaleString()}</td></tr>` : ''}
+        ${(sale.surcharge || 0) > 0 ? `<tr><td>Card surcharge</td><td class="right">A$ ${(sale.surcharge || 0).toLocaleString()}</td></tr>` : ''}
+      </table>
+      <div class="line"></div>
+      <table><tr><td class="total">TOTAL</td><td class="total right">A$ ${sale.amount.toLocaleString()}</td></tr></table>
+      <p style="margin-top:4px;font-size:10px;color:#666">Paid by: ${sale.paymentMethod === 'card' ? 'Card' : sale.paymentMethod === 'square' ? 'Square' : 'Cash'}</p>
+      <p style="font-size:10px;color:#666">GST included</p>
+      <div class="line"></div>
+      <p class="center" style="font-size:10px;color:#666">Thank you for visiting!</p>
+      <script>window.onload=function(){window.print();}</script>
+    </body></html>`);
+    win.document.close();
+  };
 
   // Delete all data
   const handleDeleteAllData = async () => {
@@ -2549,7 +2628,12 @@ const AdminDashboard = () => {
                           const imgUrl = s.image_path ? supabase.storage.from('service-images').getPublicUrl(s.image_path).data.publicUrl : null;
                           return (
                             <button type="button" key={s.id} className={cn('flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all active:scale-[0.98]', isSelected ? 'border-[#006AFF] bg-[#006AFF]/5' : 'border-border/50 hover:border-border hover:bg-muted/30')} onClick={() => {
-                              if (saleServiceId && saleServiceId !== s.id) {
+                              if (saleServiceId === s.id) {
+                                // Unselect the primary service
+                                setSaleServiceId('');
+                                setSaleAmount('');
+                                setSaleType('booking');
+                              } else if (saleServiceId && saleServiceId !== s.id) {
                                 setSaleAddOns(prev => prev.includes(s.id) ? prev.filter(id => id !== s.id) : [...prev, s.id]);
                               } else {
                                 setSaleType('walkin');
@@ -2586,7 +2670,7 @@ const AdminDashboard = () => {
                   <div className="px-5 py-3.5 border-b border-[#E5E5E5]/40 flex items-center justify-between">
                     <h3 className="text-base font-semibold">{t('Thanh toán hiện tại')} {(saleServiceId || saleAddOns.length > 0) ? <span className="text-muted-foreground font-normal">({1 + saleAddOns.length})</span> : ''}</h3>
                     {(saleServiceId || saleBookingId) && (
-                      <button type="button" className="text-xs text-muted-foreground hover:text-destructive transition-colors" onClick={() => { setSaleBookingId(''); setSaleServiceId(''); setSaleCustomerName(''); setSaleCustomerPhone(''); setSaleAmount(''); setSaleAddOns([]); setSaleCouponCode(''); setSaleCouponDiscount(null); setSaleCouponError(''); setSaleNotes(''); }}>
+                      <button type="button" className="text-xs text-destructive hover:text-destructive/80 font-medium transition-colors" onClick={() => { setSaleBookingId(''); setSaleServiceId(''); setSaleCustomerName(''); setSaleCustomerPhone(''); setSaleAmount(''); setSaleAddOns([]); setSaleCouponCode(''); setSaleCouponDiscount(null); setSaleCouponError(''); setSaleNotes(''); }}>
                         {t('Xoá')}
                       </button>
                     )}
@@ -4295,6 +4379,17 @@ const AdminDashboard = () => {
                         <span className="text-xs text-muted-foreground">{t('Bật/Tắt')}</span>
                         <Switch checked={discountCodesEnabled === true} onCheckedChange={(v) => toggleDiscountCodes.mutate(v)} disabled={toggleDiscountCodes.isPending} />
                       </div>
+                      <Button size="sm" variant="outline" onClick={() => {
+                        if (!discountCodes?.length) return;
+                        const header = 'Code,Type,Discount %,Discount Amount,Valid From,Valid To,Max Uses,Used,Active\n';
+                        const rows = discountCodes.map(dc => `${dc.code},${Number(dc.discount_amount) > 0 && Number(dc.discount_percent) === 0 ? 'Gift Card' : 'Discount'},${dc.discount_percent},${dc.discount_amount},${dc.valid_from || ''},${dc.valid_to || ''},${dc.max_uses || ''},${dc.current_uses || 0},${dc.is_active}`).join('\n');
+                        const blob = new Blob([header + rows], { type: 'text/csv' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a'); a.href = url; a.download = `gift-cards-${format(new Date(), 'yyyy-MM-dd')}.csv`; a.click();
+                        URL.revokeObjectURL(url);
+                      }} disabled={!discountCodes?.length}>
+                        <Download className="h-3.5 w-3.5 mr-1" /> CSV
+                      </Button>
                       <Button size="sm" variant="outline" onClick={() => setGiftCardDialog(true)}>
                         <Crown className="h-3.5 w-3.5 mr-1" /> {t('Phiếu quà tặng')}
                       </Button>
@@ -4471,20 +4566,8 @@ const AdminDashboard = () => {
                   <DialogTitle>{t('Về chúng tôi')}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-3 pt-2">
-                  <p className="text-xs text-muted-foreground">{t('Nhập HTML để hiển thị trên trang Về chúng tôi. Hỗ trợ thẻ h2, p, ul, li, strong, em.')}</p>
-                  <textarea
-                    className="w-full min-h-[300px] rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    value={aboutContent}
-                    onChange={(e) => setAboutContent(e.target.value)}
-                    placeholder="<h2>Heading</h2>\n<p>Content here...</p>"
-                  />
-                  <div className="border rounded-md p-4 max-h-[200px] overflow-y-auto">
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">{t('Xem trước')}</p>
-                    <div
-                      className="prose prose-sm max-w-none text-muted-foreground [&_h2]:text-base [&_h2]:font-medium [&_h2]:text-foreground [&_h2]:mb-2 [&_h2]:mt-4 [&_p]:leading-relaxed"
-                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(aboutContent, { ALLOWED_TAGS: ['h2', 'h3', 'p', 'ul', 'ol', 'li', 'strong', 'em', 'a', 'br'], ALLOWED_ATTR: ['href', 'target', 'rel'] }) }}
-                    />
-                  </div>
+                  <p className="text-xs text-muted-foreground">{t('Sử dụng trình soạn thảo bên dưới để chỉnh sửa nội dung trang Về chúng tôi.')}</p>
+                  <TipTapEditor content={aboutContent} onChange={setAboutContent} />
                   <Button size="sm" onClick={() => { saveAboutContent.mutate(); setSettingsModal(null); }} disabled={saveAboutContent.isPending}>
                     {saveAboutContent.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : t('Lưu nội dung')}
                   </Button>
@@ -4760,6 +4843,17 @@ const AdminDashboard = () => {
                       <Button size="sm" onClick={() => saveCardSurcharge.mutate()} disabled={saveCardSurcharge.isPending}>
                         {saveCardSurcharge.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : t('Lưu')}
                       </Button>
+                    </div>
+                  </div>
+
+                  {/* ── Print Receipt Toggle ── */}
+                  <div className="border-t border-border/40 pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-sm">{t('In hoá đơn')}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{t('Tự động in hoá đơn cho khách sau khi thanh toán')}</p>
+                      </div>
+                      <Switch checked={printReceiptEnabled === true} onCheckedChange={(v) => togglePrintReceipt.mutate(v)} disabled={togglePrintReceipt.isPending} />
                     </div>
                   </div>
 

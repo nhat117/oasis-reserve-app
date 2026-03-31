@@ -41,7 +41,7 @@ const About = () => {
         {aboutHtml ? (
           <div
             className="prose prose-sm max-w-none text-muted-foreground [&_h2]:text-base [&_h2]:font-medium [&_h2]:text-foreground [&_h2]:mb-2 [&_h2]:mt-6 [&_p]:leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(aboutHtml, { ALLOWED_TAGS: ['h2', 'h3', 'p', 'ul', 'ol', 'li', 'strong', 'em', 'a', 'br'], ALLOWED_ATTR: ['href', 'target', 'rel'] }) }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(aboutHtml, { ALLOWED_TAGS: ['h2', 'h3', 'p', 'ul', 'ol', 'li', 'strong', 'em', 'u', 'a', 'br'], ALLOWED_ATTR: ['href', 'target', 'rel'] }) }}
           />
         ) : (
           <div className="text-sm text-muted-foreground space-y-6 leading-relaxed">
