@@ -51,5 +51,8 @@ verify_jwt = true
 [functions.delete-all-data]
 verify_jwt = true
 
+[functions.create-square-payment]
+verify_jwt = false
+
 [functions.create-stripe-refund]
 verify_jwt = true

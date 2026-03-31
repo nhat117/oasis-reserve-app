@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, ArrowRight, CalendarIcon, Check, Loader2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarIcon, Check, Loader2, CreditCard } from 'lucide-react';
 import { format, addMinutes, isBefore, isToday, startOfDay } from 'date-fns';
 import { vi as viLocale, enAU } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useI18n } from '@/hooks/useI18n';
 import Header from '@/components/Header';
 import { bookingCustomerSchema, validateField, escapeHtml } from '@/lib/validation';
+import { SquareCardForm } from '@/components/SquareCardForm';
 
 const Booking = () => {
   const [searchParams] = useSearchParams();
@@ -36,6 +37,9 @@ const Booking = () => {
   const [assignedTherapistName, setAssignedTherapistName] = useState('');
   const [selectedAddOns, setSelectedAddOns] = useState<string[]>([]);
   const [redirectingToPayment, setRedirectingToPayment] = useState(false);
+  const [showSquarePayment, setShowSquarePayment] = useState(false);
+  const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
+  const [squarePaymentProcessing, setSquarePaymentProcessing] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
 
@@ -62,6 +66,25 @@ const Booking = () => {
       return data?.value === 'true';
     },
   });
+
+  // Check if Square online payment is enabled and get config
+  const { data: squareConfig } = useQuery({
+    queryKey: ['square-online-config-public'],
+    queryFn: async () => {
+      const { data } = await supabase.from('app_settings').select('key, value')
+        .in('key', ['square_online_enabled', 'square_application_id', 'square_location_id', 'square_environment']);
+      const map: Record<string, string> = {};
+      data?.forEach(r => { map[r.key] = r.value; });
+      return {
+        enabled: map['square_online_enabled'] === 'true',
+        applicationId: map['square_application_id'] || '',
+        locationId: map['square_location_id'] || '',
+        environment: (map['square_environment'] || 'sandbox') as 'sandbox' | 'production',
+      };
+    },
+  });
+
+  const squareOnlineEnabled = squareConfig?.enabled && !!squareConfig?.applicationId && !!squareConfig?.locationId;
 
   const { data: services } = useQuery({
     queryKey: ['services'],
@@ -308,8 +331,12 @@ const Booking = () => {
     if (error) {
       toast({ title: t('Lỗi'), description: t('Không thể đặt lịch. Vui lòng thử lại.'), variant: 'destructive' });
     } else {
-      // If Stripe is configured and there's a price, redirect to payment
-      if (stripeEnabled && totalPrice > 0) {
+      // Payment priority: Square online > Stripe > free confirmation
+      if (squareOnlineEnabled && totalPrice > 0) {
+        // Show Square card form inline
+        setPendingBookingId(bookingId);
+        setShowSquarePayment(true);
+      } else if (stripeEnabled && totalPrice > 0) {
         setRedirectingToPayment(true);
         try {
           const origin = window.location.origin;
@@ -327,7 +354,6 @@ const Booking = () => {
 
           if (checkoutError || !checkoutData?.url) {
             console.error('Stripe checkout error:', checkoutError || checkoutData);
-            // Fall back to normal confirmation if payment fails
             setRedirectingToPayment(false);
             setBookingComplete(true);
             toast({ title: t('Đặt lịch thành công'), description: t('Nhưng không thể chuyển đến trang thanh toán. Vui lòng thanh toán tại quầy.') });
@@ -390,11 +416,93 @@ const Booking = () => {
     t('Xác nhận'),
   ];
 
+  const handleSquareTokenize = async (nonce: string) => {
+    if (!pendingBookingId) return;
+    setSquarePaymentProcessing(true);
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('create-square-payment', {
+        body: {
+          source_nonce: nonce,
+          amount: totalPrice,
+          booking_id: pendingBookingId,
+          customer_name: customerName.trim(),
+          note: `Booking: ${currentService?.name || 'Service'}`,
+        },
+      });
+
+      if (fnError || !data?.payment_id) {
+        console.error('Square payment error:', fnError || data);
+        toast({ title: t('Lỗi thanh toán'), description: t('Không thể xử lý thanh toán. Vui lòng thử lại hoặc thanh toán tại quầy.'), variant: 'destructive' });
+        setSquarePaymentProcessing(false);
+      } else {
+        setShowSquarePayment(false);
+        setBookingComplete(true);
+        toast({ title: t('Thanh toán thành công'), description: t('Đã thanh toán qua thẻ.') });
+      }
+    } catch (err) {
+      console.error('Square payment failed:', err);
+      toast({ title: t('Lỗi thanh toán'), description: t('Không thể xử lý thanh toán. Vui lòng thử lại hoặc thanh toán tại quầy.'), variant: 'destructive' });
+      setSquarePaymentProcessing(false);
+    }
+  };
+
+  const handleSquareCancel = () => {
+    setShowSquarePayment(false);
+    setBookingComplete(true);
+    toast({ title: t('Đặt lịch thành công'), description: t('Bạn có thể thanh toán tại quầy.') });
+  };
+
+  if (showSquarePayment && squareConfig) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="max-w-md w-full space-y-6">
+          <div className="text-center space-y-2">
+            <div className="mx-auto w-12 h-12 rounded-full border-2 border-primary/20 flex items-center justify-center mb-4">
+              <CreditCard className="h-5 w-5 text-primary" />
+            </div>
+            <h1 className="text-2xl font-light">{t('Thanh toán')}</h1>
+            <p className="text-muted-foreground text-sm">{t('Hoàn tất thanh toán cho đặt lịch của bạn')}</p>
+          </div>
+
+          <div className="border border-border/60 p-4 space-y-2 text-sm">
+            <p className="flex justify-between"><span className="text-muted-foreground">{t('Dịch vụ')}</span> <span className="font-light">{currentService?.name}</span></p>
+            {addOnServices.length > 0 && (
+              <>
+                <div className="h-px bg-border/40" />
+                <p className="flex justify-between"><span className="text-muted-foreground">{t('Dịch vụ thêm')}</span> <span className="font-light text-right">{addOnServices.map(s => s.name).join(', ')}</span></p>
+              </>
+            )}
+            <div className="h-px bg-border/40" />
+            <p className="flex justify-between font-medium"><span>{t('Tổng cộng')}</span> <span>{formatPrice(totalPrice)}</span></p>
+          </div>
+
+          <SquareCardForm
+            applicationId={squareConfig.applicationId}
+            locationId={squareConfig.locationId}
+            environment={squareConfig.environment}
+            amount={totalPrice}
+            onTokenize={handleSquareTokenize}
+            onCancel={handleSquareCancel}
+            disabled={squarePaymentProcessing}
+            labels={{
+              pay: t('Thanh toán') + ` ${formatPrice(totalPrice)}`,
+              cancel: t('Thanh toán sau'),
+              loading: t('Đang tải biểu mẫu thanh toán...'),
+              processing: t('Đang xử lý...'),
+              enterCard: t('Nhập thông tin thẻ'),
+              tapToPay: t('Thẻ, Apple Pay & Google Pay'),
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
+
   if (redirectingToPayment) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="max-w-md w-full text-center space-y-6">
-          <Loader2 className="h-8 w-8 animate-spin text-[#6b4c3b] mx-auto" />
+          <Loader2 className="h-8 w-8 animate-spin text-[#006AFF] mx-auto" />
           <div className="space-y-2">
             <h1 className="text-2xl font-light">{t('Đang chuyển đến trang thanh toán...')}</h1>
             <p className="text-muted-foreground text-sm">{t('Vui lòng chờ trong giây lát')}</p>

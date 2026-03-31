@@ -17,7 +17,7 @@ import { BookingCalendar } from '@/components/BookingCalendar';
 import { LogoUpload as LogoUploadComponent } from '@/components/LogoUpload';
 import { Textarea } from '@/components/ui/textarea';
 import { BookingStats } from '@/components/BookingStats';
-import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone, CreditCard, Square, RotateCcw, BookOpen, ScrollText, Eye } from 'lucide-react';
+import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone, CreditCard, Square, RotateCcw, BookOpen, ScrollText, Eye, Clock, Check } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ALL_I18N_KEYS } from '@/lib/i18n-keys';
 import { Switch } from '@/components/ui/switch';
@@ -36,6 +36,7 @@ import { useI18n, LanguageSwitcher } from '@/hooks/useI18n';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useLoadMore } from '@/hooks/useLoadMore';
 import DOMPurify from 'dompurify';
+import { SquareCardForm } from '@/components/SquareCardForm';
 
 const CURRENCIES = ['VND', 'USD', 'EUR', 'AUD'] as const;
 
@@ -189,6 +190,9 @@ const AdminDashboard = () => {
   const [saleCouponDiscount, setSaleCouponDiscount] = useState<{ percent: number; amount: number } | null>(null);
   const [saleCouponError, setSaleCouponError] = useState('');
   const [saleCouponLoading, setSaleCouponLoading] = useState(false);
+  const [saleServiceSearch, setSaleServiceSearch] = useState('');
+  const [saleAddOnSearch, setSaleAddOnSearch] = useState('');
+  const [saleBookingSearch, setSaleBookingSearch] = useState('');
 
   // Create admin state
   const [newAdminEmail, setNewAdminEmail] = useState('');
@@ -313,6 +317,10 @@ const AdminDashboard = () => {
   const [squareLocationId, setSquareLocationId] = useState('');
   const [squareEnvironment, setSquareEnvironment] = useState('sandbox');
   const [squareTerminalEnabled, setSquareTerminalEnabled] = useState(false);
+  const [squareApplicationId, setSquareApplicationId] = useState('');
+  const [squareOnlineEnabled, setSquareOnlineEnabled] = useState(false);
+  const [squareDeviceId, setSquareDeviceId] = useState('');
+  const [showSquareCardForm, setShowSquareCardForm] = useState(false);
 
   // Payments modal sub-section expansion
   const [paymentSection, setPaymentSection] = useState<'stripe' | 'square' | null>(null);
@@ -462,8 +470,8 @@ const AdminDashboard = () => {
         if (dc) await supabase.from('discount_codes').update({ current_uses: (dc.current_uses || 0) + 1 }).eq('id', dc.id);
       }
 
-      // If Square Terminal, trigger terminal checkout
-      if (salePaymentMethod === 'square' && saleData?.id) {
+      // If Square Terminal (not card form), trigger terminal checkout
+      if (salePaymentMethod === 'square' && !showSquareCardForm && saleData?.id) {
         setSquareCheckoutPending(true);
         const { error: sqErr } = await supabase.functions.invoke('create-square-terminal-checkout', {
           body: {
@@ -498,6 +506,7 @@ const AdminDashboard = () => {
       setSaleCouponCode('');
       setSaleCouponDiscount(null);
       setSaleCouponError('');
+      setShowSquareCardForm(false);
       queryClient.invalidateQueries({ queryKey: ['discount-codes'] });
       toast({ title: t('Đã ghi nhận thanh toán') });
     },
@@ -695,7 +704,7 @@ const AdminDashboard = () => {
     queryKey: ['square-credentials'],
     queryFn: async () => {
       const { data } = await supabase.from('app_settings').select('key, value')
-        .in('key', ['square_access_token', 'square_location_id', 'square_environment', 'square_terminal_enabled']);
+        .in('key', ['square_access_token', 'square_location_id', 'square_environment', 'square_terminal_enabled', 'square_application_id', 'square_online_enabled', 'square_device_id']);
       const map: Record<string, string> = {};
       data?.forEach((r: any) => { map[r.key] = r.value; });
       return map;
@@ -708,6 +717,9 @@ const AdminDashboard = () => {
       if (squareSettings.square_location_id) setSquareLocationId(squareSettings.square_location_id);
       if (squareSettings.square_environment) setSquareEnvironment(squareSettings.square_environment);
       setSquareTerminalEnabled(squareSettings.square_terminal_enabled === 'true');
+      if (squareSettings.square_application_id) setSquareApplicationId(squareSettings.square_application_id);
+      setSquareOnlineEnabled(squareSettings.square_online_enabled === 'true');
+      if (squareSettings.square_device_id) setSquareDeviceId(squareSettings.square_device_id);
     }
   }, [squareSettings]);
 
@@ -719,6 +731,9 @@ const AdminDashboard = () => {
         { key: 'square_location_id', value: squareLocationId.trim() },
         { key: 'square_environment', value: squareEnvironment },
         { key: 'square_terminal_enabled', value: String(squareTerminalEnabled) },
+        { key: 'square_application_id', value: squareApplicationId.trim() },
+        { key: 'square_online_enabled', value: String(squareOnlineEnabled) },
+        { key: 'square_device_id', value: squareDeviceId.trim() },
       ];
       for (const s of settings) {
         if (s.value) {
@@ -2403,109 +2418,150 @@ const AdminDashboard = () => {
                   <h2 className="text-xl font-semibold text-[#1B1B1B] tracking-tight">{t('Thanh toán')}</h2>
                   <p className="text-sm text-muted-foreground mt-0.5">{t('Quản lý giao dịch và doanh thu')}</p>
                 </div>
-                <Dialog open={saleDialog} onOpenChange={(open) => { setSaleDialog(open); if (!open) { setSaleType('booking'); setSaleBookingId(''); setSaleServiceId(''); setSaleCustomerName(''); setSaleCustomerPhone(''); setSaleAmount(''); setSalePaymentMethod('cash'); setSaleNotes(''); setSaleAddOns([]); setSaleCouponCode(''); setSaleCouponDiscount(null); setSaleCouponError(''); } }}>
+                <Dialog open={saleDialog} onOpenChange={(open) => { setSaleDialog(open); if (!open) { setSaleType('booking'); setSaleBookingId(''); setSaleServiceId(''); setSaleCustomerName(''); setSaleCustomerPhone(''); setSaleAmount(''); setSalePaymentMethod('cash'); setSaleNotes(''); setSaleAddOns([]); setSaleCouponCode(''); setSaleCouponDiscount(null); setSaleCouponError(''); setSaleServiceSearch(''); setSaleAddOnSearch(''); setSaleBookingSearch(''); } }}>
                   <DialogTrigger asChild>
                     <Button size="sm" className="w-full sm:w-auto h-9 px-4"><Plus className="h-4 w-4 mr-1.5" /> {t('Tạo thanh toán')}</Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[460px] max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                      <DialogTitle className="text-[#1B1B1B]">{t('Ghi nhận thanh toán')}</DialogTitle>
-                      <DialogDescription className="text-muted-foreground/60">{t('Ghi nhận thanh toán cho dịch vụ')}</DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-5 pt-1">
+                  <DialogContent className="max-w-[100vw] sm:max-w-[680px] h-[100dvh] sm:h-auto sm:max-h-[92vh] p-0 gap-0 rounded-none sm:rounded-xl overflow-hidden">
+                    {/* Sticky header */}
+                    <div className="sticky top-0 z-10 bg-background border-b border-border/60 px-5 py-4">
+                      <DialogHeader>
+                        <DialogTitle className="text-[#1B1B1B] text-lg">{t('Ghi nhận thanh toán')}</DialogTitle>
+                        <DialogDescription className="text-muted-foreground/60 text-sm">{t('Ghi nhận thanh toán cho dịch vụ')}</DialogDescription>
+                      </DialogHeader>
+                    </div>
+
+                    {/* Scrollable body */}
+                    <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
                       {/* Sale type toggle */}
                       <div>
-                        <Label>{t('Loại')}</Label>
-                        <div className="flex gap-2 mt-1">
-                          <Button type="button" variant={saleType === 'booking' ? 'default' : 'outline'} className="flex-1" onClick={() => { setSaleType('booking'); setSaleServiceId(''); setSaleCustomerName(''); }}>
-                            {t('Lịch hẹn')}
-                          </Button>
-                          <Button type="button" variant={saleType === 'walkin' ? 'default' : 'outline'} className="flex-1" onClick={() => { setSaleType('walkin'); setSaleBookingId(''); }}>
-                            {t('Khách vãng lai')}
-                          </Button>
+                        <Label className="text-sm font-medium">{t('Loại')}</Label>
+                        <div className="grid grid-cols-2 gap-3 mt-2">
+                          <button type="button" className={cn('flex items-center gap-3 p-4 rounded-xl border-2 transition-all active:scale-[0.98]', saleType === 'booking' ? 'border-[#006AFF] bg-[#006AFF]/5' : 'border-border hover:border-border/80 hover:bg-muted/30')} onClick={() => { setSaleType('booking'); setSaleServiceId(''); setSaleCustomerName(''); }}>
+                            <CalendarDays className={cn('h-5 w-5 shrink-0', saleType === 'booking' ? 'text-[#006AFF]' : 'text-muted-foreground')} />
+                            <span className={cn('text-sm font-medium', saleType === 'booking' ? 'text-[#006AFF]' : 'text-foreground')}>{t('Lịch hẹn')}</span>
+                          </button>
+                          <button type="button" className={cn('flex items-center gap-3 p-4 rounded-xl border-2 transition-all active:scale-[0.98]', saleType === 'walkin' ? 'border-[#006AFF] bg-[#006AFF]/5' : 'border-border hover:border-border/80 hover:bg-muted/30')} onClick={() => { setSaleType('walkin'); setSaleBookingId(''); }}>
+                            <Users className={cn('h-5 w-5 shrink-0', saleType === 'walkin' ? 'text-[#006AFF]' : 'text-muted-foreground')} />
+                            <span className={cn('text-sm font-medium', saleType === 'walkin' ? 'text-[#006AFF]' : 'text-foreground')}>{t('Khách vãng lai')}</span>
+                          </button>
                         </div>
                       </div>
 
                       {saleType === 'booking' ? (
-                        <div>
-                          <Label>{t('Chọn lịch hẹn')}</Label>
-                          <Select value={saleBookingId} onValueChange={(v) => {
-                            setSaleBookingId(v);
-                            if (v && v !== 'none') {
-                              const booking = bookings?.find(b => b.id === v);
-                              if (booking) {
-                                setSaleAmount(String((booking as any).services?.price || 0));
-                                setSaleCustomerPhone(booking.customer_phone || '');
-                                setSaleCustomerName(booking.customer_name || '');
-                              }
-                            }
-                          }}>
-                            <SelectTrigger className="mt-1"><SelectValue placeholder={t('Chọn lịch hẹn')} /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">{t('Không liên kết')}</SelectItem>
-                              {bookings?.filter(b => b.status === 'confirmed').slice(0, 20).map(b => (
-                                <SelectItem key={b.id} value={b.id}>
-                                  {b.booking_date} {b.start_time?.slice(0, 5)} — {b.customer_name} ({(b as any).services?.name})
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {/* Phone for booking type */}
+                        <div className="space-y-4">
                           <div>
-                            <Label>{t('Số điện thoại')}</Label>
-                            <Input value={saleCustomerPhone} onChange={e => setSaleCustomerPhone(e.target.value)} className="mt-1" placeholder="04xxxxxxxx" />
+                            <Label className="text-sm font-medium">{t('Chọn lịch hẹn')}</Label>
+                            {/* Search bookings */}
+                            <div className="relative mt-2">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
+                              <Input value={saleBookingSearch} onChange={e => setSaleBookingSearch(e.target.value)} className="pl-10 h-11 text-base" placeholder={t('Tìm theo tên, dịch vụ...')} />
+                            </div>
+                            {/* Booking cards */}
+                            <div className="mt-3 space-y-2 max-h-[240px] overflow-y-auto">
+                              <button type="button" className={cn('w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all active:scale-[0.98]', (!saleBookingId || saleBookingId === 'none') ? 'border-[#006AFF] bg-[#006AFF]/5' : 'border-border hover:bg-muted/30')} onClick={() => setSaleBookingId('none')}>
+                                <X className="h-4 w-4 text-muted-foreground shrink-0" />
+                                <span className="text-sm text-muted-foreground">{t('Không liên kết')}</span>
+                              </button>
+                              {bookings?.filter(b => b.status === 'confirmed').filter(b => {
+                                if (!saleBookingSearch.trim()) return true;
+                                const q = saleBookingSearch.toLowerCase();
+                                return (b.customer_name || '').toLowerCase().includes(q) || ((b as any).services?.name || '').toLowerCase().includes(q) || (b.booking_date || '').includes(q);
+                              }).slice(0, 20).map(b => (
+                                <button type="button" key={b.id} className={cn('w-full flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all active:scale-[0.98]', saleBookingId === b.id ? 'border-[#006AFF] bg-[#006AFF]/5' : 'border-border hover:bg-muted/30')} onClick={() => {
+                                  setSaleBookingId(b.id);
+                                  setSaleAmount(String((b as any).services?.price || 0));
+                                  setSaleCustomerPhone(b.customer_phone || '');
+                                  setSaleCustomerName(b.customer_name || '');
+                                }}>
+                                  {saleBookingId === b.id && <Check className="h-4 w-4 text-[#006AFF] shrink-0" />}
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">{b.customer_name}</p>
+                                    <p className="text-xs text-muted-foreground truncate">{(b as any).services?.name}</p>
+                                  </div>
+                                  <div className="text-right shrink-0">
+                                    <p className="text-xs font-medium">{b.booking_date}</p>
+                                    <p className="text-xs text-muted-foreground">{b.start_time?.slice(0, 5)}</p>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium">{t('Số điện thoại')}</Label>
+                            <Input value={saleCustomerPhone} onChange={e => setSaleCustomerPhone(e.target.value)} className="mt-1.5 h-11 text-base" placeholder="04xxxxxxxx" />
                           </div>
                         </div>
                       ) : (
-                        <>
+                        <div className="space-y-4">
+                          {/* Service selection as cards with search */}
                           <div>
-                            <Label>{t('Dịch vụ')}</Label>
-                            <Select value={saleServiceId} onValueChange={(v) => {
-                              setSaleServiceId(v);
-                              const svc = services?.find(s => s.id === v);
-                              if (svc) setSaleAmount(String(svc.price));
-                            }}>
-                              <SelectTrigger className="mt-1"><SelectValue placeholder={t('Chọn dịch vụ')} /></SelectTrigger>
-                              <SelectContent>
-                                {services?.filter(s => s.is_active).map(s => (
-                                  <SelectItem key={s.id} value={s.id}>{s.name} — {formatPrice(s.price)}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <Label className="text-sm font-medium">{t('Dịch vụ')}</Label>
+                            <div className="relative mt-2">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
+                              <Input value={saleServiceSearch} onChange={e => setSaleServiceSearch(e.target.value)} className="pl-10 h-11 text-base" placeholder={t('Tìm dịch vụ...')} />
+                            </div>
+                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[280px] overflow-y-auto">
+                              {services?.filter(s => s.is_active).filter(s => {
+                                if (!saleServiceSearch.trim()) return true;
+                                return s.name.toLowerCase().includes(saleServiceSearch.toLowerCase());
+                              }).map(s => (
+                                <button type="button" key={s.id} className={cn('flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all active:scale-[0.98]', saleServiceId === s.id ? 'border-[#006AFF] bg-[#006AFF]/5' : 'border-border hover:bg-muted/30')} onClick={() => { setSaleServiceId(s.id); setSaleAmount(String(s.price)); }}>
+                                  <div className={cn('flex items-center justify-center h-10 w-10 rounded-lg shrink-0', saleServiceId === s.id ? 'bg-[#006AFF]/10' : 'bg-muted')}>
+                                    {saleServiceId === s.id ? <Check className="h-5 w-5 text-[#006AFF]" /> : <Scissors className="h-4 w-4 text-muted-foreground" />}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">{s.name}</p>
+                                    <p className="text-xs text-muted-foreground">{s.duration ? `${s.duration} min` : ''}</p>
+                                  </div>
+                                  <span className="text-sm font-semibold shrink-0">{formatPrice(s.price)}</span>
+                                </button>
+                              ))}
+                            </div>
                           </div>
                           <div>
-                            <Label>{t('Tên khách hàng')} ({t('tuỳ chọn')})</Label>
-                            <Input value={saleCustomerName} onChange={e => setSaleCustomerName(e.target.value)} className="mt-1" placeholder={t('Nhập tên khách')} />
+                            <Label className="text-sm font-medium">{t('Tên khách hàng')} ({t('tuỳ chọn')})</Label>
+                            <Input value={saleCustomerName} onChange={e => setSaleCustomerName(e.target.value)} className="mt-1.5 h-11 text-base" placeholder={t('Nhập tên khách')} />
                           </div>
                           <div>
-                            <Label>{t('Số điện thoại')}</Label>
-                            <Input value={saleCustomerPhone} onChange={e => setSaleCustomerPhone(e.target.value)} className="mt-1" placeholder="04xxxxxxxx" />
+                            <Label className="text-sm font-medium">{t('Số điện thoại')}</Label>
+                            <Input value={saleCustomerPhone} onChange={e => setSaleCustomerPhone(e.target.value)} className="mt-1.5 h-11 text-base" placeholder="04xxxxxxxx" />
                           </div>
-                        </>
+                        </div>
                       )}
 
-                      {/* Add-on services */}
+                      {/* Add-on services as searchable cards */}
                       <div>
-                        <Label>{t('Dịch vụ thêm')}</Label>
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          {services?.filter(s => s.is_active).map(s => {
+                        <Label className="text-sm font-medium">{t('Dịch vụ thêm')}</Label>
+                        <div className="relative mt-2">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
+                          <Input value={saleAddOnSearch} onChange={e => setSaleAddOnSearch(e.target.value)} className="pl-10 h-11 text-base" placeholder={t('Tìm dịch vụ thêm...')} />
+                        </div>
+                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[240px] overflow-y-auto">
+                          {services?.filter(s => s.is_active).filter(s => {
+                            if (!saleAddOnSearch.trim()) return true;
+                            return s.name.toLowerCase().includes(saleAddOnSearch.toLowerCase());
+                          }).map(s => {
                             const isSelected = saleAddOns.includes(s.id);
                             return (
-                              <Button
-                                key={s.id}
-                                type="button"
-                                size="sm"
-                                variant={isSelected ? 'default' : 'outline'}
-                                onClick={() => setSaleAddOns(prev => isSelected ? prev.filter(id => id !== s.id) : [...prev, s.id])}
-                              >
-                                {s.name} +{formatPrice(s.price)}
-                              </Button>
+                              <button type="button" key={s.id} className={cn('flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all active:scale-[0.98]', isSelected ? 'border-[#006AFF] bg-[#006AFF]/5' : 'border-border hover:bg-muted/30')} onClick={() => setSaleAddOns(prev => isSelected ? prev.filter(id => id !== s.id) : [...prev, s.id])}>
+                                <div className={cn('flex items-center justify-center h-10 w-10 rounded-lg shrink-0', isSelected ? 'bg-[#006AFF]/10' : 'bg-muted')}>
+                                  {isSelected ? <Check className="h-5 w-5 text-[#006AFF]" /> : <Plus className="h-4 w-4 text-muted-foreground" />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium truncate">{s.name}</p>
+                                </div>
+                                <span className="text-sm font-semibold shrink-0">+{formatPrice(s.price)}</span>
+                              </button>
                             );
                           })}
                         </div>
                         {saleAddOns.length > 0 && (
-                          <div className="mt-2 text-sm text-muted-foreground">
-                            {t('Tổng thêm')}: {formatPrice(saleAddOns.reduce((sum, id) => sum + (services?.find(s => s.id === id)?.price || 0), 0))}
+                          <div className="mt-3 p-3 bg-[#006AFF]/5 border border-[#006AFF]/20 rounded-xl text-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="text-muted-foreground">{t('Tổng thêm')} ({saleAddOns.length})</span>
+                              <span className="font-semibold">{formatPrice(saleAddOns.reduce((sum, id) => sum + (services?.find(s => s.id === id)?.price || 0), 0))}</span>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -2513,30 +2569,30 @@ const AdminDashboard = () => {
                       {/* Coupon code */}
                       {discountCodesEnabled && (
                         <div>
-                          <Label>{t('Mã giảm giá / Phiếu quà tặng')}</Label>
-                          <div className="flex gap-2 mt-1">
+                          <Label className="text-sm font-medium">{t('Mã giảm giá / Phiếu quà tặng')}</Label>
+                          <div className="flex gap-2 mt-2">
                             <Input
                               value={saleCouponCode}
                               onChange={e => { setSaleCouponCode(e.target.value.toUpperCase()); setSaleCouponDiscount(null); setSaleCouponError(''); }}
-                              className="flex-1 font-mono bg-[#F5F5F5] border-[#E5E5E5]/60"
+                              className="flex-1 font-mono bg-[#F5F5F5] border-[#E5E5E5]/60 h-11 text-base"
                               placeholder="WELCOME10"
                             />
-                            <Button type="button" variant="outline" size="sm" onClick={applyCoupon} disabled={!saleCouponCode.trim() || saleCouponLoading}>
-                              {saleCouponLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t('Áp dụng')}
+                            <Button type="button" variant="outline" className="h-11 px-5" onClick={applyCoupon} disabled={!saleCouponCode.trim() || saleCouponLoading}>
+                              {saleCouponLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : t('Áp dụng')}
                             </Button>
                           </div>
-                          {saleCouponError && <p className="text-xs text-destructive mt-1">{saleCouponError}</p>}
+                          {saleCouponError && <p className="text-xs text-destructive mt-1.5">{saleCouponError}</p>}
                           {saleCouponDiscount && (
-                            <div className="mt-1.5 flex items-center gap-2">
-                              <Badge variant="secondary" className="bg-green-50 text-green-700 border-green-200">
-                                <Tag className="h-3 w-3 mr-1" />
+                            <div className="mt-2 flex items-center gap-2">
+                              <Badge variant="secondary" className="bg-green-50 text-green-700 border-green-200 h-7 text-sm">
+                                <Tag className="h-3.5 w-3.5 mr-1" />
                                 {saleCouponDiscount.percent > 0 && `${saleCouponDiscount.percent}%`}
                                 {saleCouponDiscount.percent > 0 && saleCouponDiscount.amount > 0 && ' + '}
                                 {saleCouponDiscount.amount > 0 && `A$ ${saleCouponDiscount.amount}`}
                                 {' '}{t('giảm')}
                               </Badge>
-                              <button type="button" className="text-xs text-muted-foreground hover:text-destructive" onClick={() => { setSaleCouponCode(''); setSaleCouponDiscount(null); setSaleCouponError(''); }}>
-                                <X className="h-3.5 w-3.5" />
+                              <button type="button" className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors" onClick={() => { setSaleCouponCode(''); setSaleCouponDiscount(null); setSaleCouponError(''); }}>
+                                <X className="h-4 w-4" />
                               </button>
                             </div>
                           )}
@@ -2544,24 +2600,85 @@ const AdminDashboard = () => {
                       )}
 
                       <div>
-                        <Label>{t('Số tiền (AUD)')}</Label>
-                        <Input type="number" value={saleAmount} onChange={e => setSaleAmount(e.target.value)} className="mt-1" placeholder="0" />
+                        <Label className="text-sm font-medium">{t('Số tiền (AUD)')}</Label>
+                        <Input type="number" value={saleAmount} onChange={e => setSaleAmount(e.target.value)} className="mt-1.5 h-12 text-lg font-semibold" placeholder="0.00" />
                       </div>
+
+                      {/* Payment method */}
                       <div>
-                        <Label>{t('Phương thức thanh toán')}</Label>
-                        <div className="flex gap-2 mt-1">
-                          <Button type="button" variant={salePaymentMethod === 'cash' ? 'default' : 'outline'} className="flex-1" onClick={() => setSalePaymentMethod('cash')}>
-                            {t('Tiền mặt')}
-                          </Button>
-                          <Button type="button" variant={salePaymentMethod === 'card' ? 'default' : 'outline'} className="flex-1" onClick={() => setSalePaymentMethod('card')}>
-                            {t('Thẻ')}
-                          </Button>
-                          {squareTerminalEnabled && squareSettings?.square_access_token && (
-                            <Button type="button" variant={salePaymentMethod === 'square' ? 'default' : 'outline'} className="flex-1" onClick={() => setSalePaymentMethod('square')}>
-                              Square
-                            </Button>
+                        <Label className="text-sm font-medium">{t('Phương thức thanh toán')}</Label>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-2">
+                          <button type="button" className={cn('flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all active:scale-[0.98]', salePaymentMethod === 'cash' ? 'border-[#006AFF] bg-[#006AFF]/5' : 'border-border hover:bg-muted/30')} onClick={() => setSalePaymentMethod('cash')}>
+                            <DollarSign className={cn('h-6 w-6', salePaymentMethod === 'cash' ? 'text-[#006AFF]' : 'text-muted-foreground')} />
+                            <span className={cn('text-sm font-medium', salePaymentMethod === 'cash' ? 'text-[#006AFF]' : 'text-foreground')}>{t('Tiền mặt')}</span>
+                          </button>
+                          <button type="button" className={cn('flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all active:scale-[0.98]', salePaymentMethod === 'card' ? 'border-[#006AFF] bg-[#006AFF]/5' : 'border-border hover:bg-muted/30')} onClick={() => setSalePaymentMethod('card')}>
+                            <CreditCard className={cn('h-6 w-6', salePaymentMethod === 'card' ? 'text-[#006AFF]' : 'text-muted-foreground')} />
+                            <span className={cn('text-sm font-medium', salePaymentMethod === 'card' ? 'text-[#006AFF]' : 'text-foreground')}>{t('Thẻ')}</span>
+                          </button>
+                          {(squareTerminalEnabled || squareOnlineEnabled) && squareSettings?.square_access_token && (
+                            <button type="button" className={cn('flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all active:scale-[0.98] col-span-2 sm:col-span-1', salePaymentMethod === 'square' ? 'border-[#006AFF] bg-[#006AFF]/5' : 'border-border hover:bg-muted/30')} onClick={() => { setSalePaymentMethod('square'); setShowSquareCardForm(false); }}>
+                              <Square className={cn('h-6 w-6', salePaymentMethod === 'square' ? 'text-[#006AFF]' : 'text-muted-foreground')} />
+                              <span className={cn('text-sm font-medium', salePaymentMethod === 'square' ? 'text-[#006AFF]' : 'text-foreground')}>Square</span>
+                            </button>
                           )}
                         </div>
+                        {/* Square sub-options: Terminal vs Card */}
+                        {salePaymentMethod === 'square' && (
+                          <div className="mt-3 space-y-3">
+                            <div className="grid grid-cols-2 gap-2">
+                              {squareTerminalEnabled && (
+                                <button type="button" className={cn('flex items-center gap-2 p-3.5 rounded-xl border-2 transition-all active:scale-[0.98]', !showSquareCardForm ? 'border-[#006AFF] bg-[#006AFF]/5' : 'border-border hover:bg-muted/30')} onClick={() => setShowSquareCardForm(false)}>
+                                  <Store className={cn('h-5 w-5 shrink-0', !showSquareCardForm ? 'text-[#006AFF]' : 'text-muted-foreground')} />
+                                  <span className={cn('text-sm font-medium', !showSquareCardForm ? 'text-[#006AFF]' : 'text-foreground')}>{t('Máy POS Terminal')}</span>
+                                </button>
+                              )}
+                              {squareOnlineEnabled && squareApplicationId && (
+                                <button type="button" className={cn('flex items-center gap-2 p-3.5 rounded-xl border-2 transition-all active:scale-[0.98]', showSquareCardForm ? 'border-[#006AFF] bg-[#006AFF]/5' : 'border-border hover:bg-muted/30')} onClick={() => setShowSquareCardForm(true)}>
+                                  <CreditCard className={cn('h-5 w-5 shrink-0', showSquareCardForm ? 'text-[#006AFF]' : 'text-muted-foreground')} />
+                                  <span className={cn('text-sm font-medium', showSquareCardForm ? 'text-[#006AFF]' : 'text-foreground')}>{t('Nhập thẻ / Tap to Pay')}</span>
+                                </button>
+                              )}
+                            </div>
+                            {showSquareCardForm && squareApplicationId && squareLocationId && (
+                              <SquareCardForm
+                                applicationId={squareApplicationId}
+                                locationId={squareLocationId}
+                                environment={squareEnvironment as 'sandbox' | 'production'}
+                                amount={parseFloat(saleAmount || '0')}
+                                onTokenize={async (nonce) => {
+                                  try {
+                                    const { data, error } = await supabase.functions.invoke('create-square-payment', {
+                                      body: {
+                                        source_nonce: nonce,
+                                        amount: parseFloat(saleAmount || '0'),
+                                        note: `${saleCustomerName || 'Customer'} - ${saleNotes || 'Payment'}`,
+                                        customer_name: saleCustomerName || undefined,
+                                      },
+                                    });
+                                    if (error) throw error;
+                                    toast({ title: t('Thanh toán thành công'), description: `Payment ID: ${data.payment_id}` });
+                                    createSale.mutate();
+                                  } catch (err: any) {
+                                    toast({ title: t('Lỗi thanh toán'), description: String(err.message || err), variant: 'destructive' });
+                                  }
+                                }}
+                                onCancel={() => setShowSquareCardForm(false)}
+                                disabled={!saleAmount || parseFloat(saleAmount) <= 0}
+                                labels={{
+                                  pay: t('Thanh toán'),
+                                  cancel: t('Hủy'),
+                                  loading: t('Đang tải form thanh toán...'),
+                                  processing: t('Đang xử lý...'),
+                                  enterCard: t('Nhập thông tin thẻ'),
+                                  tapToPay: t('Thẻ, Apple Pay & Google Pay'),
+                                }}
+                              />
+                            )}
+                          </div>
+                        )}
+
+                        {/* Price breakdown */}
                         {(() => {
                           const addOnTotal = saleAddOns.reduce((sum, id) => sum + (services?.find(s => s.id === id)?.price || 0), 0);
                           let base = parseFloat(saleAmount || '0') + addOnTotal;
@@ -2576,26 +2693,32 @@ const AdminDashboard = () => {
                           const surchargeAmt = afterDiscount * surchargeRate / 100;
                           const grandTotal = afterDiscount + (salePaymentMethod === 'card' ? surchargeAmt : 0);
                           return (base > 0) ? (
-                            <div className="mt-2 p-2 bg-muted rounded text-sm">
-                              {addOnTotal > 0 && <div>{t('Dịch vụ chính')}: {formatPrice(parseFloat(saleAmount || '0'))} + {t('Thêm')}: {formatPrice(addOnTotal)}</div>}
+                            <div className="mt-3 p-4 bg-muted/50 rounded-xl text-sm space-y-1.5">
+                              {addOnTotal > 0 && <div className="flex justify-between"><span className="text-muted-foreground">{t('Dịch vụ chính')}</span><span>{formatPrice(parseFloat(saleAmount || '0'))}</span></div>}
+                              {addOnTotal > 0 && <div className="flex justify-between"><span className="text-muted-foreground">{t('Dịch vụ thêm')}</span><span>+{formatPrice(addOnTotal)}</span></div>}
                               {discountAmt > 0 && (
-                                <div className="text-green-700">{t('Giảm giá')}: -{formatPrice(discountAmt)}</div>
+                                <div className="flex justify-between text-green-700"><span>{t('Giảm giá')}</span><span>-{formatPrice(discountAmt)}</span></div>
                               )}
                               {salePaymentMethod === 'card' && surchargeRate > 0 && (
-                                <div>{t('Phụ phí thẻ')}: {surchargeRate}% = <strong>{formatPrice(surchargeAmt)}</strong></div>
+                                <div className="flex justify-between"><span className="text-muted-foreground">{t('Phụ phí thẻ')} ({surchargeRate}%)</span><span>{formatPrice(surchargeAmt)}</span></div>
                               )}
-                              <div className="font-semibold">{t('Tổng')}: {formatPrice(grandTotal)}</div>
+                              <div className="flex justify-between pt-2 border-t border-border/40 text-base font-semibold"><span>{t('Tổng')}</span><span>{formatPrice(grandTotal)}</span></div>
                             </div>
                           ) : null;
                         })()}
                       </div>
+
                       <div>
-                        <Label>{t('Ghi chú')}</Label>
-                        <Textarea value={saleNotes} onChange={e => setSaleNotes(e.target.value)} className="mt-1" placeholder={t('Ghi chú thêm...')} />
+                        <Label className="text-sm font-medium">{t('Ghi chú')}</Label>
+                        <Textarea value={saleNotes} onChange={e => setSaleNotes(e.target.value)} className="mt-1.5 min-h-[60px] text-base" placeholder={t('Ghi chú thêm...')} />
                       </div>
-                      <Button className="w-full" onClick={() => createSale.mutate()}
+                    </div>
+
+                    {/* Sticky footer */}
+                    <div className="sticky bottom-0 z-10 bg-background border-t border-border/60 px-5 py-4">
+                      <Button className="w-full h-12 text-base font-medium" onClick={() => createSale.mutate()}
                         disabled={!saleAmount || parseFloat(saleAmount) <= 0 || createSale.isPending}>
-                        {createSale.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang xử lý...')}</> : t('Ghi nhận thanh toán')}
+                        {createSale.isPending ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" />{t('Đang xử lý...')}</> : <><DollarSign className="h-5 w-5 mr-2" />{t('Ghi nhận thanh toán')}</>}
                       </Button>
                     </div>
                   </DialogContent>
@@ -3655,41 +3778,48 @@ const AdminDashboard = () => {
               </DialogContent>
             </Dialog>
 
-            {/* Create Account Dialog (nested) */}
+            {/* Create Account Dialog (standalone, not nested) */}
             <Dialog open={accountDialog} onOpenChange={(open) => { setAccountDialog(open); if (!open) { setNewAdminEmail(''); setNewAdminPassword(''); setNewAdminRole('employee'); } }}>
-              <DialogContent className="sm:max-w-[420px]">
-                <DialogHeader>
-                  <DialogTitle className="text-[#1B1B1B]">{t('Tạo tài khoản mới')}</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-5 pt-1">
+              <DialogContent className="max-w-[100vw] sm:max-w-[480px] p-0 gap-0 rounded-none sm:rounded-xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-border/60">
+                  <DialogHeader>
+                    <DialogTitle className="text-[#1B1B1B] text-lg">{t('Tạo tài khoản mới')}</DialogTitle>
+                    <DialogDescription className="text-sm">{t('Tạo tài khoản cho nhân viên hoặc quản trị viên')}</DialogDescription>
+                  </DialogHeader>
+                </div>
+                <div className="px-5 py-5 space-y-5">
                   <div>
-                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Loại tài khoản')}</Label>
-                    <div className="flex gap-2 mt-2">
-                      <Button type="button" variant={newAdminRole === 'employee' ? 'default' : 'outline'} size="sm" className={cn("flex-1", newAdminRole === 'employee' && "bg-[#006AFF] hover:bg-[#1B1B1B]")} onClick={() => setNewAdminRole('employee')}>
-                        Employee
-                      </Button>
-                      <Button type="button" variant={newAdminRole === 'admin' ? 'default' : 'outline'} size="sm" className={cn("flex-1", newAdminRole === 'admin' && "bg-[#006AFF] hover:bg-[#1B1B1B]")} onClick={() => setNewAdminRole('admin')}>
-                        Admin
-                      </Button>
+                    <Label className="text-sm font-medium">{t('Loại tài khoản')}</Label>
+                    <div className="grid grid-cols-2 gap-3 mt-2">
+                      <button type="button" className={cn('flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all active:scale-[0.98]', newAdminRole === 'employee' ? 'border-[#006AFF] bg-[#006AFF]/5' : 'border-border hover:bg-muted/30')} onClick={() => setNewAdminRole('employee')}>
+                        <UserCheck className={cn('h-6 w-6', newAdminRole === 'employee' ? 'text-[#006AFF]' : 'text-muted-foreground')} />
+                        <span className={cn('text-sm font-medium', newAdminRole === 'employee' ? 'text-[#006AFF]' : 'text-foreground')}>Employee</span>
+                      </button>
+                      <button type="button" className={cn('flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all active:scale-[0.98]', newAdminRole === 'admin' ? 'border-[#006AFF] bg-[#006AFF]/5' : 'border-border hover:bg-muted/30')} onClick={() => setNewAdminRole('admin')}>
+                        <Crown className={cn('h-6 w-6', newAdminRole === 'admin' ? 'text-[#006AFF]' : 'text-muted-foreground')} />
+                        <span className={cn('text-sm font-medium', newAdminRole === 'admin' ? 'text-[#006AFF]' : 'text-foreground')}>Admin</span>
+                      </button>
                     </div>
-                    <p className="text-xs text-muted-foreground/60 mt-2">
+                    <p className="text-xs text-muted-foreground mt-2">
                       {newAdminRole === 'employee'
                         ? t('Employee: có thể xem và tạo, không thể xoá hoặc xem nhật ký')
                         : t('Admin: toàn quyền quản lý hệ thống')}
                     </p>
                   </div>
-                  <div className="border-t border-[#E5E5E5]/30 pt-4 space-y-4">
+                  <div className="border-t border-border/40 pt-4 space-y-4">
                     <div>
-                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Email</Label>
-                      <Input type="email" value={newAdminEmail} onChange={e => setNewAdminEmail(e.target.value)} placeholder="staff@example.com" className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" />
+                      <Label className="text-sm font-medium">Email</Label>
+                      <Input type="email" value={newAdminEmail} onChange={e => setNewAdminEmail(e.target.value)} placeholder="staff@example.com" className="mt-1.5 h-11 text-base" />
                     </div>
                     <div>
-                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Mật khẩu')}</Label>
-                      <Input type="password" value={newAdminPassword} onChange={e => setNewAdminPassword(e.target.value)} placeholder={t('Tối thiểu 6 ký tự')} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" />
+                      <Label className="text-sm font-medium">{t('Mật khẩu')}</Label>
+                      <Input type="password" value={newAdminPassword} onChange={e => setNewAdminPassword(e.target.value)} placeholder={t('Tối thiểu 6 ký tự')} className="mt-1.5 h-11 text-base" />
                     </div>
                   </div>
+                </div>
+                <div className="px-5 py-4 border-t border-border/60">
                   <Button
-                    className="w-full h-10 bg-[#006AFF] hover:bg-[#1B1B1B] text-white"
+                    className="w-full h-12 text-base font-medium bg-[#006AFF] hover:bg-[#1B1B1B] text-white"
                     disabled={creatingAdmin || !newAdminEmail.trim() || newAdminPassword.length < 6}
                     onClick={async () => {
                       setCreatingAdmin(true);
@@ -3719,7 +3849,7 @@ const AdminDashboard = () => {
                       }
                     }}
                   >
-                    {creatingAdmin ? t('Đang tạo...') : t('Tạo tài khoản')}
+                    {creatingAdmin ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" />{t('Đang tạo...')}</> : <><Plus className="h-5 w-5 mr-2" />{t('Tạo tài khoản')}</>}
                   </Button>
                 </div>
               </DialogContent>
@@ -3792,12 +3922,14 @@ const AdminDashboard = () => {
 
             {/* ── Employee Permissions Modal ── */}
             <Dialog open={settingsModal === 'employee_permissions'} onOpenChange={(open) => !open && setSettingsModal(null)}>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>{t('Quyền nhân viên')}</DialogTitle>
-                  <DialogDescription>{t('Chọn các tab mà nhân viên có thể xem khi đăng nhập')}</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-1 pt-2">
+              <DialogContent className="max-w-[100vw] sm:max-w-[480px] p-0 gap-0 rounded-none sm:rounded-xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-border/60">
+                  <DialogHeader>
+                    <DialogTitle className="text-lg">{t('Quyền nhân viên')}</DialogTitle>
+                    <DialogDescription className="text-sm">{t('Chọn các tab mà nhân viên có thể xem khi đăng nhập')}</DialogDescription>
+                  </DialogHeader>
+                </div>
+                <div className="px-5 py-4 space-y-2">
                   {([
                     { value: 'stats' as EmployeeTab, icon: BarChart3, label: t('Thống kê') },
                     { value: 'bookings' as EmployeeTab, icon: CalendarDays, label: t('Lịch hẹn') },
@@ -3812,8 +3944,8 @@ const AdminDashboard = () => {
                         key={tab.value}
                         type="button"
                         className={cn(
-                          'w-full flex items-center gap-3 px-4 py-3 rounded-lg border transition-colors text-left',
-                          checked ? 'border-[#006AFF]/30 bg-[#F5F5F5]' : 'border-border/40 hover:bg-muted/30'
+                          'w-full flex items-center gap-3 px-4 py-4 rounded-xl border-2 transition-all text-left active:scale-[0.98]',
+                          checked ? 'border-[#006AFF] bg-[#006AFF]/5' : 'border-border hover:bg-muted/30'
                         )}
                         onClick={() => {
                           setEmployeeVisibleTabs(prev =>
@@ -3821,8 +3953,10 @@ const AdminDashboard = () => {
                           );
                         }}
                       >
-                        <tab.icon className={cn('h-4 w-4 shrink-0', checked ? 'text-[#006AFF]' : 'text-muted-foreground/50')} />
-                        <span className={cn('text-sm flex-1', checked ? 'font-medium text-[#1B1B1B]' : 'text-muted-foreground')}>{tab.label}</span>
+                        <div className={cn('flex items-center justify-center h-10 w-10 rounded-lg shrink-0', checked ? 'bg-[#006AFF]/10' : 'bg-muted')}>
+                          {checked ? <Check className="h-5 w-5 text-[#006AFF]" /> : <tab.icon className="h-4 w-4 text-muted-foreground" />}
+                        </div>
+                        <span className={cn('text-sm flex-1 font-medium', checked ? 'text-[#1B1B1B]' : 'text-muted-foreground')}>{tab.label}</span>
                         <Switch checked={checked} onCheckedChange={() => {
                           setEmployeeVisibleTabs(prev =>
                             checked ? prev.filter(v => v !== tab.value) : [...prev, tab.value]
@@ -3832,13 +3966,13 @@ const AdminDashboard = () => {
                     );
                   })}
                 </div>
-                <div className="pt-2">
+                <div className="px-5 py-4 border-t border-border/60">
                   <Button
-                    className="w-full"
+                    className="w-full h-12 text-base font-medium"
                     onClick={() => saveEmployeeTabs.mutate(employeeVisibleTabs)}
                     disabled={saveEmployeeTabs.isPending}
                   >
-                    {saveEmployeeTabs.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : t('Lưu quyền')}
+                    {saveEmployeeTabs.isPending ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" />{t('Đang lưu...')}</> : t('Lưu quyền')}
                   </Button>
                   <p className="text-xs text-muted-foreground text-center mt-2">{t('Admin luôn có quyền truy cập tất cả')}</p>
                 </div>
@@ -4441,19 +4575,19 @@ const AdminDashboard = () => {
                     )}
                   </div>
 
-                  {/* ── Square: Terminal Payment ── */}
+                  {/* ── Square Payments ── */}
                   <div className="rounded-lg border border-border/60 overflow-hidden">
                     <div className="flex items-center justify-between p-4">
                       <div className="flex items-center gap-3">
                         <Square className="h-5 w-5 text-muted-foreground" />
                         <div>
-                          <p className="text-sm font-medium">Square — {t('Máy thanh toán tại quầy')}</p>
-                          <p className="text-xs text-muted-foreground">{t('Thanh toán qua máy POS Square Terminal')}</p>
+                          <p className="text-sm font-medium">Square Payments</p>
+                          <p className="text-xs text-muted-foreground">{t('Terminal POS & thanh toán qua thẻ/điện thoại')}</p>
                         </div>
                       </div>
-                      <Switch checked={squareTerminalEnabled} onCheckedChange={setSquareTerminalEnabled} />
+                      <Switch checked={squareTerminalEnabled || squareOnlineEnabled} onCheckedChange={(v) => { if (!v) { setSquareTerminalEnabled(false); setSquareOnlineEnabled(false); } else { setSquareTerminalEnabled(true); } }} />
                     </div>
-                    {squareTerminalEnabled && (
+                    {(squareTerminalEnabled || squareOnlineEnabled) && (
                       <div className="border-t border-border/40">
                         <button
                           type="button"
@@ -4466,7 +4600,18 @@ const AdminDashboard = () => {
                         {paymentSection === 'square' && (
                           <div className="space-y-3 p-4 pt-0">
                             <div className="rounded-lg bg-muted/50 border border-border/40 p-3">
-                              <p className="text-xs text-muted-foreground">{t('Nhập thông tin tài khoản Square để sử dụng máy thanh toán tại quầy. Bạn có thể tìm thông tin này tại')} <a href="https://developer.squareup.com/apps" target="_blank" rel="noopener noreferrer" className="text-[#006AFF] underline">developer.squareup.com</a></p>
+                              <p className="text-xs text-muted-foreground">{t('Nhập thông tin tài khoản Square. Bạn có thể tìm thông tin này tại')} <a href="https://developer.squareup.com/apps" target="_blank" rel="noopener noreferrer" className="text-[#006AFF] underline">developer.squareup.com</a></p>
+                            </div>
+                            {/* Payment mode toggles */}
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-xs">{t('Máy POS Terminal')}</Label>
+                                <Switch checked={squareTerminalEnabled} onCheckedChange={setSquareTerminalEnabled} />
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <Label className="text-xs">{t('Thanh toán qua thẻ / Tap to Pay')}</Label>
+                                <Switch checked={squareOnlineEnabled} onCheckedChange={setSquareOnlineEnabled} />
+                              </div>
                             </div>
                             <div>
                               <Label>Access Token</Label>
@@ -4477,6 +4622,20 @@ const AdminDashboard = () => {
                               <Input value={squareLocationId} onChange={e => setSquareLocationId(e.target.value)} placeholder="Lxxxxxxxxxxxxxxx" className="mt-1 font-mono text-xs" />
                               <p className="text-xs text-muted-foreground mt-1">{t('ID địa điểm Square của bạn')}</p>
                             </div>
+                            {squareTerminalEnabled && (
+                              <div>
+                                <Label>Terminal Device ID</Label>
+                                <Input value={squareDeviceId} onChange={e => setSquareDeviceId(e.target.value)} placeholder="9fa747a2-25ff-48ee-b078-04381f7c828f" className="mt-1 font-mono text-xs" />
+                                <p className="text-xs text-muted-foreground mt-1">{t('Mã thiết bị Square Terminal (tìm trong Settings > Device Code trên máy)')}</p>
+                              </div>
+                            )}
+                            {squareOnlineEnabled && (
+                              <div>
+                                <Label>Application ID</Label>
+                                <Input value={squareApplicationId} onChange={e => setSquareApplicationId(e.target.value)} placeholder="sandbox-sq0idb-xxxxxxxxxxxx" className="mt-1 font-mono text-xs" />
+                                <p className="text-xs text-muted-foreground mt-1">{t('ID ứng dụng Square cho Web Payments SDK')}</p>
+                              </div>
+                            )}
                             <div>
                               <Label>{t('Môi trường')}</Label>
                               <Select value={squareEnvironment} onValueChange={setSquareEnvironment}>

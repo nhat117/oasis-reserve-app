@@ -13,11 +13,14 @@ const ORIGINS = RAW === "*" ? null : RAW.split(",").map(o => o.trim());
 export function getCorsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get("origin") || "";
 
+  const methodsHeader = "GET, POST, PATCH, DELETE, OPTIONS";
+
   // If no whitelist configured, allow all (dev mode)
   if (!ORIGINS) {
     return {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+      "Access-Control-Allow-Methods": methodsHeader,
     };
   }
 
@@ -26,6 +29,7 @@ export function getCorsHeaders(req: Request): Record<string, string> {
     return {
       "Access-Control-Allow-Origin": origin,
       "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+      "Access-Control-Allow-Methods": methodsHeader,
       "Vary": "Origin",
     };
   }
@@ -33,5 +37,6 @@ export function getCorsHeaders(req: Request): Record<string, string> {
   // Origin not allowed — return headers without Allow-Origin (browser will block)
   return {
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": methodsHeader,
   };
 }
