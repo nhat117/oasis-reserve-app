@@ -37,6 +37,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useLoadMore } from '@/hooks/useLoadMore';
 import DOMPurify from 'dompurify';
 import { SquareCardForm } from '@/components/SquareCardForm';
+import { AdminOnboarding } from '@/components/AdminOnboarding';
 
 const CURRENCIES = ['VND', 'USD', 'EUR', 'AUD'] as const;
 
@@ -72,6 +73,21 @@ const AdminDashboard = () => {
   const requireAdmin = () => {
     if (!isAdmin) throw new Error('Admin only');
   };
+
+  // Onboarding: show only once for new admin accounts
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const { data: onboardingDone } = useQuery({
+    queryKey: ['onboarding-check', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return true;
+      const { data } = await supabase.from('app_settings').select('value').eq('key', `onboarding_completed_${user.id}`).single();
+      return data?.value === 'true';
+    },
+    enabled: !!user?.id && isAdmin,
+  });
+  useEffect(() => {
+    if (onboardingDone === false && isAdmin) setShowOnboarding(true);
+  }, [onboardingDone, isAdmin]);
 
   // Real-time notification for new bookings
   useEffect(() => {
@@ -1818,6 +1834,9 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-[#F5F5F5] admin-shell">
+      {showOnboarding && user?.id && (
+        <AdminOnboarding userId={user.id} onComplete={() => setShowOnboarding(false)} />
+      )}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         {/* Desktop Sidebar */}
         <aside className={cn(
@@ -2505,18 +2524,25 @@ const AdminDashboard = () => {
                               {services?.filter(s => s.is_active).filter(s => {
                                 if (!saleServiceSearch.trim()) return true;
                                 return s.name.toLowerCase().includes(saleServiceSearch.toLowerCase());
-                              }).map(s => (
-                                <button type="button" key={s.id} className={cn('flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all active:scale-[0.98]', saleServiceId === s.id ? 'border-[#006AFF] bg-[#006AFF]/5' : 'border-border hover:bg-muted/30')} onClick={() => { setSaleServiceId(s.id); setSaleAmount(String(s.price)); }}>
-                                  <div className={cn('flex items-center justify-center h-10 w-10 rounded-lg shrink-0', saleServiceId === s.id ? 'bg-[#006AFF]/10' : 'bg-muted')}>
-                                    {saleServiceId === s.id ? <Check className="h-5 w-5 text-[#006AFF]" /> : <Scissors className="h-4 w-4 text-muted-foreground" />}
-                                  </div>
+                              }).map(s => {
+                                const imgUrl = s.image_path ? supabase.storage.from('service-images').getPublicUrl(s.image_path).data.publicUrl : null;
+                                return (
+                                <button type="button" key={s.id} className={cn('flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all active:scale-[0.98]', saleServiceId === s.id ? 'border-[#006AFF] bg-[#006AFF]/5' : 'border-border hover:bg-muted/30')} onClick={() => { setSaleServiceId(s.id); setSaleAmount(String(s.price)); }}>
+                                  {imgUrl ? (
+                                    <img src={imgUrl} alt={s.name} className="h-12 w-12 rounded-lg object-cover shrink-0" />
+                                  ) : (
+                                    <div className={cn('flex items-center justify-center h-12 w-12 rounded-lg shrink-0', saleServiceId === s.id ? 'bg-[#006AFF]/10' : 'bg-muted')}>
+                                      {saleServiceId === s.id ? <Check className="h-5 w-5 text-[#006AFF]" /> : <Scissors className="h-4 w-4 text-muted-foreground" />}
+                                    </div>
+                                  )}
                                   <div className="flex-1 min-w-0">
                                     <p className="text-sm font-medium truncate">{s.name}</p>
-                                    <p className="text-xs text-muted-foreground">{s.duration ? `${s.duration} min` : ''}</p>
+                                    <p className="text-xs text-muted-foreground">{s.duration_minutes ? `${s.duration_minutes} min` : ''}</p>
                                   </div>
                                   <span className="text-sm font-semibold shrink-0">{formatPrice(s.price)}</span>
                                 </button>
-                              ))}
+                                );
+                              })}
                             </div>
                           </div>
                           <div>
@@ -2543,13 +2569,22 @@ const AdminDashboard = () => {
                             return s.name.toLowerCase().includes(saleAddOnSearch.toLowerCase());
                           }).map(s => {
                             const isSelected = saleAddOns.includes(s.id);
+                            const imgUrl = s.image_path ? supabase.storage.from('service-images').getPublicUrl(s.image_path).data.publicUrl : null;
                             return (
-                              <button type="button" key={s.id} className={cn('flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all active:scale-[0.98]', isSelected ? 'border-[#006AFF] bg-[#006AFF]/5' : 'border-border hover:bg-muted/30')} onClick={() => setSaleAddOns(prev => isSelected ? prev.filter(id => id !== s.id) : [...prev, s.id])}>
-                                <div className={cn('flex items-center justify-center h-10 w-10 rounded-lg shrink-0', isSelected ? 'bg-[#006AFF]/10' : 'bg-muted')}>
-                                  {isSelected ? <Check className="h-5 w-5 text-[#006AFF]" /> : <Plus className="h-4 w-4 text-muted-foreground" />}
-                                </div>
+                              <button type="button" key={s.id} className={cn('flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all active:scale-[0.98]', isSelected ? 'border-[#006AFF] bg-[#006AFF]/5' : 'border-border hover:bg-muted/30')} onClick={() => setSaleAddOns(prev => isSelected ? prev.filter(id => id !== s.id) : [...prev, s.id])}>
+                                {imgUrl ? (
+                                  <div className="relative h-12 w-12 rounded-lg overflow-hidden shrink-0">
+                                    <img src={imgUrl} alt={s.name} className="h-full w-full object-cover" />
+                                    {isSelected && <div className="absolute inset-0 bg-[#006AFF]/30 flex items-center justify-center"><Check className="h-5 w-5 text-white" /></div>}
+                                  </div>
+                                ) : (
+                                  <div className={cn('flex items-center justify-center h-12 w-12 rounded-lg shrink-0', isSelected ? 'bg-[#006AFF]/10' : 'bg-muted')}>
+                                    {isSelected ? <Check className="h-5 w-5 text-[#006AFF]" /> : <Plus className="h-4 w-4 text-muted-foreground" />}
+                                  </div>
+                                )}
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm font-medium truncate">{s.name}</p>
+                                  <p className="text-xs text-muted-foreground">{s.duration_minutes ? `${s.duration_minutes} min` : ''}</p>
                                 </div>
                                 <span className="text-sm font-semibold shrink-0">+{formatPrice(s.price)}</span>
                               </button>

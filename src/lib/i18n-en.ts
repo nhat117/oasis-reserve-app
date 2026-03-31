@@ -647,4 +647,23 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Lưu nội dung": "Save Content",
   "Đã lưu nội dung Về chúng tôi": "About Us content saved",
   "Đã lưu nội dung Điều khoản": "Terms content saved",
+
+  // Admin onboarding
+  "Chào mừng đến Admin Dashboard!": "Welcome to Admin Dashboard!",
+  "Hãy cùng thiết lập cửa hàng của bạn trong vài bước đơn giản.": "Let's set up your store in a few simple steps.",
+  "Thêm dịch vụ": "Add Services",
+  "Tạo danh sách dịch vụ với giá, thời lượng và hình ảnh để khách hàng đặt lịch.": "Create your service list with pricing, duration and images for customers to book.",
+  "Thêm nhân viên": "Add Staff",
+  "Thêm thợ và nhân viên, thiết lập lịch làm việc và ngày nghỉ.": "Add therapists and staff, set up work schedules and days off.",
+  "Cấu hình cửa hàng": "Configure Store",
+  "Đặt tên cửa hàng, giờ mở cửa, ngày nghỉ và thông tin liên hệ.": "Set store name, opening hours, holidays and contact info.",
+  "Thiết lập thanh toán": "Set Up Payments",
+  "Kết nối Square hoặc Stripe để nhận thanh toán online và tại quầy.": "Connect Square or Stripe to accept online and in-store payments.",
+  "Thông báo & Email": "Notifications & Email",
+  "Cấu hình SMS và email để gửi xác nhận và nhắc hẹn tự động.": "Configure SMS and email for automatic confirmations and reminders.",
+  "Website & Đặt lịch": "Website & Booking",
+  "Tuỳ chỉnh trang chủ, About, Terms và mở hệ thống đặt lịch online.": "Customize homepage, About, Terms and enable online booking.",
+  "Bỏ qua": "Skip",
+  "Tiếp tục": "Continue",
+  "Bắt đầu sử dụng": "Get Started",
 };
