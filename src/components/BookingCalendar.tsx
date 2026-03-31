@@ -173,7 +173,7 @@ export function BookingCalendar({ bookings, onCancel, onDelete, onRefund, onMark
           allDaySlot={false}
           eventTimeFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
           slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
-          height="auto"
+          height="calc(100vh - 280px)"
           dayMaxEvents={3}
           nowIndicator={true}
           eventResizableFromStart={false}

@@ -666,4 +666,17 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Bỏ qua": "Skip",
   "Tiếp tục": "Continue",
   "Bắt đầu sử dụng": "Get Started",
+
+  // POS Checkout
+  "Thanh toán hiện tại": "Current sale",
+  "Chọn lịch hẹn hoặc dịch vụ": "Select an appointment or service",
+  "Sắp xong": "Finishing soon",
+  "Vừa xong": "Finished recently",
+  "Sắp tới": "Upcoming",
+  "Không có lịch hẹn": "No appointments",
+  "Đã bao gồm": "Included",
+  "Mã giảm giá": "Discount code",
+  "Lịch sử thanh toán": "Payment history",
+  "Tên khách (tuỳ chọn)": "Customer name (optional)",
+  "Nhập thẻ": "Enter card",
 };

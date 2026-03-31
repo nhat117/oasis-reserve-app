@@ -362,7 +362,25 @@
   background: transparent !important;
 }
 .fc-custom .fc .fc-daygrid-day.fc-day-today {
-  background: hsl(var(--primary) / 0.04) !important;
+  background: hsl(var(--primary) / 0.08) !important;
+}
+.fc-custom .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+  background: hsl(var(--primary));
+  color: white !important;
+  border-radius: 9999px;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+.fc-custom .fc .fc-timegrid-now-indicator-line {
+  border-color: hsl(var(--primary));
+  border-width: 2px;
+}
+.fc-custom .fc .fc-timegrid-now-indicator-arrow {
+  border-color: hsl(var(--primary));
 }
 .fc-custom .fc td:focus,
 .fc-custom .fc .fc-daygrid-day:focus,
