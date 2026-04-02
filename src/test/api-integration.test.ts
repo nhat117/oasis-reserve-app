@@ -693,6 +693,382 @@ function validateEdgeFunctionAuth(
   return { isServiceRole: false, needsUserAuth: true };
 }
 
+// ─── Handoff Notification Edge Function ──────────────────────────────────
+
+function buildHandoffNotificationPayload(
+  conversationId: string | undefined,
+  tenantId: string,
+  reason: string,
+  customerName?: string,
+  customerMessage?: string,
+  source?: string,
+): Record<string, unknown> {
+  return {
+    conversation_id: conversationId,
+    tenant_id: tenantId,
+    reason,
+    ...(customerName && { customer_name: customerName }),
+    ...(customerMessage && { customer_message: customerMessage }),
+    ...(source && { source }),
+  };
+}
+
+function buildHandoffEmailHtml(
+  shopName: string,
+  reason: string,
+  customerName?: string,
+  customerMessage?: string,
+  conversationId?: string,
+): string {
+  let html = '<h2>Customer Needs Human Assistance</h2>';
+  html += `<p>Shop: ${shopName}</p>`;
+  html += `<p>Customer: ${customerName || 'Unknown'}</p>`;
+  html += `<p>Reason: ${reason}</p>`;
+  if (customerMessage) html += `<p>Last message: ${customerMessage}</p>`;
+  if (conversationId) html += `<p>Conversation: ${conversationId}</p>`;
+  return html;
+}
+
+function buildHandoffSmsMessage(shopName: string, customerName: string | undefined, reason: string): string {
+  return `[${shopName}] AI handoff: ${customerName || 'Customer'} needs help. Reason: ${reason}`;
+}
+
+function resolveHandoffChannels(config: { email: string | null; sms: boolean }): string[] {
+  const channels = ['in_app'];
+  if (config.email) channels.push('email');
+  if (config.sms) channels.push('sms');
+  return channels;
+}
+
+describe('Handoff notification edge function', () => {
+  it('builds correct notification payload', () => {
+    const payload = buildHandoffNotificationPayload(
+      'conv-uuid-123',
+      'tenant-uuid-456',
+      'Customer is frustrated',
+      'Jane Doe',
+      'I keep asking the same thing',
+      'ai_decision',
+    );
+    expect(payload.tenant_id).toBe('tenant-uuid-456');
+    expect(payload.reason).toBe('Customer is frustrated');
+    expect(payload.customer_name).toBe('Jane Doe');
+    expect(payload.source).toBe('ai_decision');
+  });
+
+  it('omits undefined optional fields', () => {
+    const payload = buildHandoffNotificationPayload(undefined, 'tenant-1', 'test reason');
+    expect(payload.conversation_id).toBeUndefined();
+    expect(payload.customer_name).toBeUndefined();
+    expect(payload.customer_message).toBeUndefined();
+    expect(payload.source).toBeUndefined();
+  });
+
+  it('builds correct handoff email HTML', () => {
+    const html = buildHandoffEmailHtml('Oasis Spa', 'negative_sentiment', 'John', 'This is terrible!', 'conv-123');
+    expect(html).toContain('Customer Needs Human Assistance');
+    expect(html).toContain('Oasis Spa');
+    expect(html).toContain('negative_sentiment');
+    expect(html).toContain('John');
+    expect(html).toContain('This is terrible!');
+    expect(html).toContain('conv-123');
+  });
+
+  it('handles missing customer name in email', () => {
+    const html = buildHandoffEmailHtml('Spa', 'test');
+    expect(html).toContain('Unknown');
+  });
+
+  it('builds correct handoff SMS', () => {
+    const sms = buildHandoffSmsMessage('Oasis Nails', 'Jane', 'frustrated customer');
+    expect(sms).toBe('[Oasis Nails] AI handoff: Jane needs help. Reason: frustrated customer');
+  });
+
+  it('defaults to Customer in SMS when name missing', () => {
+    const sms = buildHandoffSmsMessage('Spa', undefined, 'test');
+    expect(sms).toContain('Customer needs help');
+  });
+
+  it('SMS fits within 160-char limit for typical messages', () => {
+    const sms = buildHandoffSmsMessage('Oasis Spa', 'John Doe', 'Customer requested human assistance');
+    expect(sms.length).toBeLessThanOrEqual(160);
+  });
+
+  it('resolves in_app only when no email or SMS configured', () => {
+    expect(resolveHandoffChannels({ email: null, sms: false })).toEqual(['in_app']);
+  });
+
+  it('resolves all channels when fully configured', () => {
+    expect(resolveHandoffChannels({ email: 'a@b.com', sms: true })).toEqual(['in_app', 'email', 'sms']);
+  });
+
+  it('resolves email + in_app when no SMS', () => {
+    expect(resolveHandoffChannels({ email: 'mgr@salon.com', sms: false })).toEqual(['in_app', 'email']);
+  });
+});
+
+// ─── Voice Agent Edge Function ──────────────────────────────────────────────
+
+function buildTwiml(body: string): string {
+  return `<?xml version="1.0" encoding="UTF-8"?><Response>${body}</Response>`;
+}
+
+function escapeXmlForTwiml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function buildElevenLabsTtsPayload(text: string, modelId: string): Record<string, unknown> {
+  return {
+    text,
+    model_id: modelId,
+    voice_settings: {
+      stability: 0.5,
+      similarity_boost: 0.75,
+      style: 0.0,
+      use_speaker_boost: true,
+    },
+  };
+}
+
+function buildElevenLabsTtsUrl(voiceId: string): string {
+  return `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
+}
+
+function buildElevenLabsHeaders(apiKey: string): Record<string, string> {
+  return {
+    'xi-api-key': apiKey,
+    'Content-Type': 'application/json',
+    Accept: 'audio/mpeg',
+  };
+}
+
+function buildVoiceAgentUrl(supabaseUrl: string, action: string, tenantId: string): string {
+  return `${supabaseUrl}/functions/v1/voice-agent?action=${action}&tenant_id=${tenantId}`;
+}
+
+function buildVoiceSystemPrompt(shopName: string, services: string, language: string): string {
+  return `You are ${shopName}'s friendly voice assistant answering a phone call.
+Keep responses SHORT (1-2 sentences max) — this will be spoken aloud.
+Services: ${services || 'Ask staff for details.'}
+If you cannot help, say you'll transfer them to a team member.
+Never use markdown, lists, or formatting — speak naturally.
+Language: ${language === 'vi' ? 'Vietnamese' : 'English'}`;
+}
+
+function detectVoiceTransfer(text: string): boolean {
+  const phrases = ['transfer you', 'connect you', 'team member will', 'staff will'];
+  return phrases.some((p) => text.toLowerCase().includes(p));
+}
+
+describe('Voice agent TwiML generation', () => {
+  it('generates valid TwiML XML wrapper', () => {
+    const xml = buildTwiml('<Say>Hello</Say>');
+    expect(xml).toMatch(/^<\?xml version="1\.0" encoding="UTF-8"\?>/);
+    expect(xml).toContain('<Response>');
+    expect(xml).toContain('</Response>');
+    expect(xml).toContain('<Say>Hello</Say>');
+  });
+
+  it('escapes XML special characters correctly', () => {
+    expect(escapeXmlForTwiml('Tom & Jerry')).toBe('Tom &amp; Jerry');
+    expect(escapeXmlForTwiml('<script>alert("xss")</script>')).toBe('&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
+    expect(escapeXmlForTwiml("it's a test")).toBe("it&apos;s a test");
+  });
+
+  it('handles empty string in escape', () => {
+    expect(escapeXmlForTwiml('')).toBe('');
+  });
+
+  it('builds greeting TwiML with Gather for speech input', () => {
+    const xml = buildTwiml(
+      `<Gather input="speech" action="/respond" speechTimeout="3" language="en"><Say>Hello!</Say></Gather><Hangup/>`,
+    );
+    expect(xml).toContain('input="speech"');
+    expect(xml).toContain('speechTimeout="3"');
+    expect(xml).toContain('language="en"');
+    expect(xml).toContain('<Hangup/>');
+  });
+
+  it('builds ElevenLabs Play TwiML', () => {
+    const ttsUrl = 'https://example.com/tts?text=Hello';
+    const xml = buildTwiml(`<Play>${ttsUrl}</Play><Gather input="speech" action="/respond"></Gather>`);
+    expect(xml).toContain('<Play>');
+    expect(xml).toContain(ttsUrl);
+  });
+
+  it('builds transfer TwiML with hangup', () => {
+    const xml = buildTwiml('<Say>Transferring you now.</Say><Hangup/>');
+    expect(xml).toContain('Transferring');
+    expect(xml).toContain('<Hangup/>');
+  });
+});
+
+describe('ElevenLabs TTS API integration', () => {
+  it('builds correct TTS URL with voice ID', () => {
+    const url = buildElevenLabsTtsUrl('EXAVITQu4vr4xnSDxMaL');
+    expect(url).toBe('https://api.elevenlabs.io/v1/text-to-speech/EXAVITQu4vr4xnSDxMaL');
+  });
+
+  it('builds correct TTS URL with custom voice ID', () => {
+    const url = buildElevenLabsTtsUrl('custom-cloned-voice-id');
+    expect(url).toContain('custom-cloned-voice-id');
+  });
+
+  it('builds correct headers with xi-api-key', () => {
+    const headers = buildElevenLabsHeaders('xi_test_key_123');
+    expect(headers['xi-api-key']).toBe('xi_test_key_123');
+    expect(headers['Content-Type']).toBe('application/json');
+    expect(headers.Accept).toBe('audio/mpeg');
+  });
+
+  it('builds correct TTS payload for multilingual model', () => {
+    const payload = buildElevenLabsTtsPayload('Xin chao, cam on ban da goi', 'eleven_multilingual_v2');
+    expect(payload.text).toBe('Xin chao, cam on ban da goi');
+    expect(payload.model_id).toBe('eleven_multilingual_v2');
+    expect((payload.voice_settings as any).stability).toBe(0.5);
+    expect((payload.voice_settings as any).similarity_boost).toBe(0.75);
+    expect((payload.voice_settings as any).use_speaker_boost).toBe(true);
+  });
+
+  it('builds correct TTS payload for turbo model (low latency)', () => {
+    const payload = buildElevenLabsTtsPayload('Quick response', 'eleven_turbo_v2_5');
+    expect(payload.model_id).toBe('eleven_turbo_v2_5');
+  });
+});
+
+describe('Voice agent URL building', () => {
+  const supabaseUrl = 'https://myproject.supabase.co';
+  const tenantId = 'tenant-uuid-123';
+
+  it('builds greeting URL', () => {
+    const url = buildVoiceAgentUrl(supabaseUrl, 'greeting', tenantId);
+    expect(url).toBe('https://myproject.supabase.co/functions/v1/voice-agent?action=greeting&tenant_id=tenant-uuid-123');
+  });
+
+  it('builds respond URL', () => {
+    const url = buildVoiceAgentUrl(supabaseUrl, 'respond', tenantId);
+    expect(url).toContain('action=respond');
+  });
+
+  it('builds TTS URL', () => {
+    const url = buildVoiceAgentUrl(supabaseUrl, 'tts', tenantId);
+    expect(url).toContain('action=tts');
+  });
+});
+
+describe('Voice agent LLM system prompt', () => {
+  it('builds voice-optimized prompt', () => {
+    const prompt = buildVoiceSystemPrompt('Oasis Spa', 'Massage: $80 (60min), Facial: $60 (45min)', 'en');
+    expect(prompt).toContain('Oasis Spa');
+    expect(prompt).toContain('SHORT');
+    expect(prompt).toContain('1-2 sentences');
+    expect(prompt).toContain('Massage: $80');
+    expect(prompt).toContain('English');
+    expect(prompt).toContain('Never use markdown');
+  });
+
+  it('uses Vietnamese when language is vi', () => {
+    const prompt = buildVoiceSystemPrompt('Spa', 'Dich vu: 500k', 'vi');
+    expect(prompt).toContain('Vietnamese');
+  });
+
+  it('prompts transfer when AI cannot help', () => {
+    const prompt = buildVoiceSystemPrompt('Spa', '', 'en');
+    expect(prompt).toContain('transfer');
+    expect(prompt).toContain('team member');
+  });
+
+  it('includes service info when available', () => {
+    const prompt = buildVoiceSystemPrompt('Spa', 'Haircut: $30, Color: $80', 'en');
+    expect(prompt).toContain('Haircut: $30');
+    expect(prompt).toContain('Color: $80');
+  });
+
+  it('shows fallback when no services', () => {
+    const prompt = buildVoiceSystemPrompt('Spa', '', 'en');
+    expect(prompt).toContain('Ask staff for details');
+  });
+});
+
+describe('Voice agent transfer detection', () => {
+  it('detects transfer phrases in LLM response', () => {
+    expect(detectVoiceTransfer("Let me transfer you to our staff.")).toBe(true);
+    expect(detectVoiceTransfer("I'll connect you with a team member.")).toBe(true);
+    expect(detectVoiceTransfer("A team member will help you shortly.")).toBe(true);
+    expect(detectVoiceTransfer("Our staff will assist you.")).toBe(true);
+  });
+
+  it('does not false-positive on booking responses', () => {
+    expect(detectVoiceTransfer('Your massage is booked for tomorrow at 2pm.')).toBe(false);
+    expect(detectVoiceTransfer('We have availability at 10am and 3pm.')).toBe(false);
+    expect(detectVoiceTransfer('The price for a facial is $60.')).toBe(false);
+  });
+
+  it('is case-insensitive', () => {
+    expect(detectVoiceTransfer("I'LL TRANSFER YOU NOW")).toBe(true);
+    expect(detectVoiceTransfer("A Team Member Will help")).toBe(true);
+  });
+
+  it('handles empty response', () => {
+    expect(detectVoiceTransfer('')).toBe(false);
+  });
+});
+
+// ─── Twilio Voice Webhook (inbound call) ────────────────────────────────────
+
+function parseTwilioVoiceWebhook(formData: Record<string, string>): {
+  callSid: string;
+  from: string;
+  to: string;
+  speechResult?: string;
+} {
+  return {
+    callSid: formData.CallSid || '',
+    from: formData.From || '',
+    to: formData.To || '',
+    speechResult: formData.SpeechResult || undefined,
+  };
+}
+
+describe('Twilio voice webhook parsing', () => {
+  it('parses inbound call data', () => {
+    const data = parseTwilioVoiceWebhook({
+      CallSid: 'CA1234567890',
+      From: '+61412345678',
+      To: '+61400000000',
+    });
+    expect(data.callSid).toBe('CA1234567890');
+    expect(data.from).toBe('+61412345678');
+    expect(data.to).toBe('+61400000000');
+    expect(data.speechResult).toBeUndefined();
+  });
+
+  it('parses speech recognition result', () => {
+    const data = parseTwilioVoiceWebhook({
+      CallSid: 'CA123',
+      From: '+61400000000',
+      To: '+61400000001',
+      SpeechResult: 'I want to book a massage for tomorrow',
+    });
+    expect(data.speechResult).toBe('I want to book a massage for tomorrow');
+  });
+
+  it('handles empty speech result', () => {
+    const data = parseTwilioVoiceWebhook({
+      CallSid: 'CA123',
+      From: '+61400000000',
+      To: '+61400000001',
+      SpeechResult: '',
+    });
+    expect(data.speechResult).toBeUndefined();
+  });
+});
+
 describe('Edge function auth pattern', () => {
   const serviceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.service_role_key';
 
