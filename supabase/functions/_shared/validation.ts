@@ -48,6 +48,30 @@ export const createAdminSchema = z.object({
   role: z.enum(['admin', 'employee']).optional(),
 });
 
+// --- Messaging + AI schemas ---
+
+export const chatwootWebhookSchema = z.object({
+  event: z.string(),
+}).passthrough();
+
+export const aiChatRespondSchema = z.object({
+  conversation_id: z.string().uuid(),
+  message_id: z.string().uuid(),
+  tenant_id: z.string().uuid(),
+});
+
+export const aiEmbedTextSchema = z.object({
+  text: z.string().min(1).max(50000),
+  knowledge_base_id: z.string().uuid(),
+  tenant_id: z.string().uuid(),
+});
+
+export const chatwootSendMessageSchema = z.object({
+  chatwoot_conversation_id: z.number().int().positive(),
+  content: z.string().min(1).max(10000),
+  tenant_id: z.string().uuid(),
+});
+
 /** Parse body with schema, return { data, error, response } */
 export function parseBody<T extends z.ZodSchema>(
   schema: T,

@@ -18,7 +18,7 @@ import { LogoUpload as LogoUploadComponent } from '@/components/LogoUpload';
 import { Textarea } from '@/components/ui/textarea';
 import { TipTapEditor } from '@/components/TipTapEditor';
 import { BookingStats } from '@/components/BookingStats';
-import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone, CreditCard, Square, RotateCcw, BookOpen, ScrollText, Eye, Clock, Check } from 'lucide-react';
+import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone, CreditCard, Square, RotateCcw, BookOpen, ScrollText, Eye, Clock, Check, Bot } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ALL_I18N_KEYS } from '@/lib/i18n-keys';
 import { Switch } from '@/components/ui/switch';
@@ -39,6 +39,9 @@ import { useLoadMore } from '@/hooks/useLoadMore';
 import DOMPurify from 'dompurify';
 import { SquareCardForm } from '@/components/SquareCardForm';
 import { AdminOnboarding } from '@/components/AdminOnboarding';
+import { InboxPanel } from '@/components/inbox/InboxPanel';
+import { KnowledgeBaseManager } from '@/components/settings/KnowledgeBaseManager';
+import { AISettingsPanel } from '@/components/settings/AISettingsPanel';
 
 const CURRENCIES = ['VND', 'USD', 'EUR', 'AUD'] as const;
 
@@ -1905,6 +1908,7 @@ const AdminDashboard = () => {
     { value: 'sales', icon: DollarSign, label: t('Thanh toán') },
     { value: 'services', icon: Scissors, label: t('Dịch vụ') },
     { value: 'therapists', icon: Users, label: t('Thợ') },
+    { value: 'inbox', icon: MessageSquare, label: t('Hộp thư') },
   ];
 
   const sidebarNavItems = [
@@ -2212,6 +2216,11 @@ const AdminDashboard = () => {
         {/* Main content area */}
         <main className={cn("min-h-screen transition-all duration-300 ease-in-out", sidebarOpen ? "sm:ml-[220px]" : "sm:ml-[68px]")}>
           <div className="px-4 sm:px-8 py-6 pb-24 sm:pb-8">
+
+          {/* Inbox Tab */}
+          <TabsContent value="inbox">
+            <InboxPanel />
+          </TabsContent>
 
           {/* Stats Tab */}
           <TabsContent value="stats">
@@ -3646,6 +3655,7 @@ const AdminDashboard = () => {
               { key: 'membership', icon: Crown, label: t('Hạng thành viên'), desc: `${membershipTiers?.length || 0} ${t('hạng')}` },
               { key: 'discounts', icon: Tag, label: t('Mã giảm giá'), desc: `${discountCodes?.length || 0} ${t('mã')}` },
               { key: 'about', icon: BookOpen, label: t('Về chúng tôi'), desc: t('Chỉnh sửa nội dung trang Về chúng tôi') },
+              { key: 'ai_assistant', icon: Bot, label: t('AI & Knowledge Base'), desc: t('Chat assistant, RAG, Chatwoot') },
               { key: 'terms', icon: ScrollText, label: t('Điều khoản'), desc: t('Chỉnh sửa nội dung trang Điều khoản') },
               ...(isAdmin ? [{ key: 'logs', icon: FileText, label: t('Nhật ký hoạt động'), desc: t('Tải xuống CSV') }] : []),
               { key: 'software', icon: Info, label: t('Thông tin phần mềm'), desc: 'v1.0.0 · Olive Marketing' },
@@ -4571,6 +4581,21 @@ const AdminDashboard = () => {
                   <Button size="sm" onClick={() => { saveAboutContent.mutate(); setSettingsModal(null); }} disabled={saveAboutContent.isPending}>
                     {saveAboutContent.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : t('Lưu nội dung')}
                   </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* ── AI & Knowledge Base ── */}
+            <Dialog open={settingsModal === 'ai_assistant'} onOpenChange={(open) => !open && setSettingsModal(null)}>
+              <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>AI & Knowledge Base</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-6 pt-2">
+                  <AISettingsPanel />
+                  <div className="border-t border-[#E5E5E5] pt-4">
+                    <KnowledgeBaseManager />
+                  </div>
                 </div>
               </DialogContent>
             </Dialog>
