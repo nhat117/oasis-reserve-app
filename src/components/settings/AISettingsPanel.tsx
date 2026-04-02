@@ -145,7 +145,7 @@ export function AISettingsPanel() {
         updated_at: new Date().toISOString(),
       };
 
-      // Only update keys if user entered new values
+      // Only include keys if user entered new values
       if (form.api_key.trim()) {
         payload.api_key_encrypted = form.api_key.trim();
       }
@@ -159,14 +159,24 @@ export function AISettingsPanel() {
         payload.elevenlabs_api_key_encrypted = form.elevenlabs_api_key.trim();
       }
 
+      if (!config && !form.api_key.trim()) throw new Error('API key is required for initial setup');
+
+      // Save via edge function for server-side encryption (PCI-DSS 3.4)
       if (config?.id) {
-        const { error } = await supabase.from('ai_config').update(payload).eq('id', config.id);
-        if (error) throw error;
-      } else {
-        if (!form.api_key.trim()) throw new Error('API key is required for initial setup');
-        payload.api_key_encrypted = form.api_key.trim();
-        const { error } = await supabase.from('ai_config').insert(payload);
-        if (error) throw error;
+        payload.config_id = config.id;
+      }
+      const { data: { session } } = await supabase.auth.getSession();
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/save-ai-config`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token || ''}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({ error: resp.statusText }));
+        throw new Error(errData.error || `Save failed: ${resp.status}`);
       }
     },
     onSuccess: () => {
@@ -182,11 +192,33 @@ export function AISettingsPanel() {
     setTesting(true);
     setTestResult(null);
     try {
+      // Validate URL before sending (prevent SSRF / key exfiltration)
+      const allowedHosts = ['api.openai.com', 'api.anthropic.com', 'openrouter.ai', 'api.together.xyz', 'api.groq.com'];
+      let urlHost: string;
+      try {
+        urlHost = new URL(form.api_base_url).hostname;
+      } catch {
+        setTestResult('Error: Invalid API base URL');
+        setTesting(false);
+        return;
+      }
+      if (!allowedHosts.some(h => urlHost === h || urlHost.endsWith('.' + h))) {
+        setTestResult(`Error: Test connection only allowed for known providers (${allowedHosts.join(', ')}). Save settings first and test via the AI chat.`);
+        setTesting(false);
+        return;
+      }
+
+      if (!form.api_key.trim()) {
+        setTestResult('Error: Enter an API key first (saved keys cannot be used for direct testing)');
+        setTesting(false);
+        return;
+      }
+
       const resp = await fetch(`${form.api_base_url}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${form.api_key || 'saved-key'}`,
+          Authorization: `Bearer ${form.api_key}`,
         },
         body: JSON.stringify({
           model: form.model_name,

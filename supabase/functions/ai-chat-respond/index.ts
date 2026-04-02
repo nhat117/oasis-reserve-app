@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { aiChatRespondSchema, parseBody } from "../_shared/validation.ts";
 import { checkMessageSecurity, checkRateLimit, wrapUserMessage, getSecurityPreamble } from "../_shared/ai-security.ts";
+import { authenticateRequest, authErrorResponse } from "../_shared/auth.ts";
 
 /**
  * AI Chat Response Generator
@@ -29,6 +30,10 @@ Deno.serve(async (req) => {
     if (parsed.response) return parsed.response;
 
     const { conversation_id, message_id, tenant_id } = parsed.data;
+
+    // Auth: require service-role key or authenticated admin/employee with tenant access
+    const auth = await authenticateRequest(req, corsHeaders, { requireTenant: true, tenantId: tenant_id });
+    if (!auth.ok) return authErrorResponse(auth, corsHeaders);
 
     // 1. Load AI config
     const { data: config } = await supabase
@@ -1062,17 +1067,19 @@ async function toolCreateBookingFresha(
 // ─── Crypto Helpers ──────────────────────────────────────────────────
 
 async function decryptToken(encryptedHex: string, keyHex: string): Promise<string> {
-  try {
-    const encBytes = hexToBytes(encryptedHex);
-    const iv = encBytes.slice(0, 12);
-    const ciphertext = encBytes.slice(12);
-    const keyBytes = hexToBytes(keyHex);
-    const key = await crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, ["decrypt"]);
-    const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
-    return new TextDecoder().decode(decrypted);
-  } catch {
+  // If the value doesn't look like a hex-encoded ciphertext, treat as plaintext
+  // (backwards compat for keys stored before encryption was enabled)
+  if (!/^[0-9a-f]{48,}$/i.test(encryptedHex)) {
     return encryptedHex;
   }
+  const encBytes = hexToBytes(encryptedHex);
+  const iv = encBytes.slice(0, 12);
+  const ciphertext = encBytes.slice(12);
+  const keyBytes = hexToBytes(keyHex);
+  const key = await crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, ["decrypt"]);
+  const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
+  return new TextDecoder().decode(decrypted);
+  // NOTE: if decryption fails, let the error propagate — never send ciphertext to third-party APIs
 }
 
 function hexToBytes(hex: string): Uint8Array {

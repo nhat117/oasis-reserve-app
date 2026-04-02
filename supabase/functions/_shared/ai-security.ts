@@ -164,9 +164,22 @@ const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
 
 const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
 const RATE_LIMIT_MAX_MESSAGES = 10; // max 10 messages per minute per conversation
+const RATE_LIMIT_MAX_ENTRIES = 10_000; // max entries before forced cleanup
+let lastCleanup = Date.now();
 
 export function checkRateLimit(conversationId: string): { allowed: boolean; retryAfterMs?: number } {
   const now = Date.now();
+
+  // Periodic cleanup to prevent unbounded memory growth (SOC2 CC7.2)
+  if (rateLimitMap.size > RATE_LIMIT_MAX_ENTRIES || now - lastCleanup > 5 * RATE_LIMIT_WINDOW_MS) {
+    for (const [key, val] of rateLimitMap) {
+      if (now - val.windowStart > RATE_LIMIT_WINDOW_MS) {
+        rateLimitMap.delete(key);
+      }
+    }
+    lastCleanup = now;
+  }
+
   const entry = rateLimitMap.get(conversationId);
 
   if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {

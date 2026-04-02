@@ -1,5 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { notifyHandoffSchema, parseBody } from "../_shared/validation.ts";
+import { authenticateRequest, authErrorResponse } from "../_shared/auth.ts";
 
 /**
  * Handoff Notification Service
@@ -13,15 +15,6 @@ import { getCorsHeaders } from "../_shared/cors.ts";
  * All settings are tenant-scoped.
  */
 
-interface HandoffPayload {
-  conversation_id: string;
-  tenant_id: string;
-  reason: string;
-  customer_name?: string;
-  customer_message?: string;
-  source?: string;
-}
-
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
 
@@ -34,15 +27,17 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    const body: HandoffPayload = await req.json();
-    const { conversation_id, tenant_id, reason, customer_name, customer_message, source } = body;
+    const body = await req.json();
 
-    if (!tenant_id || !reason) {
-      return new Response(JSON.stringify({ error: "tenant_id and reason required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    // Validate input with Zod schema (PCI-DSS 6.5 — input validation)
+    const parsed = parseBody(notifyHandoffSchema, body, corsHeaders);
+    if (parsed.response) return parsed.response;
+
+    const { conversation_id, tenant_id, reason, customer_name, customer_message, source } = parsed.data;
+
+    // Auth: require service-role key or authenticated admin/employee
+    const auth = await authenticateRequest(req, corsHeaders, { requireTenant: true, tenantId: tenant_id });
+    if (!auth.ok) return authErrorResponse(auth, corsHeaders);
 
     const notifiedVia: string[] = ["in_app"]; // Always log in-app
 
@@ -146,7 +141,9 @@ Deno.serve(async (req) => {
             notifyPhone = "+" + notifyPhone;
           }
 
-          const smsMessage = `[${shopName}] AI handoff: ${customer_name || "Customer"} needs help. Reason: ${reason}`;
+          // Truncate SMS to 160 chars to avoid multi-segment billing (PCI-DSS cost control)
+          const rawSms = `[${shopName}] AI handoff: ${customer_name || "Customer"} needs help. Reason: ${reason}`;
+          const smsMessage = rawSms.length > 160 ? rawSms.slice(0, 157) + "..." : rawSms;
 
           const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
           const smsResp = await fetch(twilioUrl, {
@@ -201,6 +198,16 @@ Deno.serve(async (req) => {
 
 // ─── Email Template ─────────────────────────────────────────────────
 
+/** HTML-escape to prevent XSS in email templates (PCI-DSS 6.5 / OWASP A7) */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+}
+
 function buildHandoffEmailHtml(params: {
   shopName: string;
   reason: string;
@@ -208,6 +215,12 @@ function buildHandoffEmailHtml(params: {
   customerMessage?: string;
   conversationId?: string;
 }): string {
+  const shop = escapeHtml(params.shopName);
+  const customer = escapeHtml(params.customerName || "Unknown");
+  const reason = escapeHtml(params.reason);
+  const message = params.customerMessage ? escapeHtml(params.customerMessage) : "";
+  const convId = params.conversationId ? escapeHtml(params.conversationId) : "";
+
   return `
 <!DOCTYPE html>
 <html>
@@ -221,26 +234,26 @@ function buildHandoffEmailHtml(params: {
   <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
     <tr>
       <td style="padding: 8px 0; color: #6B7280; width: 120px;">Shop</td>
-      <td style="padding: 8px 0; font-weight: 600;">${params.shopName}</td>
+      <td style="padding: 8px 0; font-weight: 600;">${shop}</td>
     </tr>
     <tr>
       <td style="padding: 8px 0; color: #6B7280;">Customer</td>
-      <td style="padding: 8px 0; font-weight: 600;">${params.customerName || "Unknown"}</td>
+      <td style="padding: 8px 0; font-weight: 600;">${customer}</td>
     </tr>
     <tr>
       <td style="padding: 8px 0; color: #6B7280;">Reason</td>
-      <td style="padding: 8px 0;">${params.reason}</td>
+      <td style="padding: 8px 0;">${reason}</td>
     </tr>
-    ${params.customerMessage ? `
+    ${message ? `
     <tr>
       <td style="padding: 8px 0; color: #6B7280; vertical-align: top;">Last Message</td>
-      <td style="padding: 8px 0; background: #F9FAFB; border-radius: 4px; padding: 8px;">${params.customerMessage}</td>
+      <td style="padding: 8px 0; background: #F9FAFB; border-radius: 4px; padding: 8px;">${message}</td>
     </tr>` : ""}
   </table>
 
   <p style="margin-top: 16px; font-size: 13px; color: #9CA3AF;">
     Please open your dashboard to respond to the customer.
-    ${params.conversationId ? `Conversation ID: ${params.conversationId}` : ""}
+    ${convId ? `Conversation ID: ${convId}` : ""}
   </p>
 </body>
 </html>`;
