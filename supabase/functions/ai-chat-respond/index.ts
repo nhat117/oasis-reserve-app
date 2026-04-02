@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { aiChatRespondSchema, parseBody } from "../_shared/validation.ts";
+import { checkMessageSecurity, checkRateLimit, wrapUserMessage, getSecurityPreamble } from "../_shared/ai-security.ts";
 
 /**
  * AI Chat Response Generator
@@ -79,6 +80,52 @@ Deno.serve(async (req) => {
       });
     }
 
+    // 4b. Rate limiting — prevent message flooding
+    const rateCheck = checkRateLimit(conversation_id);
+    if (!rateCheck.allowed) {
+      console.warn(`Rate limited conversation ${conversation_id}`);
+      return new Response(JSON.stringify({ ok: true, skipped: "rate limited" }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // 4c. Security check — prompt injection detection
+    const securityCheck = checkMessageSecurity(latestMsg.content);
+    if (!securityCheck.safe) {
+      console.warn(`Security block on conversation ${conversation_id}: ${securityCheck.blocked_reason} (risk=${securityCheck.risk_score})`);
+
+      // Store a polite deflection as the AI response
+      const deflection = securityCheck.blocked_reason === "Cannot provide other customers' information"
+        ? "I'm sorry, I can't share other customers' information. I can only help you with your own bookings and our services. How can I assist you today?"
+        : "I'm here to help you with bookings and information about our services. Could you please rephrase your question?";
+
+      await supabase.from("chat_messages").insert({
+        tenant_id,
+        conversation_id,
+        direction: "outbound",
+        sender_type: "ai",
+        sender_name: "AI Assistant",
+        content: deflection,
+        content_type: "text",
+        metadata: { security_blocked: true, risk_score: securityCheck.risk_score },
+      });
+
+      // Send deflection to customer via Chatwoot
+      if (conversation.chatwoot_conversation_id) {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        fetch(`${supabaseUrl}/functions/v1/chatwoot-send-message`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${supabaseKey}` },
+          body: JSON.stringify({ chatwoot_conversation_id: conversation.chatwoot_conversation_id, content: deflection, tenant_id }),
+        }).catch(() => {});
+      }
+
+      return new Response(JSON.stringify({ ok: true, security_blocked: true }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // 5. Decrypt API key
     const encryptionKey = Deno.env.get("ENCRYPTION_KEY");
     const apiKey = encryptionKey
@@ -135,15 +182,17 @@ Deno.serve(async (req) => {
       console.error("RAG search failed (non-fatal):", err);
     }
 
-    // 8. Build system prompt with real shop data
-    const systemPrompt = buildSystemPrompt(shopName, services, therapists, ragContext, config.system_prompt_override);
+    // 8. Build system prompt with real shop data + security preamble
+    const basePrompt = buildSystemPrompt(shopName, services, therapists, ragContext, config.system_prompt_override);
+    const systemPrompt = getSecurityPreamble().replace("{shop_name}", shopName) + "\n" + basePrompt;
 
     // 9. Build conversation messages for the LLM
+    // Wrap customer messages in delimiters to resist injection
     const llmMessages = [
       { role: "system", content: systemPrompt },
       ...(messages || []).map((m) => ({
         role: m.sender_type === "customer" ? "user" : "assistant",
-        content: m.content,
+        content: m.sender_type === "customer" ? wrapUserMessage(m.content) : m.content,
       })),
     ];
 
