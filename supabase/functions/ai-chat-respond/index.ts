@@ -3,6 +3,7 @@ import { getCorsHeaders } from "../_shared/cors.ts";
 import { aiChatRespondSchema, parseBody } from "../_shared/validation.ts";
 import { checkMessageSecurity, checkRateLimit, wrapUserMessage, getSecurityPreamble } from "../_shared/ai-security.ts";
 import { authenticateRequest, authErrorResponse } from "../_shared/auth.ts";
+import { decryptToken, getEncryptionKeys } from "../_shared/crypto.ts";
 
 /**
  * AI Chat Response Generator
@@ -131,10 +132,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 5. Decrypt API key
-    const encryptionKey = Deno.env.get("ENCRYPTION_KEY");
-    const apiKey = encryptionKey
-      ? await decryptToken(config.api_key_encrypted, encryptionKey)
+    // 5. Decrypt API key (supports key rotation via ENCRYPTION_KEY_PREVIOUS)
+    const encKeys = getEncryptionKeys();
+    const apiKey = encKeys
+      ? await decryptToken(config.api_key_encrypted, encKeys.current, encKeys.previous)
       : config.api_key_encrypted;
 
     const baseUrl = config.api_base_url || "https://api.openai.com/v1";
@@ -260,7 +261,7 @@ Deno.serve(async (req) => {
           const bookingCfg: BookingConfig = {
             booking_mode: config.booking_mode || "local",
             fresha_partner_token: config.fresha_partner_token_encrypted
-              ? (encryptionKey ? await decryptToken(config.fresha_partner_token_encrypted, encryptionKey) : config.fresha_partner_token_encrypted)
+              ? (encKeys ? await decryptToken(config.fresha_partner_token_encrypted, encKeys.current, encKeys.previous) : config.fresha_partner_token_encrypted)
               : undefined,
             fresha_location_id: config.fresha_location_id || undefined,
             fresha_api_base_url: config.fresha_api_base_url || "https://partner-api.fresha.com/v1",
@@ -1064,28 +1065,4 @@ async function toolCreateBookingFresha(
   }
 }
 
-// ─── Crypto Helpers ──────────────────────────────────────────────────
-
-async function decryptToken(encryptedHex: string, keyHex: string): Promise<string> {
-  // If the value doesn't look like a hex-encoded ciphertext, treat as plaintext
-  // (backwards compat for keys stored before encryption was enabled)
-  if (!/^[0-9a-f]{48,}$/i.test(encryptedHex)) {
-    return encryptedHex;
-  }
-  const encBytes = hexToBytes(encryptedHex);
-  const iv = encBytes.slice(0, 12);
-  const ciphertext = encBytes.slice(12);
-  const keyBytes = hexToBytes(keyHex);
-  const key = await crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, ["decrypt"]);
-  const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
-  return new TextDecoder().decode(decrypted);
-  // NOTE: if decryption fails, let the error propagate — never send ciphertext to third-party APIs
-}
-
-function hexToBytes(hex: string): Uint8Array {
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < hex.length; i += 2) {
-    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
-  }
-  return bytes;
-}
+// Crypto helpers moved to _shared/crypto.ts (supports key rotation)

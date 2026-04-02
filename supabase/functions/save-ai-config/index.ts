@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { authenticateRequest, authErrorResponse } from "../_shared/auth.ts";
+import { encryptToken, getEncryptionKeys } from "../_shared/crypto.ts";
 
 /**
  * Save AI Config — Server-side API key encryption
@@ -36,7 +37,7 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const encryptionKey = Deno.env.get("ENCRYPTION_KEY");
+    const encKeys = getEncryptionKeys();
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Build payload — encrypt sensitive fields
@@ -65,13 +66,13 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Encrypt sensitive fields if ENCRYPTION_KEY is available
+    // Encrypt sensitive fields using current encryption key
     for (const field of sensitiveFields) {
       if (payload[field] && typeof payload[field] === "string") {
         const rawValue = (payload[field] as string).trim();
         if (rawValue) {
-          if (encryptionKey) {
-            payload[field] = await encryptToken(rawValue, encryptionKey);
+          if (encKeys) {
+            payload[field] = await encryptToken(rawValue, encKeys.current);
           } else {
             console.warn(`ENCRYPTION_KEY not set — storing ${field} as plaintext (NOT recommended for production)`);
           }
@@ -102,29 +103,4 @@ Deno.serve(async (req) => {
   }
 });
 
-// ─── Encryption ────────────────────────────────────────────────────
-
-async function encryptToken(plaintext: string, keyHex: string): Promise<string> {
-  const keyBytes = hexToBytes(keyHex);
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const key = await crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, ["encrypt"]);
-  const encoded = new TextEncoder().encode(plaintext);
-  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoded);
-  // Prepend IV to ciphertext and hex-encode
-  const combined = new Uint8Array(iv.length + new Uint8Array(ciphertext).length);
-  combined.set(iv);
-  combined.set(new Uint8Array(ciphertext), iv.length);
-  return bytesToHex(combined);
-}
-
-function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
-}
-
-function hexToBytes(hex: string): Uint8Array {
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < hex.length; i += 2) {
-    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
-  }
-  return bytes;
-}
+// Crypto helpers in _shared/crypto.ts (supports key rotation)

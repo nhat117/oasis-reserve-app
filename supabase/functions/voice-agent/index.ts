@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { authenticateRequest, authErrorResponse } from "../_shared/auth.ts";
+import { decryptToken, getEncryptionKeys } from "../_shared/crypto.ts";
 
 /**
  * Voice Agent — ElevenLabs TTS + OpenAI LLM + Twilio Telephony
@@ -66,12 +67,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    const encryptionKey = Deno.env.get("ENCRYPTION_KEY");
-    const apiKey = encryptionKey
-      ? await decryptToken(config.api_key_encrypted, encryptionKey)
+    // Decrypt API keys (supports key rotation via ENCRYPTION_KEY_PREVIOUS)
+    const encKeys = getEncryptionKeys();
+    const apiKey = encKeys
+      ? await decryptToken(config.api_key_encrypted, encKeys.current, encKeys.previous)
       : config.api_key_encrypted;
     const elevenLabsKey = config.elevenlabs_api_key_encrypted
-      ? (encryptionKey ? await decryptToken(config.elevenlabs_api_key_encrypted, encryptionKey) : config.elevenlabs_api_key_encrypted)
+      ? (encKeys ? await decryptToken(config.elevenlabs_api_key_encrypted, encKeys.current, encKeys.previous) : config.elevenlabs_api_key_encrypted)
       : null;
 
     const baseUrl = config.api_base_url || "https://api.openai.com/v1";
@@ -353,25 +355,4 @@ function escapeXml(str: string): string {
     .replace(/'/g, "&apos;");
 }
 
-async function decryptToken(encryptedHex: string, keyHex: string): Promise<string> {
-  // If value doesn't look like hex ciphertext, treat as plaintext (backwards compat)
-  if (!/^[0-9a-f]{48,}$/i.test(encryptedHex)) {
-    return encryptedHex;
-  }
-  const encBytes = hexToBytes(encryptedHex);
-  const iv = encBytes.slice(0, 12);
-  const ciphertext = encBytes.slice(12);
-  const keyBytes = hexToBytes(keyHex);
-  const key = await crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, ["decrypt"]);
-  const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
-  return new TextDecoder().decode(decrypted);
-  // NOTE: if decryption fails, let the error propagate — never send ciphertext to third-party APIs
-}
-
-function hexToBytes(hex: string): Uint8Array {
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < hex.length; i += 2) {
-    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
-  }
-  return bytes;
-}
+// Crypto helpers moved to _shared/crypto.ts (supports key rotation)
