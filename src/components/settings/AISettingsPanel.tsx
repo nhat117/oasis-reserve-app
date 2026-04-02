@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Bot, Save, Loader2, TestTube } from 'lucide-react';
+import { Bot, Save, Loader2, TestTube, Phone, Mail, Volume2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const TENANT_ID = import.meta.env.VITE_TENANT_ID;
@@ -27,6 +27,14 @@ interface AIConfig {
   chatwoot_base_url: string | null;
   chatwoot_api_token_encrypted: string | null;
   chatwoot_account_id: number | null;
+  handoff_notify_email: string | null;
+  handoff_notify_sms: boolean;
+  voice_agent_enabled: boolean;
+  elevenlabs_api_key_encrypted: string | null;
+  elevenlabs_voice_id: string | null;
+  elevenlabs_model_id: string | null;
+  voice_greeting: string | null;
+  voice_language: string | null;
 }
 
 export function AISettingsPanel() {
@@ -66,6 +74,14 @@ export function AISettingsPanel() {
     fresha_partner_token: '',
     fresha_location_id: '',
     fresha_api_base_url: 'https://partner-api.fresha.com/v1',
+    handoff_notify_email: '',
+    handoff_notify_sms: false,
+    voice_agent_enabled: false,
+    elevenlabs_api_key: '',
+    elevenlabs_voice_id: 'EXAVITQu4vr4xnSDxMaL',
+    elevenlabs_model_id: 'eleven_multilingual_v2',
+    voice_greeting: 'Hello! Thank you for calling. How can I help you today?',
+    voice_language: 'en',
   });
 
   // Populate form from config
@@ -89,6 +105,14 @@ export function AISettingsPanel() {
         fresha_partner_token: '', // never show
         fresha_location_id: (config as any).fresha_location_id || '',
         fresha_api_base_url: (config as any).fresha_api_base_url || 'https://partner-api.fresha.com/v1',
+        handoff_notify_email: config.handoff_notify_email || '',
+        handoff_notify_sms: config.handoff_notify_sms || false,
+        voice_agent_enabled: config.voice_agent_enabled || false,
+        elevenlabs_api_key: '', // never show
+        elevenlabs_voice_id: config.elevenlabs_voice_id || 'EXAVITQu4vr4xnSDxMaL',
+        elevenlabs_model_id: config.elevenlabs_model_id || 'eleven_multilingual_v2',
+        voice_greeting: config.voice_greeting || 'Hello! Thank you for calling. How can I help you today?',
+        voice_language: config.voice_language || 'en',
       });
     }
   }, [config]);
@@ -111,6 +135,13 @@ export function AISettingsPanel() {
         booking_mode: form.booking_mode,
         fresha_location_id: form.fresha_location_id.trim() || null,
         fresha_api_base_url: form.fresha_api_base_url.trim() || 'https://partner-api.fresha.com/v1',
+        handoff_notify_email: form.handoff_notify_email.trim() || null,
+        handoff_notify_sms: form.handoff_notify_sms,
+        voice_agent_enabled: form.voice_agent_enabled,
+        elevenlabs_voice_id: form.elevenlabs_voice_id.trim() || 'EXAVITQu4vr4xnSDxMaL',
+        elevenlabs_model_id: form.elevenlabs_model_id.trim() || 'eleven_multilingual_v2',
+        voice_greeting: form.voice_greeting.trim() || null,
+        voice_language: form.voice_language,
         updated_at: new Date().toISOString(),
       };
 
@@ -123,6 +154,9 @@ export function AISettingsPanel() {
       }
       if (form.fresha_partner_token.trim()) {
         payload.fresha_partner_token_encrypted = form.fresha_partner_token.trim();
+      }
+      if (form.elevenlabs_api_key.trim()) {
+        payload.elevenlabs_api_key_encrypted = form.elevenlabs_api_key.trim();
       }
 
       if (config?.id) {
@@ -374,6 +408,138 @@ export function AISettingsPanel() {
           />
           <span className="text-xs">Auto-handoff on negative sentiment</span>
         </div>
+      </div>
+
+      {/* Handoff Notifications */}
+      <div>
+        <h4 className="text-xs font-medium mb-2 text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+          <Mail className="h-3 w-3" /> Handoff Notifications
+        </h4>
+        <p className="text-[10px] text-muted-foreground mb-2">Get notified when AI transfers a conversation to your team.</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label className="text-xs">Notification Email</Label>
+            <Input
+              type="email"
+              value={form.handoff_notify_email}
+              onChange={(e) => setForm({ ...form, handoff_notify_email: e.target.value })}
+              placeholder="manager@yoursalon.com"
+              className="h-9 text-sm"
+            />
+            <p className="text-[10px] text-muted-foreground mt-0.5">Email alert via Resend when handoff occurs</p>
+          </div>
+          <div className="flex items-center gap-2 pt-5">
+            <Switch
+              checked={form.handoff_notify_sms}
+              onCheckedChange={(v) => setForm({ ...form, handoff_notify_sms: v })}
+            />
+            <span className="text-xs">SMS alert via Twilio</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Voice Agent (ElevenLabs + Twilio) */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+            <Phone className="h-3 w-3" /> Voice Agent
+          </h4>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Enable Voice</span>
+            <Switch
+              checked={form.voice_agent_enabled}
+              onCheckedChange={(v) => setForm({ ...form, voice_agent_enabled: v })}
+            />
+          </div>
+        </div>
+        <p className="text-[10px] text-muted-foreground mb-2">
+          AI phone agent using ElevenLabs TTS + your LLM + Twilio telephony. Customers call your Twilio number and speak with the AI.
+        </p>
+
+        {form.voice_agent_enabled && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">ElevenLabs API Key</Label>
+                <Input
+                  type="password"
+                  value={form.elevenlabs_api_key}
+                  onChange={(e) => setForm({ ...form, elevenlabs_api_key: e.target.value })}
+                  placeholder={config?.elevenlabs_api_key_encrypted ? '••••••• (saved)' : 'xi-...'}
+                  className="h-9 text-sm"
+                />
+              </div>
+              <div>
+                <Label className="text-xs flex items-center gap-1"><Volume2 className="h-3 w-3" /> Voice</Label>
+                <select
+                  value={form.elevenlabs_voice_id}
+                  onChange={(e) => setForm({ ...form, elevenlabs_voice_id: e.target.value })}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="EXAVITQu4vr4xnSDxMaL">Sarah (warm, professional)</option>
+                  <option value="21m00Tcm4TlvDq8ikWAM">Rachel (calm, clear)</option>
+                  <option value="AZnzlk1XvdvUeBnXmlld">Domi (confident, bold)</option>
+                  <option value="MF3mGyEYCl7XYWbV9V6O">Elli (friendly, casual)</option>
+                  <option value="TxGEqnHWrfWFTfGW9XjX">Josh (deep, authoritative)</option>
+                  <option value="VR6AewLTigWG4xSOukaG">Arnold (strong, natural)</option>
+                  <option value="pNInz6obpgDQGcFmaJgB">Adam (versatile, warm)</option>
+                  <option value="yoZ06aMxZJJ28mfd3POQ">Sam (enthusiastic, dynamic)</option>
+                  <option value="jBpfuIE2acCO8z3wKNLl">Gigi (playful, upbeat)</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <Label className="text-xs">TTS Model</Label>
+                <select
+                  value={form.elevenlabs_model_id}
+                  onChange={(e) => setForm({ ...form, elevenlabs_model_id: e.target.value })}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="eleven_multilingual_v2">Multilingual v2 (best quality)</option>
+                  <option value="eleven_turbo_v2_5">Turbo v2.5 (low latency)</option>
+                  <option value="eleven_turbo_v2">Turbo v2 (fastest)</option>
+                  <option value="eleven_monolingual_v1">English v1 (legacy)</option>
+                </select>
+              </div>
+              <div>
+                <Label className="text-xs">Language</Label>
+                <select
+                  value={form.voice_language}
+                  onChange={(e) => setForm({ ...form, voice_language: e.target.value })}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="en">English</option>
+                  <option value="vi">Vietnamese</option>
+                  <option value="zh">Chinese</option>
+                  <option value="ja">Japanese</option>
+                  <option value="ko">Korean</option>
+                  <option value="fr">French</option>
+                  <option value="es">Spanish</option>
+                </select>
+              </div>
+              <div>
+                <Label className="text-xs">Custom Voice ID</Label>
+                <Input
+                  value={form.elevenlabs_voice_id}
+                  onChange={(e) => setForm({ ...form, elevenlabs_voice_id: e.target.value })}
+                  placeholder="EXAVITQu4vr4xnSDxMaL"
+                  className="h-9 text-sm"
+                />
+                <p className="text-[10px] text-muted-foreground mt-0.5">Paste a custom/cloned voice ID</p>
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Voice Greeting</Label>
+              <Textarea
+                value={form.voice_greeting}
+                onChange={(e) => setForm({ ...form, voice_greeting: e.target.value })}
+                placeholder="Hello! Thank you for calling. How can I help you today?"
+                className="min-h-[60px] text-sm"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Actions */}

@@ -186,10 +186,16 @@ Deno.serve(async (req) => {
     const basePrompt = buildSystemPrompt(shopName, services, therapists, ragContext, config.system_prompt_override);
     const systemPrompt = getSecurityPreamble().replace("{shop_name}", shopName) + "\n" + basePrompt;
 
+    // 8b. Analyze conversation for circular patterns — feed to LLM so it can decide to hand off
+    const circleAnalysis = analyzeConversationCircles(messages || []);
+    const circleAdvisory = circleAnalysis.shouldAdviseHandoff
+      ? `\n\nCONVERSATION STATUS ALERT:\n${circleAnalysis.advisory}\nYou MUST call transfer_to_human if you cannot add new value in your next response. Do NOT repeat previous answers.`
+      : "";
+
     // 9. Build conversation messages for the LLM
     // Wrap customer messages in delimiters to resist injection
     const llmMessages = [
-      { role: "system", content: systemPrompt },
+      { role: "system", content: systemPrompt + circleAdvisory },
       ...(messages || []).map((m) => ({
         role: m.sender_type === "customer" ? "user" : "assistant",
         content: m.sender_type === "customer" ? wrapUserMessage(m.content) : m.content,
@@ -333,6 +339,141 @@ Deno.serve(async (req) => {
   }
 });
 
+// ─── Conversation Circle Detection ──────────────────────────────────
+// Analyzes message history to detect when the AI is going in circles,
+// then injects an advisory into the system prompt so the LLM decides to hand off.
+
+interface CircleAnalysis {
+  shouldAdviseHandoff: boolean;
+  advisory: string;
+  signals: {
+    repeatedQuestions: number;
+    similarResponses: number;
+    customerRepeats: number;
+    toolFailures: number;
+    conversationLength: number;
+  };
+}
+
+interface ChatMessage {
+  direction: string;
+  sender_type: string;
+  sender_name: string;
+  content: string;
+  metadata?: Record<string, unknown> | null;
+  created_at: string;
+}
+
+function analyzeConversationCircles(messages: ChatMessage[]): CircleAnalysis {
+  const signals = {
+    repeatedQuestions: 0,
+    similarResponses: 0,
+    customerRepeats: 0,
+    toolFailures: 0,
+    conversationLength: messages.length,
+  };
+
+  if (messages.length < 4) {
+    return { shouldAdviseHandoff: false, advisory: "", signals };
+  }
+
+  // Extract customer messages and AI responses
+  const customerMsgs = messages
+    .filter((m) => m.sender_type === "customer")
+    .map((m) => m.content?.toLowerCase().trim() || "");
+  const aiMsgs = messages
+    .filter((m) => m.sender_type === "ai")
+    .map((m) => m.content?.toLowerCase().trim() || "");
+
+  // Detect customer repeating themselves (similar messages)
+  for (let i = 1; i < customerMsgs.length; i++) {
+    if (customerMsgs[i].length < 5) continue;
+    for (let j = 0; j < i; j++) {
+      if (textSimilarity(customerMsgs[i], customerMsgs[j]) > 0.6) {
+        signals.customerRepeats++;
+      }
+    }
+  }
+
+  // Detect AI repeating itself (similar responses)
+  for (let i = 1; i < aiMsgs.length; i++) {
+    if (aiMsgs[i].length < 10) continue;
+    for (let j = 0; j < i; j++) {
+      if (textSimilarity(aiMsgs[i], aiMsgs[j]) > 0.6) {
+        signals.similarResponses++;
+      }
+    }
+  }
+
+  // Detect the AI asking the same question pattern (asking for name, phone, etc. again)
+  const questionPatterns = ["what is your name", "your phone", "which service", "what date", "what time", "which day"];
+  const aiQuestions: string[] = [];
+  for (const msg of aiMsgs) {
+    for (const pattern of questionPatterns) {
+      if (msg.includes(pattern)) {
+        aiQuestions.push(pattern);
+      }
+    }
+  }
+  const questionCounts = new Map<string, number>();
+  for (const q of aiQuestions) {
+    questionCounts.set(q, (questionCounts.get(q) || 0) + 1);
+  }
+  for (const count of questionCounts.values()) {
+    if (count >= 2) signals.repeatedQuestions++;
+  }
+
+  // Count tool failures from metadata
+  for (const m of messages) {
+    if (m.metadata && typeof m.metadata === "object") {
+      const meta = m.metadata as Record<string, unknown>;
+      if (meta.security_blocked || meta.error) {
+        signals.toolFailures++;
+      }
+    }
+  }
+
+  // Build advisory based on signals
+  const reasons: string[] = [];
+
+  if (signals.customerRepeats >= 2) {
+    reasons.push(`The customer has repeated the same request ${signals.customerRepeats} times — you are not resolving their issue.`);
+  }
+  if (signals.similarResponses >= 2) {
+    reasons.push(`You have given ${signals.similarResponses} similar responses — you are going in circles.`);
+  }
+  if (signals.repeatedQuestions >= 1) {
+    reasons.push(`You have asked the same question ${signals.repeatedQuestions + 1} times — the customer likely already answered.`);
+  }
+  if (signals.toolFailures >= 2) {
+    reasons.push(`There have been ${signals.toolFailures} tool/system failures in this conversation.`);
+  }
+  if (signals.conversationLength >= 12 && reasons.length === 0) {
+    reasons.push("This conversation has been going on for a while without resolution.");
+  }
+
+  const shouldAdviseHandoff = reasons.length > 0;
+  const advisory = reasons.join("\n");
+
+  return { shouldAdviseHandoff, advisory, signals };
+}
+
+/**
+ * Simple text similarity using word overlap (Jaccard-like).
+ * Returns 0-1 where 1 = identical word sets.
+ */
+function textSimilarity(a: string, b: string): number {
+  const wordsA = new Set(a.split(/\s+/).filter((w) => w.length > 2));
+  const wordsB = new Set(b.split(/\s+/).filter((w) => w.length > 2));
+  if (wordsA.size === 0 && wordsB.size === 0) return 1;
+  if (wordsA.size === 0 || wordsB.size === 0) return 0;
+  let intersection = 0;
+  for (const w of wordsA) {
+    if (wordsB.has(w)) intersection++;
+  }
+  return intersection / Math.max(wordsA.size, wordsB.size);
+}
+
 // ─── System Prompt Builder ───────────────────────────────────────────
 
 interface Service { id: string; name: string; price: number; duration_minutes: number }
@@ -378,7 +519,14 @@ RULES:
 6. Keep responses concise — 2-3 sentences max unless explaining something detailed.
 7. Format prices with $ symbol. Durations in minutes.
 8. When listing available slots, show max 5-6 options to avoid overwhelming the customer.
-9. You are restricted to this shop's data only. Do not reference other businesses.`;
+9. You are restricted to this shop's data only. Do not reference other businesses.
+
+AUTO-HANDOFF RULES (critical — prevents going in circles):
+10. If you are about to repeat an answer you already gave, call transfer_to_human instead.
+11. If the customer seems frustrated, angry, or upset, call transfer_to_human with the reason.
+12. If you have failed to resolve the customer's request after 2 attempts, call transfer_to_human.
+13. If the customer's request is outside your capabilities (complaints, refunds, complex changes), call transfer_to_human immediately — do not attempt to handle it.
+14. If you see a CONVERSATION STATUS ALERT in your instructions, follow it strictly.`;
 }
 
 // ─── Tool Definitions ────────────────────────────────────────────────
@@ -441,7 +589,7 @@ function getToolDefinitions() {
       type: "function",
       function: {
         name: "transfer_to_human",
-        description: "Transfer the conversation to a human staff member when the AI cannot help or the customer requests it",
+        description: "Transfer the conversation to a human staff member. Use when: (1) customer requests a human, (2) you cannot resolve the issue after 2 attempts, (3) customer is frustrated or upset, (4) you are about to repeat a previous answer, (5) request is outside your capabilities (complaints, refunds, complex changes)",
         parameters: {
           type: "object",
           properties: {
@@ -501,6 +649,23 @@ async function executeTool(
         ai_enabled: false,
         updated_at: new Date().toISOString(),
       }).eq("id", conversationId).eq("tenant_id", tenantId);
+
+      // Fire handoff notification (email + SMS + in-app) — non-blocking
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      fetch(`${supabaseUrl}/functions/v1/notify-handoff`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${supabaseKey}`,
+        },
+        body: JSON.stringify({
+          conversation_id: conversationId,
+          tenant_id: tenantId,
+          reason: (args.reason as string) || "Customer requested human assistance",
+          source: "ai_transfer_tool",
+        }),
+      }).catch((err) => console.error("Handoff notification failed:", err));
 
       return { transferred: true, message: "Conversation transferred to staff. A team member will respond shortly." };
     }

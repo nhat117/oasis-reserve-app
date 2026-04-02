@@ -72,6 +72,15 @@ export const chatwootSendMessageSchema = z.object({
   tenant_id: z.string().uuid(),
 });
 
+export const notifyHandoffSchema = z.object({
+  conversation_id: z.string().uuid().optional(),
+  tenant_id: z.string().uuid(),
+  reason: z.string().min(1).max(1000),
+  customer_name: z.string().max(200).optional(),
+  customer_message: z.string().max(5000).optional(),
+  source: z.string().max(50).optional(),
+});
+
 /** Parse body with schema, return { data, error, response } */
 export function parseBody<T extends z.ZodSchema>(
   schema: T,
