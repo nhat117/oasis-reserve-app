@@ -959,6 +959,29 @@ const AdminDashboard = () => {
     }
   }, [openaiSettings]);
 
+  // AI Reply toggle (quick toggle from settings list — salons without AI stay on booking-only)
+  const { data: aiReplyConfig } = useQuery({
+    queryKey: ['ai-reply-config', TENANT_ID],
+    queryFn: async () => {
+      const { data } = await supabase.from('ai_config').select('id, ai_enabled').eq('tenant_id', TENANT_ID).single();
+      return data as { id: string; ai_enabled: boolean } | null;
+    },
+  });
+
+  const toggleAiReply = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      if (aiReplyConfig?.id) {
+        const { error } = await supabase.from('ai_config').update({ ai_enabled: enabled, updated_at: new Date().toISOString() }).eq('id', aiReplyConfig.id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ai-reply-config'] });
+      queryClient.invalidateQueries({ queryKey: ['ai-config'] });
+      toast({ title: aiReplyConfig?.ai_enabled ? t('AI Reply disabled') : t('AI Reply enabled') });
+    },
+  });
+
   const saveOpenaiSettings = useMutation({
     mutationFn: async () => {
       requireAdmin();
@@ -3655,7 +3678,7 @@ const AdminDashboard = () => {
               { key: 'membership', icon: Crown, label: t('Hạng thành viên'), desc: `${membershipTiers?.length || 0} ${t('hạng')}` },
               { key: 'discounts', icon: Tag, label: t('Mã giảm giá'), desc: `${discountCodes?.length || 0} ${t('mã')}` },
               { key: 'about', icon: BookOpen, label: t('Về chúng tôi'), desc: t('Chỉnh sửa nội dung trang Về chúng tôi') },
-              { key: 'ai_assistant', icon: Bot, label: t('AI & Knowledge Base'), desc: t('Chat assistant, RAG, Chatwoot') },
+              { key: 'ai_assistant', icon: Bot, label: t('AI & Knowledge Base'), desc: aiReplyConfig ? (aiReplyConfig.ai_enabled ? t('AI Reply ON') : t('AI Reply OFF — booking only')) : t('Not configured') },
               { key: 'terms', icon: ScrollText, label: t('Điều khoản'), desc: t('Chỉnh sửa nội dung trang Điều khoản') },
               ...(isAdmin ? [{ key: 'logs', icon: FileText, label: t('Nhật ký hoạt động'), desc: t('Tải xuống CSV') }] : []),
               { key: 'software', icon: Info, label: t('Thông tin phần mềm'), desc: 'v1.0.0 · Olive Marketing' },
@@ -3675,7 +3698,19 @@ const AdminDashboard = () => {
                   <p className={cn('text-sm font-medium', item.key === 'danger' && 'text-destructive')}>{item.label}</p>
                   <p className="text-xs text-muted-foreground truncate">{item.desc}</p>
                 </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground/50 shrink-0" />
+                {item.key === 'ai_assistant' && aiReplyConfig?.id ? (
+                  <Switch
+                    checked={aiReplyConfig.ai_enabled}
+                    onCheckedChange={(checked) => {
+                      toggleAiReply.mutate(checked);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    disabled={toggleAiReply.isPending}
+                    aria-label="Toggle AI Reply"
+                  />
+                ) : (
+                  <ChevronRight className="h-4 w-4 text-muted-foreground/50 shrink-0" />
+                )}
               </button>
             ))}
 
