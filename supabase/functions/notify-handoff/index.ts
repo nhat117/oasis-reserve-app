@@ -173,6 +173,67 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ─── Assign conversation in Chatwoot ────────────────────────────
+    // Unassign from bot so it appears in the "unassigned" queue for human agents
+    if (conversation_id) {
+      try {
+        const { data: fullConfig } = await supabase
+          .from("ai_config")
+          .select("chatwoot_base_url, chatwoot_api_token_encrypted, chatwoot_account_id")
+          .eq("tenant_id", tenant_id)
+          .single();
+
+        if (fullConfig?.chatwoot_base_url && fullConfig?.chatwoot_api_token_encrypted && fullConfig?.chatwoot_account_id) {
+          // Get chatwoot_conversation_id from our conversations table
+          const { data: convo } = await supabase
+            .from("conversations")
+            .select("chatwoot_conversation_id")
+            .eq("id", conversation_id)
+            .eq("tenant_id", tenant_id)
+            .single();
+
+          if (convo?.chatwoot_conversation_id) {
+            const encryptionKey = Deno.env.get("ENCRYPTION_KEY");
+            const apiToken = encryptionKey
+              ? await decryptToken(fullConfig.chatwoot_api_token_encrypted, encryptionKey)
+              : fullConfig.chatwoot_api_token_encrypted;
+
+            // Toggle conversation status to "open" so it appears in human agents' queue
+            // POST /api/v1/accounts/{account_id}/conversations/{conversation_id}/toggle_status
+            await fetch(
+              `${fullConfig.chatwoot_base_url}/api/v1/accounts/${fullConfig.chatwoot_account_id}/conversations/${convo.chatwoot_conversation_id}/toggle_status`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  api_access_token: apiToken,
+                },
+                body: JSON.stringify({ status: "open" }),
+              },
+            ).catch((e) => console.error("Chatwoot toggle_status failed:", e));
+
+            // Clear assignment so it goes to unassigned queue for human pickup
+            // POST /api/v1/accounts/{account_id}/conversations/{conversation_id}/assignments
+            await fetch(
+              `${fullConfig.chatwoot_base_url}/api/v1/accounts/${fullConfig.chatwoot_account_id}/conversations/${convo.chatwoot_conversation_id}/assignments`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  api_access_token: apiToken,
+                },
+                body: JSON.stringify({}), // empty = unassign, goes to unassigned queue
+              },
+            ).catch((e) => console.error("Chatwoot assignment clear failed:", e));
+
+            notifiedVia.push("chatwoot_unassigned");
+          }
+        }
+      } catch (chatwootErr) {
+        console.error("Chatwoot handoff assignment failed:", chatwootErr);
+      }
+    }
+
     // ─── Log handoff event ─────────────────────────────────────────
     await supabase.from("handoff_events").insert({
       tenant_id,
@@ -244,4 +305,28 @@ function buildHandoffEmailHtml(params: {
   </p>
 </body>
 </html>`;
+}
+
+// ─── Crypto Helpers ──────────────────────────────────────────────────
+
+async function decryptToken(encryptedHex: string, keyHex: string): Promise<string> {
+  try {
+    const encBytes = hexToBytes(encryptedHex);
+    const iv = encBytes.slice(0, 12);
+    const ciphertext = encBytes.slice(12);
+    const keyBytes = hexToBytes(keyHex);
+    const key = await crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, ["decrypt"]);
+    const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
+    return new TextDecoder().decode(decrypted);
+  } catch {
+    return encryptedHex;
+  }
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+  }
+  return bytes;
 }
