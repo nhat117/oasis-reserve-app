@@ -986,6 +986,50 @@ const AdminDashboard = () => {
     },
   });
 
+  // AI License key — gates AI Chat & Inbox features
+  const { data: aiLicenseKey } = useQuery({
+    queryKey: ['ai-license-key', TENANT_ID],
+    queryFn: async () => {
+      const { data } = await supabase.from('app_settings').select('value').eq('key', 'ai_license_key').eq('tenant_id', TENANT_ID).single();
+      return data?.value || '';
+    },
+  });
+
+  const isAiLicensed = !!aiLicenseKey && aiLicenseKey.length >= 8;
+
+  const saveAiLicense = useMutation({
+    mutationFn: async (key: string) => {
+      requireAdmin();
+      const { error } = await supabase.from('app_settings').upsert({ key: 'ai_license_key', value: key.trim(), tenant_id: TENANT_ID }, { onConflict: 'key,tenant_id' });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ai-license-key'] });
+      toast({ title: t('Đã lưu mã bản quyền') });
+    },
+  });
+
+  // Inbox visibility toggle — persisted in app_settings
+  const { data: inboxEnabled } = useQuery({
+    queryKey: ['inbox-enabled', TENANT_ID],
+    queryFn: async () => {
+      const { data } = await supabase.from('app_settings').select('value').eq('key', 'inbox_enabled').eq('tenant_id', TENANT_ID).single();
+      return data?.value === 'true';
+    },
+  });
+
+  const toggleInboxVisible = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      requireAdmin();
+      const { error } = await supabase.from('app_settings').upsert({ key: 'inbox_enabled', value: String(enabled), tenant_id: TENANT_ID }, { onConflict: 'key,tenant_id' });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inbox-enabled'] });
+      toast({ title: inboxEnabled ? t('Đã ẩn hộp thư') : t('Đã hiện hộp thư') });
+    },
+  });
+
   const saveOpenaiSettings = useMutation({
     mutationFn: async () => {
       requireAdmin();
@@ -1935,7 +1979,7 @@ const AdminDashboard = () => {
     { value: 'sales', icon: DollarSign, label: t('Thanh toán') },
     { value: 'services', icon: Scissors, label: t('Dịch vụ') },
     { value: 'therapists', icon: Users, label: t('Thợ') },
-    { value: 'inbox', icon: MessageSquare, label: t('Hộp thư') },
+    ...(isAiLicensed && inboxEnabled ? [{ value: 'inbox', icon: MessageSquare, label: t('Hộp thư') }] : []),
   ];
 
   const sidebarNavItems = [
@@ -3678,7 +3722,7 @@ const AdminDashboard = () => {
               { key: 'twilio', icon: Phone, label: t('Cấu hình Twilio'), desc: twilioSettings?.twilio_account_sid ? t('Đã cấu hình') : t('Chưa cấu hình') },
               { key: 'notifications', icon: Bell, label: t('Thông báo & Nhắc lịch'), desc: t('SMS, WhatsApp, email nhắc lịch') },
               { key: 'email', icon: Mail, label: t('Cài đặt email'), desc: resendSettings?.['resend_api_key'] ? t('Đã cấu hình') : t('Chưa cấu hình') },
-              { key: 'ai_assistant', icon: Bot, label: t('AI, Dịch thuật & Knowledge Base'), desc: aiReplyConfig ? (aiReplyConfig.ai_enabled ? t('AI Reply ON') : t('AI Reply OFF — booking only')) : (openaiSettings?.['openai_api_key'] ? t('Dịch thuật đã cấu hình') : t('Chưa cấu hình')) },
+              { key: 'ai_assistant', icon: Bot, label: t('AI, Dịch thuật & Knowledge Base'), desc: isAiLicensed ? (aiReplyConfig?.ai_enabled ? t('AI Reply ON') : t('AI Reply OFF — booking only')) : t('Chưa kích hoạt — cần mã bản quyền') },
               { key: 'membership', icon: Crown, label: t('Hạng thành viên'), desc: `${membershipTiers?.length || 0} ${t('hạng')}` },
               { key: 'discounts', icon: Tag, label: t('Mã giảm giá'), desc: `${discountCodes?.length || 0} ${t('mã')}` },
               { key: 'about', icon: BookOpen, label: t('Về chúng tôi'), desc: t('Chỉnh sửa nội dung trang Về chúng tôi') },
@@ -4323,48 +4367,50 @@ const AdminDashboard = () => {
 
             {/* ── Discount Codes Modal ── */}
             <Dialog open={settingsModal === 'discounts'} onOpenChange={(open) => !open && setSettingsModal(null)}>
-              <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-                <DialogHeader>
-                  <div className="flex items-center justify-between">
-                    <DialogTitle>{t('Mã giảm giá')}</DialogTitle>
-                    <div className="flex items-center gap-3">
+              <DialogContent className="max-w-[100vw] sm:max-w-[560px] p-0 gap-0 rounded-none sm:rounded-xl overflow-hidden max-h-[85vh] overflow-y-auto">
+                <div className="px-5 py-4 border-b border-border/60">
+                  <DialogHeader>
+                    <div className="flex items-center justify-between">
+                      <DialogTitle className="text-lg">{t('Mã giảm giá')}</DialogTitle>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">{t('Bật/Tắt')}</span>
                         <Switch checked={discountCodesEnabled === true} onCheckedChange={(v) => toggleDiscountCodes.mutate(v)} disabled={toggleDiscountCodes.isPending} />
                       </div>
-                      <Button size="sm" variant="outline" onClick={() => {
-                        if (!discountCodes?.length) return;
-                        const header = 'Code,Type,Discount %,Discount Amount,Valid From,Valid To,Max Uses,Used,Active\n';
-                        const rows = discountCodes.map(dc => `${dc.code},${Number(dc.discount_amount) > 0 && Number(dc.discount_percent) === 0 ? 'Gift Card' : 'Discount'},${dc.discount_percent},${dc.discount_amount},${dc.valid_from || ''},${dc.valid_to || ''},${dc.max_uses || ''},${dc.current_uses || 0},${dc.is_active}`).join('\n');
-                        const blob = new Blob([header + rows], { type: 'text/csv' });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a'); a.href = url; a.download = `gift-cards-${format(new Date(), 'yyyy-MM-dd')}.csv`; a.click();
-                        URL.revokeObjectURL(url);
-                      }} disabled={!discountCodes?.length}>
-                        <Download className="h-3.5 w-3.5 mr-1" /> CSV
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => setGiftCardDialog(true)}>
-                        <Crown className="h-3.5 w-3.5 mr-1" /> {t('Phiếu quà tặng')}
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => {
-                        setEditingDiscount(null); setDiscountCode(''); setDiscountPercent('0'); setDiscountAmount('0'); setDiscountValidFrom(''); setDiscountValidTo(''); setDiscountMaxUses(''); setDiscountDialog(true);
-                      }}>
-                        <Plus className="h-3.5 w-3.5 mr-1" /> {t('Thêm')}
-                      </Button>
                     </div>
+                  </DialogHeader>
+                  <div className="flex items-center gap-2 mt-3">
+                    <Button size="sm" variant="outline" className="text-xs" onClick={() => {
+                      setEditingDiscount(null); setDiscountCode(''); setDiscountPercent('0'); setDiscountAmount('0'); setDiscountValidFrom(''); setDiscountValidTo(''); setDiscountMaxUses(''); setDiscountDialog(true);
+                    }}>
+                      <Plus className="h-3.5 w-3.5 mr-1" /> {t('Thêm')}
+                    </Button>
+                    <Button size="sm" variant="outline" className="text-xs" onClick={() => setGiftCardDialog(true)}>
+                      <Crown className="h-3.5 w-3.5 mr-1" /> {t('Phiếu quà tặng')}
+                    </Button>
+                    <Button size="sm" variant="outline" className="text-xs" onClick={() => {
+                      if (!discountCodes?.length) return;
+                      const header = 'Code,Type,Discount %,Discount Amount,Valid From,Valid To,Max Uses,Used,Active\n';
+                      const rows = discountCodes.map(dc => `${dc.code},${Number(dc.discount_amount) > 0 && Number(dc.discount_percent) === 0 ? 'Gift Card' : 'Discount'},${dc.discount_percent},${dc.discount_amount},${dc.valid_from || ''},${dc.valid_to || ''},${dc.max_uses || ''},${dc.current_uses || 0},${dc.is_active}`).join('\n');
+                      const blob = new Blob([header + rows], { type: 'text/csv' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a'); a.href = url; a.download = `discount-codes-${format(new Date(), 'yyyy-MM-dd')}.csv`; a.click();
+                      URL.revokeObjectURL(url);
+                    }} disabled={!discountCodes?.length}>
+                      <Download className="h-3.5 w-3.5 mr-1" /> CSV
+                    </Button>
                   </div>
-                </DialogHeader>
-                <div className="pt-2">
+                </div>
+                <div className="px-5 py-4">
                   {!discountCodes?.length ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">{t('Chưa có mã giảm giá nào')}</p>
+                    <p className="text-sm text-muted-foreground text-center py-6">{t('Chưa có mã giảm giá nào')}</p>
                   ) : (
                     <div className="space-y-2">
                       {discountCodes.map(dc => (
-                        <div key={dc.id} className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:bg-muted/30 transition-colors">
-                          <div className="flex items-center gap-3">
+                        <div key={dc.id} className="flex items-center justify-between p-3 rounded-xl border border-border/50 hover:bg-muted/30 transition-colors">
+                          <div className="flex items-center gap-3 min-w-0">
                             <Switch checked={dc.is_active} onCheckedChange={(v) => toggleDiscountActive.mutate({ id: dc.id, active: v })} />
-                            <div>
-                              <p className="text-sm font-mono font-semibold">{dc.code}</p>
+                            <div className="min-w-0">
+                              <p className="text-sm font-mono font-semibold truncate">{dc.code}</p>
                               <p className="text-xs text-muted-foreground">
                                 {Number(dc.discount_percent) > 0 && `${dc.discount_percent}%`}
                                 {Number(dc.discount_percent) > 0 && Number(dc.discount_amount) > 0 && ' + '}
@@ -4374,7 +4420,7 @@ const AdminDashboard = () => {
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1 shrink-0">
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
                               setEditingDiscount(dc); setDiscountCode(dc.code); setDiscountPercent(String(dc.discount_percent)); setDiscountAmount(String(dc.discount_amount));
                               setDiscountValidFrom(dc.valid_from || ''); setDiscountValidTo(dc.valid_to || ''); setDiscountMaxUses(dc.max_uses ? String(dc.max_uses) : ''); setDiscountDialog(true);
@@ -4679,22 +4725,67 @@ const AdminDashboard = () => {
                 <DialogHeader>
                   <div className="flex items-center justify-between">
                     <DialogTitle>{t('AI, Dịch thuật & Knowledge Base')}</DialogTitle>
-                    {aiReplyConfig?.id && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">{t('AI Reply')}</span>
-                        <Switch
-                          checked={aiReplyConfig.ai_enabled}
-                          onCheckedChange={(checked) => toggleAiReply.mutate(checked)}
-                          disabled={toggleAiReply.isPending}
-                        />
-                      </div>
-                    )}
+                    <div className="flex items-center gap-3">
+                      {isAiLicensed && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">{t('Hộp thư')}</span>
+                          <Switch
+                            checked={inboxEnabled === true}
+                            onCheckedChange={(checked) => toggleInboxVisible.mutate(checked)}
+                            disabled={toggleInboxVisible.isPending}
+                          />
+                        </div>
+                      )}
+                      {aiReplyConfig?.id && isAiLicensed && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">{t('AI Reply')}</span>
+                          <Switch
+                            checked={aiReplyConfig.ai_enabled}
+                            onCheckedChange={(checked) => toggleAiReply.mutate(checked)}
+                            disabled={toggleAiReply.isPending}
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <DialogDescription className="text-xs">
                     {t('Cấu hình AI tự động trả lời, dịch thuật giao diện, và cơ sở kiến thức')}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-6 pt-2">
+                  {/* ── License Key Section ── */}
+                  <div className={cn('p-4 rounded-xl border-2', isAiLicensed ? 'border-green-200 bg-green-50/50' : 'border-amber-200 bg-amber-50/50')}>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-semibold flex items-center gap-2">
+                        <Lock className="h-4 w-4" /> {t('Mã bản quyền AI')}
+                      </h3>
+                      {isAiLicensed && (
+                        <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <Check className="h-3 w-3" /> {t('Đã kích hoạt')}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      {isAiLicensed ? t('Tính năng AI & Hộp thư đã được mở khoá') : t('Nhập mã bản quyền để mở khoá AI Chat, Hộp thư và Knowledge Base')}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={upgradeKey || (aiLicenseKey || '')}
+                        onChange={e => setUpgradeKey(e.target.value.toUpperCase())}
+                        placeholder="XXXX-XXXX-XXXX-XXXX"
+                        className="font-mono text-sm tracking-wider flex-1"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => saveAiLicense.mutate(upgradeKey || aiLicenseKey || '')}
+                        disabled={saveAiLicense.isPending || !(upgradeKey || aiLicenseKey)}
+                      >
+                        {saveAiLicense.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Lock className="h-3.5 w-3.5 mr-1" />}
+                        {t('Lưu')}
+                      </Button>
+                    </div>
+                  </div>
+
                   {/* ── Translation Settings Section ── */}
                   <div>
                     <h3 className="text-sm font-semibold flex items-center gap-2 mb-3">
@@ -4765,11 +4856,26 @@ const AdminDashboard = () => {
                     <h3 className="text-sm font-semibold flex items-center gap-2 mb-3">
                       <Bot className="h-4 w-4" /> {t('AI Chat & Tự động trả lời')}
                     </h3>
-                    <AISettingsPanel />
+                    {isAiLicensed ? (
+                      <AISettingsPanel />
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Lock className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                        <p className="text-sm font-medium">{t('Tính năng bị khoá')}</p>
+                        <p className="text-xs mt-1">{t('Nhập mã bản quyền ở trên để mở khoá AI Chat & Hộp thư')}</p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="border-t border-[#E5E5E5] pt-4">
-                    <KnowledgeBaseManager />
+                    {isAiLicensed ? (
+                      <KnowledgeBaseManager />
+                    ) : (
+                      <div className="text-center py-6 text-muted-foreground">
+                        <Lock className="h-6 w-6 mx-auto mb-2 opacity-40" />
+                        <p className="text-xs">{t('Knowledge Base — cần mã bản quyền')}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </DialogContent>

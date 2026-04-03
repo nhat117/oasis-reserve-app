@@ -700,6 +700,19 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Dịch → Tiếng Việt": "Translate → Vietnamese",
   "Lưu dịch thuật": "Save Translation",
 
+  // License key & AI gating
+  "Mã bản quyền AI": "AI License Key",
+  "Đã kích hoạt": "Activated",
+  "Tính năng AI & Hộp thư đã được mở khoá": "AI & Inbox features are unlocked",
+  "Nhập mã bản quyền để mở khoá AI Chat, Hộp thư và Knowledge Base": "Enter a license key to unlock AI Chat, Inbox, and Knowledge Base",
+  "Đã lưu mã bản quyền": "License key saved",
+  "Tính năng bị khoá": "Feature locked",
+  "Nhập mã bản quyền ở trên để mở khoá AI Chat & Hộp thư": "Enter a license key above to unlock AI Chat & Inbox",
+  "Knowledge Base — cần mã bản quyền": "Knowledge Base — license key required",
+  "Đã ẩn hộp thư": "Inbox hidden",
+  "Đã hiện hộp thư": "Inbox shown",
+  "Chưa kích hoạt — cần mã bản quyền": "Not activated — license key required",
+
   // Upgrade key
   "Nâng cấp hệ thống": "System Upgrade",
   "Nhập mã nâng cấp để mở khoá tính năng": "Enter upgrade key to unlock features",
