@@ -44,12 +44,12 @@ function createMockSupabase(tenantId: string) {
       { id: 'kb_other', tenant_id: 'other-tenant-id', title: 'Other Shop Hours', content: 'Different hours', is_active: true },
     ],
     ai_config: [
-      { tenant_id: tenantId, chatwoot_account_id: 1, ai_enabled: true },
-      { tenant_id: 'other-tenant-id', chatwoot_account_id: 2, ai_enabled: true },
+      { tenant_id: tenantId, sinch_app_id: 'sinch_app_001', ai_enabled: true },
+      { tenant_id: 'other-tenant-id', sinch_app_id: 'sinch_app_002', ai_enabled: true },
     ],
     conversations: [
-      { id: 'c1', tenant_id: tenantId, chatwoot_conversation_id: 100, ai_enabled: true },
-      { id: 'c_other', tenant_id: 'other-tenant-id', chatwoot_conversation_id: 200, ai_enabled: true },
+      { id: 'c1', tenant_id: tenantId, external_conversation_id: 'sinch_conv_12345', ai_enabled: true },
+      { id: 'c_other', tenant_id: 'other-tenant-id', external_conversation_id: 'sinch_conv_67890', ai_enabled: true },
     ],
   };
 
@@ -142,8 +142,8 @@ function searchKnowledgeBase(supabase: ReturnType<typeof createMockSupabase>, te
   });
 }
 
-function resolveTenantFromChatwoot(supabase: ReturnType<typeof createMockSupabase>, accountId: number) {
-  return supabase.from('ai_config').select('tenant_id, ai_enabled').eq('chatwoot_account_id', accountId).single();
+function resolveTenantFromSinch(supabase: ReturnType<typeof createMockSupabase>, appId: string) {
+  return supabase.from('ai_config').select('tenant_id, ai_enabled').eq('sinch_app_id', appId).single();
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────
@@ -244,24 +244,24 @@ describe('Tenant Isolation: Knowledge base search is shop-scoped', () => {
 });
 
 describe('Tenant Isolation: Webhook tenant resolution', () => {
-  it('resolves correct tenant from Chatwoot account ID', () => {
+  it('resolves correct tenant from Sinch app ID', () => {
     const db = createMockSupabase(SHOP_A_TENANT);
-    const result = resolveTenantFromChatwoot(db, 1);
+    const result = resolveTenantFromSinch(db, 'sinch_app_001');
 
     expect(result.data).not.toBeNull();
     expect(result.data?.tenant_id).toBe(SHOP_A_TENANT);
   });
 
-  it('returns null for unknown Chatwoot account ID', () => {
+  it('returns null for unknown Sinch app ID', () => {
     const db = createMockSupabase(SHOP_A_TENANT);
-    const result = resolveTenantFromChatwoot(db, 999);
+    const result = resolveTenantFromSinch(db, 'sinch_app_unknown');
 
     expect(result.data).toBeNull();
   });
 
   it('Shop A webhook does NOT resolve to Shop B tenant', () => {
     const db = createMockSupabase(SHOP_A_TENANT);
-    const result = resolveTenantFromChatwoot(db, 1);
+    const result = resolveTenantFromSinch(db, 'sinch_app_001');
 
     expect(result.data?.tenant_id).not.toBe(SHOP_B_TENANT);
   });

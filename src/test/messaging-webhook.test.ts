@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import * as chatwootFixtures from './fixtures/chatwoot-webhooks';
+import * as sinchFixtures from './fixtures/sinch-webhooks';
 import * as freshaFixtures from './fixtures/fresha-webhooks';
 
 /**
@@ -8,15 +8,21 @@ import * as freshaFixtures from './fixtures/fresha-webhooks';
  * without calling actual Supabase.
  */
 
-// ─── Platform detection (from chatwoot-webhook) ─────────────────────
+// ─── Platform detection (from sinch-webhook) ──────────────────────
 
-function detectPlatform(channelType: string): string {
-  const lower = channelType?.toLowerCase() || 'web';
-  if (lower.includes('instagram')) return 'instagram';
-  if (lower.includes('facebook') || lower.includes('messenger')) return 'facebook';
-  if (lower.includes('tiktok')) return 'tiktok';
-  if (lower.includes('api')) return 'api';
-  return 'web';
+const SINCH_CHANNEL_MAP: Record<string, string> = {
+  MESSENGER: 'facebook',
+  WHATSAPP: 'whatsapp',
+  SMS: 'sms',
+  VIBER: 'viber',
+  VIBERBM: 'viber',
+  RCS: 'rcs',
+  INSTAGRAM: 'instagram',
+  TELEGRAM: 'telegram',
+};
+
+function detectPlatform(sinchChannel: string): string {
+  return SINCH_CHANNEL_MAP[sinchChannel] || 'web';
 }
 
 // ─── Fresha status mapping ──────────────────────────────────────────
@@ -32,17 +38,25 @@ function mapFreshaStatus(freshaStatus: string): string {
   return map[freshaStatus?.toLowerCase()] || 'confirmed';
 }
 
-// ─── Chatwoot message normalization ─────────────────────────────────
+// ─── Sinch message normalization ────────────────────────────────────
 
-function normalizeMessage(payload: typeof chatwootFixtures.messageCreatedIncoming) {
+function normalizeMessage(payload: typeof sinchFixtures.messageInboundInstagram) {
+  const msg = payload.message;
+  const text = msg.contact_message?.text_message?.text
+    || (msg.contact_message as any)?.media_card_message?.caption
+    || '';
+
   return {
-    chatwoot_message_id: payload.id,
-    direction: payload.message_type === 'incoming' ? 'inbound' : 'outbound',
-    sender_type: payload.message_type === 'incoming' ? 'customer' : 'staff',
-    sender_name: payload.sender?.name || 'Unknown',
-    content: payload.content || '',
-    content_type: payload.content_type || 'text',
-    platform: detectPlatform(payload.conversation?.channel || ''),
+    sinch_contact_id: msg.contact_id,
+    sinch_conversation_id: msg.conversation_id,
+    sinch_message_id: msg.id,
+    direction: 'inbound',
+    sender_type: 'customer',
+    sender_name: msg.channel_identity.identity,
+    content: text,
+    content_type: 'text',
+    platform: detectPlatform(msg.channel_identity.channel),
+    channel_identity: msg.channel_identity.identity,
   };
 }
 
@@ -67,61 +81,82 @@ function normalizeAppointment(data: typeof freshaFixtures.appointmentCreated.dat
 
 // ─── Tests ───────────────────────────────────────────────────────────
 
-describe('Chatwoot Webhook: Platform Detection', () => {
+describe('Sinch Webhook: Platform Detection', () => {
   it('detects Instagram', () => {
-    expect(detectPlatform('Instagram')).toBe('instagram');
-    expect(detectPlatform('instagram_direct')).toBe('instagram');
+    expect(detectPlatform('INSTAGRAM')).toBe('instagram');
   });
 
   it('detects Facebook/Messenger', () => {
-    expect(detectPlatform('Facebook')).toBe('facebook');
-    expect(detectPlatform('facebook_messenger')).toBe('facebook');
-    expect(detectPlatform('Messenger')).toBe('facebook');
+    expect(detectPlatform('MESSENGER')).toBe('facebook');
   });
 
-  it('detects TikTok', () => {
-    expect(detectPlatform('tiktok')).toBe('tiktok');
-    expect(detectPlatform('TikTok')).toBe('tiktok');
+  it('detects WhatsApp', () => {
+    expect(detectPlatform('WHATSAPP')).toBe('whatsapp');
   });
 
-  it('detects API channel (for custom bridges)', () => {
-    expect(detectPlatform('Api')).toBe('api');
-    expect(detectPlatform('api_channel')).toBe('api');
+  it('detects SMS', () => {
+    expect(detectPlatform('SMS')).toBe('sms');
+  });
+
+  it('detects Viber', () => {
+    expect(detectPlatform('VIBER')).toBe('viber');
+    expect(detectPlatform('VIBERBM')).toBe('viber');
+  });
+
+  it('detects RCS', () => {
+    expect(detectPlatform('RCS')).toBe('rcs');
+  });
+
+  it('detects Telegram', () => {
+    expect(detectPlatform('TELEGRAM')).toBe('telegram');
   });
 
   it('defaults to web for unknown', () => {
     expect(detectPlatform('')).toBe('web');
-    expect(detectPlatform('unknown')).toBe('web');
+    expect(detectPlatform('UNKNOWN')).toBe('web');
   });
 });
 
-describe('Chatwoot Webhook: Message Normalization', () => {
+describe('Sinch Webhook: Message Normalization', () => {
   it('normalizes incoming Instagram message', () => {
-    const result = normalizeMessage(chatwootFixtures.messageCreatedIncoming);
+    const result = normalizeMessage(sinchFixtures.messageInboundInstagram);
     expect(result.direction).toBe('inbound');
     expect(result.sender_type).toBe('customer');
-    expect(result.sender_name).toBe('Jane Doe');
+    expect(result.sender_name).toBe('jane_doe_ig');
     expect(result.content).toContain('book a massage');
     expect(result.platform).toBe('instagram');
-    expect(result.chatwoot_message_id).toBe(12345);
+    expect(result.sinch_contact_id).toBe('contact_001');
+    expect(result.sinch_conversation_id).toBe('conv_001');
   });
 
-  it('normalizes outgoing message', () => {
-    const result = normalizeMessage(chatwootFixtures.messageCreatedOutgoing as any);
-    expect(result.direction).toBe('outbound');
-    expect(result.sender_type).toBe('staff');
-  });
-
-  it('normalizes Facebook message', () => {
-    const result = normalizeMessage(chatwootFixtures.messageCreatedFacebook);
+  it('normalizes Messenger message', () => {
+    const result = normalizeMessage(sinchFixtures.messageInboundMessenger);
     expect(result.platform).toBe('facebook');
-    expect(result.sender_name).toBe('John Smith');
+    expect(result.sender_name).toBe('534183549153491');
+    expect(result.content).toContain('services');
   });
 
-  it('normalizes TikTok (API channel) message', () => {
-    const result = normalizeMessage(chatwootFixtures.messageCreatedTikTok);
-    expect(result.platform).toBe('api');
-    expect(result.sender_name).toBe('TikTokUser123');
+  it('normalizes WhatsApp message', () => {
+    const result = normalizeMessage(sinchFixtures.messageInboundWhatsApp);
+    expect(result.platform).toBe('whatsapp');
+    expect(result.content).toContain('appointment this Saturday');
+  });
+
+  it('normalizes SMS message', () => {
+    const result = normalizeMessage(sinchFixtures.messageInboundSMS);
+    expect(result.platform).toBe('sms');
+    expect(result.content).toContain('Cancel my booking');
+  });
+
+  it('normalizes Viber message', () => {
+    const result = normalizeMessage(sinchFixtures.messageInboundViber);
+    expect(result.platform).toBe('viber');
+    expect(result.content).toContain('availability on Monday');
+  });
+
+  it('returns empty content for media-only messages', () => {
+    const result = normalizeMessage(sinchFixtures.messageInboundMediaOnly as any);
+    expect(result.content).toBe('');
   });
 });
 

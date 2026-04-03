@@ -110,14 +110,14 @@ Deno.serve(async (req) => {
         metadata: { security_blocked: true, risk_score: securityCheck.risk_score },
       });
 
-      // Send deflection to customer via Chatwoot
-      if (conversation.chatwoot_conversation_id) {
+      // Send deflection to customer via Sinch
+      if (conversation.external_conversation_id) {
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
         const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-        fetch(`${supabaseUrl}/functions/v1/chatwoot-send-message`, {
+        fetch(`${supabaseUrl}/functions/v1/sinch-send-message`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${supabaseKey}` },
-          body: JSON.stringify({ chatwoot_conversation_id: conversation.chatwoot_conversation_id, content: deflection, tenant_id }),
+          body: JSON.stringify({ external_conversation_id: conversation.external_conversation_id, content: deflection, tenant_id }),
         }).catch(() => {});
       }
 
@@ -311,21 +311,21 @@ Deno.serve(async (req) => {
       updated_at: new Date().toISOString(),
     }).eq("id", conversation_id);
 
-    // 13. Send reply to customer via Chatwoot
-    if (conversation.chatwoot_conversation_id) {
-      const chatwootUrl = `${supabaseUrl}/functions/v1/chatwoot-send-message`;
-      fetch(chatwootUrl, {
+    // 13. Send reply to customer via Sinch
+    if (conversation.external_conversation_id) {
+      const sinchUrl = `${supabaseUrl}/functions/v1/sinch-send-message`;
+      fetch(sinchUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${supabaseKey}`,
         },
         body: JSON.stringify({
-          chatwoot_conversation_id: conversation.chatwoot_conversation_id,
+          external_conversation_id: conversation.external_conversation_id,
           content: finalResponse,
           tenant_id,
         }),
-      }).catch((err) => console.error("Failed to send Chatwoot reply:", err));
+      }).catch((err) => console.error("Failed to send Sinch reply:", err));
     }
 
     return new Response(JSON.stringify({ ok: true, response: finalResponse }), {

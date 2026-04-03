@@ -57,7 +57,7 @@ verify_jwt = false
 [functions.create-stripe-refund]
 verify_jwt = true
 
-[functions.chatwoot-webhook]
+[functions.sinch-webhook]
 verify_jwt = false
 
 [functions.ai-chat-respond]
@@ -66,7 +66,7 @@ verify_jwt = true
 [functions.ai-embed-text]
 verify_jwt = true
 
-[functions.chatwoot-send-message]
+[functions.sinch-send-message]
 verify_jwt = true
 
 [functions.fresha-webhook]

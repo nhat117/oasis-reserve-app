@@ -157,11 +157,11 @@ export function InboxPanel() {
       })
       .eq('id', selectedConvo.id);
 
-    // 3. Send via Chatwoot
-    if (selectedConvo.chatwoot_conversation_id) {
-      await supabase.functions.invoke('chatwoot-send-message', {
+    // 3. Send via Sinch
+    if (selectedConvo.external_conversation_id) {
+      await supabase.functions.invoke('sinch-send-message', {
         body: {
-          chatwoot_conversation_id: selectedConvo.chatwoot_conversation_id,
+          external_conversation_id: selectedConvo.external_conversation_id,
           content,
           tenant_id: TENANT_ID,
         },

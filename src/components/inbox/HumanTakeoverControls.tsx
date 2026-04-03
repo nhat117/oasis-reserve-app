@@ -16,8 +16,12 @@ interface HumanTakeoverControlsProps {
 
 const platformLabels: Record<string, string> = {
   instagram: 'Instagram',
-  facebook: 'Facebook',
-  tiktok: 'TikTok',
+  facebook: 'Messenger',
+  whatsapp: 'WhatsApp',
+  sms: 'SMS',
+  viber: 'Viber',
+  rcs: 'RCS',
+  telegram: 'Telegram',
   web: 'Web',
   api: 'API',
 };

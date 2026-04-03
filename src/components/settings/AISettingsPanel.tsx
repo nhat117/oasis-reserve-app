@@ -24,9 +24,11 @@ interface AIConfig {
   temperature: number;
   handoff_keywords: string[];
   auto_handoff_on_negative_sentiment: boolean;
-  chatwoot_base_url: string | null;
-  chatwoot_api_token_encrypted: string | null;
-  chatwoot_account_id: number | null;
+  sinch_project_id: string | null;
+  sinch_app_id: string | null;
+  sinch_client_id: string | null;
+  sinch_client_secret_encrypted: string | null;
+  sinch_region: string | null;
   handoff_notify_email: string | null;
   handoff_notify_sms: boolean;
   voice_agent_enabled: boolean;
@@ -67,9 +69,11 @@ export function AISettingsPanel() {
     temperature: 0.7,
     handoff_keywords: 'speak to human, talk to staff, real person',
     auto_handoff_on_negative_sentiment: true,
-    chatwoot_base_url: '',
-    chatwoot_api_token: '',
-    chatwoot_account_id: '',
+    sinch_project_id: '',
+    sinch_app_id: '',
+    sinch_client_id: '',
+    sinch_client_secret: '',
+    sinch_region: 'us' as 'us' | 'eu' | 'br',
     booking_mode: 'local' as 'local' | 'fresha',
     fresha_partner_token: '',
     fresha_location_id: '',
@@ -98,9 +102,11 @@ export function AISettingsPanel() {
         temperature: config.temperature || 0.7,
         handoff_keywords: config.handoff_keywords?.join(', ') || '',
         auto_handoff_on_negative_sentiment: config.auto_handoff_on_negative_sentiment,
-        chatwoot_base_url: config.chatwoot_base_url || '',
-        chatwoot_api_token: '', // never show
-        chatwoot_account_id: config.chatwoot_account_id?.toString() || '',
+        sinch_project_id: config.sinch_project_id || '',
+        sinch_app_id: config.sinch_app_id || '',
+        sinch_client_id: config.sinch_client_id || '',
+        sinch_client_secret: '', // never show
+        sinch_region: (config.sinch_region || 'us') as 'us' | 'eu' | 'br',
         booking_mode: (config as any).booking_mode || 'local',
         fresha_partner_token: '', // never show
         fresha_location_id: (config as any).fresha_location_id || '',
@@ -130,8 +136,10 @@ export function AISettingsPanel() {
         temperature: form.temperature,
         handoff_keywords: form.handoff_keywords.split(',').map((k) => k.trim()).filter(Boolean),
         auto_handoff_on_negative_sentiment: form.auto_handoff_on_negative_sentiment,
-        chatwoot_base_url: form.chatwoot_base_url.trim() || null,
-        chatwoot_account_id: form.chatwoot_account_id ? parseInt(form.chatwoot_account_id) : null,
+        sinch_project_id: form.sinch_project_id.trim() || null,
+        sinch_app_id: form.sinch_app_id.trim() || null,
+        sinch_client_id: form.sinch_client_id.trim() || null,
+        sinch_region: form.sinch_region,
         booking_mode: form.booking_mode,
         fresha_location_id: form.fresha_location_id.trim() || null,
         fresha_api_base_url: form.fresha_api_base_url.trim() || 'https://partner-api.fresha.com/v1',
@@ -149,8 +157,8 @@ export function AISettingsPanel() {
       if (form.api_key.trim()) {
         payload.api_key_encrypted = form.api_key.trim();
       }
-      if (form.chatwoot_api_token.trim()) {
-        payload.chatwoot_api_token_encrypted = form.chatwoot_api_token.trim();
+      if (form.sinch_client_secret.trim()) {
+        payload.sinch_client_secret_encrypted = form.sinch_client_secret.trim();
       }
       if (form.fresha_partner_token.trim()) {
         payload.fresha_partner_token_encrypted = form.fresha_partner_token.trim();
@@ -290,37 +298,60 @@ export function AISettingsPanel() {
         </div>
       </div>
 
-      {/* Chatwoot Configuration */}
+      {/* Sinch Conversation API Configuration */}
       <div>
-        <h4 className="text-xs font-medium mb-2 text-muted-foreground uppercase tracking-wider">Chatwoot Connection</h4>
-        <div className="grid grid-cols-3 gap-3">
+        <h4 className="text-xs font-medium mb-2 text-muted-foreground uppercase tracking-wider">Sinch Connection</h4>
+        <p className="text-[10px] text-muted-foreground mb-2">Omnichannel messaging via Sinch Conversation API (Messenger, WhatsApp, SMS, Viber, RCS, Instagram, Telegram)</p>
+        <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label className="text-xs">Chatwoot URL</Label>
+            <Label className="text-xs">Project ID</Label>
             <Input
-              value={form.chatwoot_base_url}
-              onChange={(e) => setForm({ ...form, chatwoot_base_url: e.target.value })}
-              placeholder="https://chatwoot.yourdomain.com"
+              value={form.sinch_project_id}
+              onChange={(e) => setForm({ ...form, sinch_project_id: e.target.value })}
+              placeholder="your-sinch-project-id"
               className="h-9 text-sm"
             />
           </div>
           <div>
-            <Label className="text-xs">API Token</Label>
+            <Label className="text-xs">App ID</Label>
+            <Input
+              value={form.sinch_app_id}
+              onChange={(e) => setForm({ ...form, sinch_app_id: e.target.value })}
+              placeholder="01EB37HMH1M6SV18ASNS3G135H"
+              className="h-9 text-sm"
+            />
+            <p className="text-[10px] text-muted-foreground mt-0.5">Conversation API app ID from Sinch Dashboard</p>
+          </div>
+          <div>
+            <Label className="text-xs">Client ID</Label>
+            <Input
+              value={form.sinch_client_id}
+              onChange={(e) => setForm({ ...form, sinch_client_id: e.target.value })}
+              placeholder="your-client-id"
+              className="h-9 text-sm"
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Client Secret</Label>
             <Input
               type="password"
-              value={form.chatwoot_api_token}
-              onChange={(e) => setForm({ ...form, chatwoot_api_token: e.target.value })}
-              placeholder={config?.chatwoot_api_token_encrypted ? '••••••• (saved)' : 'Enter token'}
+              value={form.sinch_client_secret}
+              onChange={(e) => setForm({ ...form, sinch_client_secret: e.target.value })}
+              placeholder={config?.sinch_client_secret_encrypted ? '••••••• (saved)' : 'Enter client secret'}
               className="h-9 text-sm"
             />
           </div>
           <div>
-            <Label className="text-xs">Account ID</Label>
-            <Input
-              value={form.chatwoot_account_id}
-              onChange={(e) => setForm({ ...form, chatwoot_account_id: e.target.value })}
-              placeholder="1"
-              className="h-9 text-sm"
-            />
+            <Label className="text-xs">Region</Label>
+            <select
+              value={form.sinch_region}
+              onChange={(e) => setForm({ ...form, sinch_region: e.target.value as 'us' | 'eu' | 'br' })}
+              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <option value="us">US</option>
+              <option value="eu">EU</option>
+              <option value="br">BR</option>
+            </select>
           </div>
         </div>
       </div>

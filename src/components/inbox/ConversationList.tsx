@@ -32,7 +32,11 @@ interface ConversationListProps {
 const platformIcons: Record<string, string> = {
   instagram: '📸',
   facebook: '📘',
-  tiktok: '🎵',
+  whatsapp: '💬',
+  sms: '📱',
+  viber: '💜',
+  rcs: '📩',
+  telegram: '✈️',
   web: '🌐',
   api: '🔗',
 };
@@ -40,7 +44,11 @@ const platformIcons: Record<string, string> = {
 const platformColors: Record<string, string> = {
   instagram: 'bg-pink-100 text-pink-700',
   facebook: 'bg-blue-100 text-blue-700',
-  tiktok: 'bg-gray-100 text-gray-700',
+  whatsapp: 'bg-emerald-100 text-emerald-700',
+  sms: 'bg-yellow-100 text-yellow-700',
+  viber: 'bg-violet-100 text-violet-700',
+  rcs: 'bg-indigo-100 text-indigo-700',
+  telegram: 'bg-sky-100 text-sky-700',
   web: 'bg-green-100 text-green-700',
   api: 'bg-purple-100 text-purple-700',
 };
@@ -95,8 +103,12 @@ export function ConversationList({
             <SelectContent>
               <SelectItem value="all">All Platforms</SelectItem>
               <SelectItem value="instagram">Instagram</SelectItem>
-              <SelectItem value="facebook">Facebook</SelectItem>
-              <SelectItem value="tiktok">TikTok</SelectItem>
+              <SelectItem value="facebook">Messenger</SelectItem>
+              <SelectItem value="whatsapp">WhatsApp</SelectItem>
+              <SelectItem value="sms">SMS</SelectItem>
+              <SelectItem value="viber">Viber</SelectItem>
+              <SelectItem value="rcs">RCS</SelectItem>
+              <SelectItem value="telegram">Telegram</SelectItem>
               <SelectItem value="web">Web</SelectItem>
             </SelectContent>
           </Select>

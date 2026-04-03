@@ -50,8 +50,18 @@ export const createAdminSchema = z.object({
 
 // --- Messaging + AI schemas ---
 
-export const chatwootWebhookSchema = z.object({
-  event: z.string(),
+export const sinchWebhookSchema = z.object({
+  app_id: z.string(),
+  message: z.object({
+    id: z.string(),
+    contact_message: z.object({}).passthrough(),
+    channel_identity: z.object({
+      channel: z.string(),
+      identity: z.string(),
+    }).passthrough(),
+    conversation_id: z.string(),
+    contact_id: z.string(),
+  }).passthrough(),
 }).passthrough();
 
 export const aiChatRespondSchema = z.object({
@@ -66,8 +76,8 @@ export const aiEmbedTextSchema = z.object({
   tenant_id: z.string().uuid(),
 });
 
-export const chatwootSendMessageSchema = z.object({
-  chatwoot_conversation_id: z.number().int().positive(),
+export const sinchSendMessageSchema = z.object({
+  external_conversation_id: z.string().min(1),
   content: z.string().min(1).max(10000),
   tenant_id: z.string().uuid(),
 });
