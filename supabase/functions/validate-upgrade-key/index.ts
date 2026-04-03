@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ valid: false, reason: "Unauthorized" }), {
-        status: 401,
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -38,10 +38,11 @@ Deno.serve(async (req) => {
     const callerClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
-    const { data: { user } } = await callerClient.auth.getUser();
+    const { data: { user }, error: authError } = await callerClient.auth.getUser();
     if (!user) {
+      console.error("[validate-upgrade-key] Auth failed:", authError?.message);
       return new Response(JSON.stringify({ valid: false, reason: "Unauthorized" }), {
-        status: 401,
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
