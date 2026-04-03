@@ -4,38 +4,13 @@ import { getCorsHeaders } from "../_shared/cors.ts";
 /**
  * Sinch Conversation API Webhook Handler
  *
- * Receives MESSAGE_INBOUND callbacks from Sinch Conversation API,
- * normalizes messages into conversations + chat_messages tables,
- * and triggers AI response when ai_enabled is true.
+ * Receives callbacks from Sinch Conversation API:
+ * - MESSAGE_INBOUND: customer messages → normalize into conversations + chat_messages, trigger AI
+ * - MESSAGE_DELIVERY: delivery/read receipts → logged (future: update message status)
+ * - Other events: acknowledged with 200 OK
  *
- * JWT is disabled — Sinch webhooks use HMAC signature verification.
+ * JWT is disabled — uses optional HMAC-SHA256 signature verification.
  * Tenant is resolved via sinch_app_id in ai_config.
- *
- * Sinch MESSAGE_INBOUND webhook payload shape:
- * {
- *   app_id: string,
- *   accepted_time: string,
- *   event_time: string,
- *   project_id: string,
- *   message: {
- *     id: string,
- *     direction: "TO_APP",
- *     contact_message: {
- *       text_message?: { text: string },
- *       media_message?: { url: string },
- *       location_message?: { ... },
- *     },
- *     channel_identity: {
- *       channel: "MESSENGER" | "WHATSAPP" | "SMS" | "VIBER" | "VIBERBM" | "RCS" | "INSTAGRAM" | "TELEGRAM",
- *       identity: string,
- *       app_id: string,
- *     },
- *     conversation_id: string,
- *     contact_id: string,
- *     metadata: string,
- *     accept_time: string,
- *   }
- * }
  */
 
 const SINCH_CHANNEL_MAP: Record<string, string> = {
@@ -68,14 +43,14 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    const body = await req.json();
+    const rawBody = await req.text();
+    const body = JSON.parse(rawBody);
 
     const appId = body.app_id as string | undefined;
-    const message = body.message;
 
-    if (!appId || !message) {
+    if (!appId) {
       return new Response(
-        JSON.stringify({ error: "Missing app_id or message" }),
+        JSON.stringify({ error: "Missing app_id" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -95,7 +70,46 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ─── HMAC Signature Verification ─────────────────────────────────
+    // If webhook secret is configured, verify the x-sinch-webhook-signature header
+    if (aiConfig.sinch_webhook_secret) {
+      const signature = req.headers.get("x-sinch-webhook-signature") || "";
+      const isValid = await verifyHmac(rawBody, aiConfig.sinch_webhook_secret, signature);
+      if (!isValid) {
+        console.error("Sinch webhook signature verification failed");
+        return new Response(
+          JSON.stringify({ error: "Invalid webhook signature" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+    }
+
     const tenantId = aiConfig.tenant_id;
+
+    // ─── Route by event type ─────────────────────────────────────────
+    // Sinch sends different event types: message, message_delivery_report, etc.
+
+    // Delivery/read receipts — acknowledge and log
+    if (body.message_delivery_report) {
+      const report = body.message_delivery_report;
+      console.log(`Delivery report: message=${report.message_id} status=${report.status}`);
+      return new Response(JSON.stringify({ ok: true, event: "delivery_report", status: report.status }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Event callbacks (typing, opt-in/out, etc.) — acknowledge
+    if (!body.message) {
+      console.log(`Non-message event received for app_id=${appId}`);
+      return new Response(JSON.stringify({ ok: true, event: "non_message" }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ─── MESSAGE_INBOUND processing ──────────────────────────────────
+    const message = body.message;
 
     // Extract message text from contact_message
     const contactMessage = message.contact_message;
@@ -244,3 +258,23 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+// ─── HMAC-SHA256 Signature Verification ─────────────────────────────
+
+async function verifyHmac(body: string, secret: string, signature: string): Promise<boolean> {
+  try {
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      "raw",
+      encoder.encode(secret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"],
+    );
+    const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(body));
+    const computed = btoa(String.fromCharCode(...new Uint8Array(sig)));
+    return computed === signature;
+  } catch {
+    return false;
+  }
+}

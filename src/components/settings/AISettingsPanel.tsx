@@ -29,6 +29,10 @@ interface AIConfig {
   sinch_client_id: string | null;
   sinch_client_secret_encrypted: string | null;
   sinch_region: string | null;
+  booking_mode: 'local' | 'fresha';
+  fresha_partner_token_encrypted: string | null;
+  fresha_location_id: string | null;
+  fresha_api_base_url: string | null;
   handoff_notify_email: string | null;
   handoff_notify_sms: boolean;
   voice_agent_enabled: boolean;
@@ -107,10 +111,10 @@ export function AISettingsPanel() {
         sinch_client_id: config.sinch_client_id || '',
         sinch_client_secret: '', // never show
         sinch_region: (config.sinch_region || 'us') as 'us' | 'eu' | 'br',
-        booking_mode: (config as any).booking_mode || 'local',
+        booking_mode: config.booking_mode || 'local',
         fresha_partner_token: '', // never show
-        fresha_location_id: (config as any).fresha_location_id || '',
-        fresha_api_base_url: (config as any).fresha_api_base_url || 'https://partner-api.fresha.com/v1',
+        fresha_location_id: config.fresha_location_id || '',
+        fresha_api_base_url: config.fresha_api_base_url || 'https://partner-api.fresha.com/v1',
         handoff_notify_email: config.handoff_notify_email || '',
         handoff_notify_sms: config.handoff_notify_sms || false,
         voice_agent_enabled: config.voice_agent_enabled || false,
