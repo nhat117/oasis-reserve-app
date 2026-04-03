@@ -706,6 +706,8 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Tính năng AI & Hộp thư đã được mở khoá": "AI & Inbox features are unlocked",
   "Nhập mã bản quyền để mở khoá AI Chat, Hộp thư và Knowledge Base": "Enter a license key to unlock AI Chat, Inbox, and Knowledge Base",
   "Đã lưu mã bản quyền": "License key saved",
+  "Mã bản quyền hợp lệ — đã kích hoạt!": "License key valid — activated!",
+  "Kích hoạt": "Activate",
   "Tính năng bị khoá": "Feature locked",
   "Nhập mã bản quyền ở trên để mở khoá AI Chat & Hộp thư": "Enter a license key above to unlock AI Chat & Inbox",
   "Knowledge Base — cần mã bản quyền": "Knowledge Base — license key required",

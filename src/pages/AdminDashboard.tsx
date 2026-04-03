@@ -997,15 +997,34 @@ const AdminDashboard = () => {
 
   const isAiLicensed = !!aiLicenseKey && aiLicenseKey.length >= 8;
 
+  const [licenseValidating, setLicenseValidating] = useState(false);
+  const [licenseError, setLicenseError] = useState('');
+
   const saveAiLicense = useMutation({
     mutationFn: async (key: string) => {
       requireAdmin();
-      const { error } = await supabase.from('app_settings').upsert({ key: 'ai_license_key', value: key.trim(), tenant_id: TENANT_ID }, { onConflict: 'key,tenant_id' });
-      if (error) throw error;
+      setLicenseError('');
+      setLicenseValidating(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('validate-upgrade-key', {
+          body: { key: key.trim() },
+        });
+        if (error) throw new Error(error.message);
+        if (!data?.valid) {
+          throw new Error(data?.reason || 'Invalid key');
+        }
+        return data;
+      } finally {
+        setLicenseValidating(false);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ai-license-key'] });
-      toast({ title: t('Đã lưu mã bản quyền') });
+      setUpgradeKey('');
+      toast({ title: t('Mã bản quyền hợp lệ — đã kích hoạt!') });
+    },
+    onError: (err: Error) => {
+      setLicenseError(err.message);
     },
   });
 
@@ -4770,20 +4789,28 @@ const AdminDashboard = () => {
                     </p>
                     <div className="flex items-center gap-2">
                       <Input
-                        value={upgradeKey || (aiLicenseKey || '')}
-                        onChange={e => setUpgradeKey(e.target.value.toUpperCase())}
+                        value={upgradeKey || (isAiLicensed ? (aiLicenseKey || '') : '')}
+                        onChange={e => { setUpgradeKey(e.target.value.toUpperCase()); setLicenseError(''); }}
                         placeholder="XXXX-XXXX-XXXX-XXXX"
-                        className="font-mono text-sm tracking-wider flex-1"
+                        className={cn('font-mono text-sm tracking-wider flex-1', licenseError && 'border-red-400')}
+                        disabled={isAiLicensed}
                       />
-                      <Button
-                        size="sm"
-                        onClick={() => saveAiLicense.mutate(upgradeKey || aiLicenseKey || '')}
-                        disabled={saveAiLicense.isPending || !(upgradeKey || aiLicenseKey)}
-                      >
-                        {saveAiLicense.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Lock className="h-3.5 w-3.5 mr-1" />}
-                        {t('Lưu')}
-                      </Button>
+                      {!isAiLicensed && (
+                        <Button
+                          size="sm"
+                          onClick={() => saveAiLicense.mutate(upgradeKey)}
+                          disabled={licenseValidating || !upgradeKey.trim()}
+                        >
+                          {licenseValidating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Lock className="h-3.5 w-3.5 mr-1" />}
+                          {t('Kích hoạt')}
+                        </Button>
+                      )}
                     </div>
+                    {licenseError && (
+                      <p className="text-xs text-red-600 mt-2 flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" /> {licenseError}
+                      </p>
+                    )}
                   </div>
 
                   {/* ── Translation Settings Section ── */}
