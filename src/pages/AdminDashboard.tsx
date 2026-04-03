@@ -1931,7 +1931,8 @@ const AdminDashboard = () => {
     { value: 'sales', icon: DollarSign, label: t('Thanh toán') },
     { value: 'services', icon: Scissors, label: t('Dịch vụ') },
     { value: 'therapists', icon: Users, label: t('Thợ') },
-    { value: 'inbox', icon: MessageSquare, label: t('Hộp thư') },
+    // Inbox only visible when AI Reply is enabled
+    ...(aiReplyConfig?.ai_enabled ? [{ value: 'inbox', icon: MessageSquare, label: t('Hộp thư') }] : []),
   ];
 
   const sidebarNavItems = [
