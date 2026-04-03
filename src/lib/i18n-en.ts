@@ -684,4 +684,70 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "In hoá đơn": "Print Receipt",
   "Tự động in hoá đơn cho khách sau khi thanh toán": "Automatically print receipt for customer after payment",
   "Sử dụng trình soạn thảo bên dưới để chỉnh sửa nội dung trang Về chúng tôi.": "Use the editor below to edit the About Us page content.",
+
+  // AI & Translation settings
+  "AI Chat & Tự động trả lời": "AI Chat & Auto Reply",
+  "AI Reply": "AI Reply",
+  "AI Reply OFF — booking only": "AI Reply OFF — booking only",
+  "AI Reply ON": "AI Reply ON",
+  "AI Reply disabled": "AI Reply disabled",
+  "AI Reply enabled": "AI Reply enabled",
+  "AI, Dịch thuật & Knowledge Base": "AI, Translation & Knowledge Base",
+  "Cấu hình AI tự động trả lời, dịch thuật giao diện, và cơ sở kiến thức": "Configure AI auto-reply, interface translation, and knowledge base",
+  "Dịch thuật giao diện": "Interface Translation",
+  "Dịch thuật đã cấu hình": "Translation configured",
+  "Dịch → English": "Translate → English",
+  "Dịch → Tiếng Việt": "Translate → Vietnamese",
+  "Lưu dịch thuật": "Save Translation",
+
+  // Upgrade key
+  "Nâng cấp hệ thống": "System Upgrade",
+  "Nhập mã nâng cấp để mở khoá tính năng": "Enter upgrade key to unlock features",
+  "Nhập mã nâng cấp để mở khoá tính năng cao cấp": "Enter an upgrade key to unlock premium features",
+  "Mã nâng cấp": "Upgrade Key",
+  "Kích hoạt nâng cấp": "Activate Upgrade",
+  "Liên hệ nhà cung cấp để nhận mã nâng cấp": "Contact your provider to get an upgrade key",
+  "Nâng cấp thành công! Tính năng đã được mở khoá.": "Upgrade successful! Features have been unlocked.",
+  "Mã không hợp lệ hoặc đã được sử dụng. Vui lòng thử lại.": "Invalid or already used key. Please try again.",
+
+  // Discount code (revamped)
+  "Giá trị giảm": "Discount Value",
+  "Có thể dùng % hoặc số tiền cố định, hoặc cả hai": "Can use %, fixed amount, or both",
+  "Thời gian hiệu lực": "Validity Period",
+  "Tạo mã giảm giá": "Create Discount Code",
+  "Cập nhật mã giảm giá": "Update Discount Code",
+  "Tạo mã khuyến mãi cho khách hàng": "Create promo codes for customers",
+  "Chưa có giá trị": "No value set",
+  "Từ": "From",
+  "Đến": "To",
+  "tối đa": "max",
+  "Xoá mã giảm giá": "Delete Discount Code",
+
+  // Inbox
+  "Hộp thư": "Inbox",
+
+  // Employee permissions
+  "Cho phép khách chọn \"bất kỳ thợ trống\" khi đặt lịch": "Allow customers to choose \"any available staff\" when booking",
+  "Hiển thị \"Đóng cửa\" ngày lễ": "Show \"Closed\" on holidays",
+
+  // Admin accounts
+  "Tạo tài khoản cho nhân viên hoặc quản trị viên": "Create account for staff or admin",
+
+  // Misc missing
+  "Múi giờ": "Timezone",
+  "Tên dịch vụ": "Service Name",
+  "Mô tả ngắn về dịch vụ...": "Short service description...",
+  "Ghi chú...": "Notes...",
+  "Hủy": "Cancel",
+  "Đã cập nhật trạng thái": "Status updated",
+  "Xoá dịch vụ": "Delete Service",
+  "Xoá hạng": "Delete Tier",
+  "Xoá ngày nghỉ": "Delete Holiday",
+  "Xoá ngày nghỉ này?": "Delete this holiday?",
+  "Xoá ngày nghỉ tiệm này?": "Delete this shop holiday?",
+  "Xoá thanh toán": "Delete Payment",
+  "Xoá thợ": "Delete Staff",
+  "Bạn có chắc muốn xoá lịch hẹn này? Dữ liệu thanh toán liên quan cũng sẽ bị xoá.": "Are you sure you want to delete this appointment? Related payment data will also be deleted.",
+  "Bạn có chắc muốn xoá thanh toán này?": "Are you sure you want to delete this payment?",
+  "lỗi": "error",
 };

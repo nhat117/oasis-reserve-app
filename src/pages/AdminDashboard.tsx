@@ -273,7 +273,7 @@ const AdminDashboard = () => {
   const [cardSurchargePercent, setCardSurchargePercent] = useState('0');
 
   // Employee visible tabs — default all visible
-  const EMPLOYEE_TABS = ['stats', 'bookings', 'customers', 'sales', 'services', 'therapists'] as const;
+  const EMPLOYEE_TABS = ['stats', 'bookings', 'customers', 'sales', 'services', 'therapists', 'inbox'] as const;
   type EmployeeTab = typeof EMPLOYEE_TABS[number];
   const [employeeVisibleTabs, setEmployeeVisibleTabs] = useState<EmployeeTab[]>([...EMPLOYEE_TABS]);
 
@@ -291,6 +291,10 @@ const AdminDashboard = () => {
   // Translation populate state
   const [populatingLang, setPopulatingLang] = useState<'vi' | 'en' | null>(null);
   const [populateProgress, setPopulateProgress] = useState({ done: 0, total: 0 });
+
+  // Upgrade key state
+  const [upgradeKey, setUpgradeKey] = useState('');
+  const [upgradeStatus, setUpgradeStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
   const populateTranslations = async (lang: 'vi' | 'en') => {
     setPopulatingLang(lang);
@@ -3674,13 +3678,13 @@ const AdminDashboard = () => {
               { key: 'twilio', icon: Phone, label: t('Cấu hình Twilio'), desc: twilioSettings?.twilio_account_sid ? t('Đã cấu hình') : t('Chưa cấu hình') },
               { key: 'notifications', icon: Bell, label: t('Thông báo & Nhắc lịch'), desc: t('SMS, WhatsApp, email nhắc lịch') },
               { key: 'email', icon: Mail, label: t('Cài đặt email'), desc: resendSettings?.['resend_api_key'] ? t('Đã cấu hình') : t('Chưa cấu hình') },
-              { key: 'translation', icon: Languages, label: t('Cài đặt dịch thuật'), desc: openaiSettings?.['openai_api_key'] ? t('Đã cấu hình') : t('Chưa cấu hình') },
+              { key: 'ai_assistant', icon: Bot, label: t('AI, Dịch thuật & Knowledge Base'), desc: aiReplyConfig ? (aiReplyConfig.ai_enabled ? t('AI Reply ON') : t('AI Reply OFF — booking only')) : (openaiSettings?.['openai_api_key'] ? t('Dịch thuật đã cấu hình') : t('Chưa cấu hình')) },
               { key: 'membership', icon: Crown, label: t('Hạng thành viên'), desc: `${membershipTiers?.length || 0} ${t('hạng')}` },
               { key: 'discounts', icon: Tag, label: t('Mã giảm giá'), desc: `${discountCodes?.length || 0} ${t('mã')}` },
               { key: 'about', icon: BookOpen, label: t('Về chúng tôi'), desc: t('Chỉnh sửa nội dung trang Về chúng tôi') },
-              { key: 'ai_assistant', icon: Bot, label: t('AI & Knowledge Base'), desc: aiReplyConfig ? (aiReplyConfig.ai_enabled ? t('AI Reply ON') : t('AI Reply OFF — booking only')) : t('Not configured') },
               { key: 'terms', icon: ScrollText, label: t('Điều khoản'), desc: t('Chỉnh sửa nội dung trang Điều khoản') },
               ...(isAdmin ? [{ key: 'logs', icon: FileText, label: t('Nhật ký hoạt động'), desc: t('Tải xuống CSV') }] : []),
+              { key: 'upgrade', icon: Crown, label: t('Nâng cấp hệ thống'), desc: t('Nhập mã nâng cấp để mở khoá tính năng') },
               { key: 'software', icon: Info, label: t('Thông tin phần mềm'), desc: 'v1.0.0 · Olive Marketing' },
               ...(isAdmin ? [{ key: 'danger', icon: AlertTriangle, label: t('Vùng nguy hiểm'), desc: t('Xoá tất cả dữ liệu') }] : []),
             ].map(item => (
@@ -4150,6 +4154,7 @@ const AdminDashboard = () => {
                     { value: 'sales' as EmployeeTab, icon: DollarSign, label: t('Thanh toán') },
                     { value: 'services' as EmployeeTab, icon: Scissors, label: t('Dịch vụ') },
                     { value: 'therapists' as EmployeeTab, icon: Users, label: t('Thợ') },
+                    { value: 'inbox' as EmployeeTab, icon: MessageSquare, label: t('Hộp thư') },
                   ]).map(tab => {
                     const checked = employeeVisibleTabs.includes(tab.value);
                     return (
@@ -4237,104 +4242,7 @@ const AdminDashboard = () => {
               </DialogContent>
             </Dialog>
 
-            {/* ── Translation Settings Modal ── */}
-            <Dialog open={settingsModal === 'translation'} onOpenChange={(open) => !open && setSettingsModal(null)}>
-              <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>{t('Cài đặt dịch thuật')} (OpenAI)</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 pt-2">
-                  <div>
-                    <Label>{t('OpenAI API Key')}</Label>
-                    <Input
-                      type="password"
-                      value={openaiApiKey}
-                      onChange={e => setOpenaiApiKey(e.target.value)}
-                      placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx"
-                      className="mt-1 font-mono text-sm"
-                    />
-                  </div>
-                  <div>
-                    <Label>{t('Model')}</Label>
-                    <Input
-                      value={openaiModel}
-                      onChange={e => setOpenaiModel(e.target.value)}
-                      placeholder="gpt-4o-mini"
-                      className="mt-1 font-mono text-sm"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">{t('VD: gpt-4o-mini, gpt-4o, gpt-3.5-turbo')}</p>
-                  </div>
-                  <div>
-                    <Label>{t('Base URL')}</Label>
-                    <Input
-                      value={openaiBaseUrl}
-                      onChange={e => setOpenaiBaseUrl(e.target.value)}
-                      placeholder="https://api.openai.com/v1"
-                      className="mt-1 font-mono text-sm"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">{t('Để trống nếu dùng OpenAI mặc định')}</p>
-                  </div>
-                  <Button size="sm" onClick={() => { saveOpenaiSettings.mutate(); setSettingsModal(null); }} disabled={!openaiApiKey.trim() || saveOpenaiSettings.isPending}>
-                    {saveOpenaiSettings.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : t('Lưu cài đặt dịch thuật')}
-                  </Button>
-                  {openaiSettings?.['openai_api_key'] && (
-                    <div className="bg-muted rounded-lg p-3 text-sm">
-                      <p className="text-muted-foreground">{t('API key đã được cấu hình')}</p>
-                      {openaiSettings['openai_base_url'] && (
-                        <p className="text-muted-foreground">Base URL: <strong>{openaiSettings['openai_base_url']}</strong></p>
-                      )}
-                      <p className="text-muted-foreground">Model: <strong>{openaiSettings['openai_model'] || 'gpt-4o-mini'}</strong></p>
-                    </div>
-                  )}
-
-                  {/* Populate Translations */}
-                  {openaiSettings?.['openai_api_key'] && (
-                    <div className="border-t border-border/50 pt-4 space-y-3">
-                      <div>
-                        <Label className="text-sm font-medium">{t('Dịch tất cả')}</Label>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {t('Dịch')} {ALL_I18N_KEYS.length} {t('mã')} {t('sang ngôn ngữ đã chọn')}
-                        </p>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={!!populatingLang}
-                          onClick={() => populateTranslations('vi')}
-                        >
-                          {populatingLang === 'vi' ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
-                          Tiếng Việt
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={!!populatingLang}
-                          onClick={() => populateTranslations('en')}
-                        >
-                          {populatingLang === 'en' ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
-                          English
-                        </Button>
-                      </div>
-                      {populatingLang && (
-                        <div className="space-y-1.5">
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                            {t('Đang dịch...')} {populateProgress.done}/{populateProgress.total} {t('batch')}
-                          </div>
-                          <div className="w-full bg-muted rounded-full h-1.5">
-                            <div
-                              className="bg-primary h-1.5 rounded-full transition-all"
-                              style={{ width: `${populateProgress.total ? (populateProgress.done / populateProgress.total) * 100 : 0}%` }}
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </DialogContent>
-            </Dialog>
+            {/* Translation modal removed — merged into AI & Knowledge Base */}
 
             {/* ── Membership Tiers Modal ── */}
             <Dialog open={settingsModal === 'membership'} onOpenChange={(open) => !open && setSettingsModal(null)}>
@@ -4485,43 +4393,123 @@ const AdminDashboard = () => {
               </DialogContent>
             </Dialog>
 
-            {/* Add/Edit Discount Code Dialog */}
+            {/* Add/Edit Discount Code Dialog (Revamped) */}
             <Dialog open={discountDialog} onOpenChange={setDiscountDialog}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>{editingDiscount ? t('Sửa mã giảm giá') : t('Thêm mã giảm giá')}</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-3 pt-2">
+              <DialogContent className="max-w-[100vw] sm:max-w-[520px] p-0 gap-0 rounded-none sm:rounded-xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-border/60 bg-gradient-to-r from-blue-50 to-indigo-50">
+                  <DialogHeader>
+                    <DialogTitle className="text-lg flex items-center gap-2">
+                      <Tag className="h-5 w-5 text-[#006AFF]" />
+                      {editingDiscount ? t('Sửa mã giảm giá') : t('Thêm mã giảm giá')}
+                    </DialogTitle>
+                    <DialogDescription className="text-sm">{t('Tạo mã khuyến mãi cho khách hàng')}</DialogDescription>
+                  </DialogHeader>
+                </div>
+                <div className="px-5 py-5 space-y-5">
+                  {/* Code input */}
                   <div>
-                    <Label>{t('Mã')}</Label>
-                    <Input value={discountCode} onChange={e => setDiscountCode(e.target.value.toUpperCase())} placeholder="WELCOME10" className="mt-1 font-mono" />
+                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Mã giảm giá')}</Label>
+                    <Input
+                      value={discountCode}
+                      onChange={e => setDiscountCode(e.target.value.toUpperCase())}
+                      placeholder="WELCOME10"
+                      className="mt-1.5 font-mono text-lg tracking-wider h-12 bg-[#F5F5F5] border-[#E5E5E5]/60"
+                    />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label>{t('Giảm giá (%)')}</Label>
-                      <Input type="number" min="0" max="100" value={discountPercent} onChange={e => setDiscountPercent(e.target.value)} className="mt-1" />
-                    </div>
-                    <div>
-                      <Label>{t('Giảm cố định (A$)')}</Label>
-                      <Input type="number" min="0" value={discountAmount} onChange={e => setDiscountAmount(e.target.value)} className="mt-1" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label>{t('Từ ngày')}</Label>
-                      <Input type="date" value={discountValidFrom} onChange={e => setDiscountValidFrom(e.target.value)} className="mt-1" />
-                    </div>
-                    <div>
-                      <Label>{t('Đến ngày')}</Label>
-                      <Input type="date" value={discountValidTo} onChange={e => setDiscountValidTo(e.target.value)} className="mt-1" />
-                    </div>
-                  </div>
+
+                  {/* Discount type - percent & fixed side by side */}
                   <div>
-                    <Label>{t('Giới hạn sử dụng')} ({t('để trống = không giới hạn')})</Label>
-                    <Input type="number" min="0" value={discountMaxUses} onChange={e => setDiscountMaxUses(e.target.value)} className="mt-1" placeholder={t('Không giới hạn')} />
+                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Giá trị giảm')}</Label>
+                    <div className="grid grid-cols-2 gap-3 mt-1.5">
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={discountPercent}
+                          onChange={e => setDiscountPercent(e.target.value)}
+                          className="bg-[#F5F5F5] border-[#E5E5E5]/60 pr-8"
+                          placeholder="0"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">%</span>
+                      </div>
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          min="0"
+                          value={discountAmount}
+                          onChange={e => setDiscountAmount(e.target.value)}
+                          className="bg-[#F5F5F5] border-[#E5E5E5]/60 pl-10"
+                          placeholder="0"
+                        />
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">A$</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1.5">{t('Có thể dùng % hoặc số tiền cố định, hoặc cả hai')}</p>
                   </div>
-                  <Button onClick={() => saveDiscount.mutate()} disabled={!discountCode.trim() || saveDiscount.isPending}>
-                    {saveDiscount.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : (editingDiscount ? t('Cập nhật') : t('Tạo'))}
+
+                  {/* Date range */}
+                  <div>
+                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Thời gian hiệu lực')}</Label>
+                    <div className="grid grid-cols-2 gap-3 mt-1.5">
+                      <div>
+                        <span className="text-[10px] text-muted-foreground">{t('Từ ngày')}</span>
+                        <Input type="date" value={discountValidFrom} onChange={e => setDiscountValidFrom(e.target.value)} className="mt-0.5 bg-[#F5F5F5] border-[#E5E5E5]/60" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-muted-foreground">{t('Đến ngày')}</span>
+                        <Input type="date" value={discountValidTo} onChange={e => setDiscountValidTo(e.target.value)} className="mt-0.5 bg-[#F5F5F5] border-[#E5E5E5]/60" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Max uses */}
+                  <div>
+                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Giới hạn sử dụng')}</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={discountMaxUses}
+                      onChange={e => setDiscountMaxUses(e.target.value)}
+                      className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60"
+                      placeholder={t('Không giới hạn')}
+                    />
+                  </div>
+
+                  {/* Preview card */}
+                  {discountCode.trim() && (
+                    <div className="p-4 bg-gradient-to-r from-[#006AFF]/5 to-indigo-50 rounded-xl border border-[#006AFF]/20">
+                      <div className="flex items-center justify-between">
+                        <code className="font-mono font-bold text-base text-[#006AFF]">{discountCode}</code>
+                        <div className="text-right text-sm font-semibold text-[#1B1B1B]">
+                          {Number(discountPercent) > 0 && <span>{discountPercent}%</span>}
+                          {Number(discountPercent) > 0 && Number(discountAmount) > 0 && <span> + </span>}
+                          {Number(discountAmount) > 0 && <span>A$ {discountAmount}</span>}
+                          {!Number(discountPercent) && !Number(discountAmount) && <span className="text-muted-foreground text-xs">{t('Chưa có giá trị')}</span>}
+                        </div>
+                      </div>
+                      {(discountValidFrom || discountValidTo || discountMaxUses) && (
+                        <div className="flex gap-3 mt-2 text-xs text-muted-foreground">
+                          {discountValidFrom && <span>{t('Từ')} {discountValidFrom}</span>}
+                          {discountValidTo && <span>{t('Đến')} {discountValidTo}</span>}
+                          {discountMaxUses && <span>· {t('tối đa')} {discountMaxUses} {t('lần')}</span>}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer */}
+                <div className="px-5 py-4 border-t border-border/60">
+                  <Button
+                    className="w-full h-12 text-base font-medium bg-[#006AFF] hover:bg-[#1B1B1B]"
+                    onClick={() => saveDiscount.mutate()}
+                    disabled={!discountCode.trim() || saveDiscount.isPending}
+                  >
+                    {saveDiscount.isPending
+                      ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" />{t('Đang lưu...')}</>
+                      : editingDiscount ? t('Cập nhật mã giảm giá') : <><Tag className="h-4 w-4 mr-2" />{t('Tạo mã giảm giá')}</>
+                    }
                   </Button>
                 </div>
               </DialogContent>
@@ -4604,6 +4592,71 @@ const AdminDashboard = () => {
               </DialogContent>
             </Dialog>
 
+            {/* ── Upgrade Key Modal ── */}
+            <Dialog open={settingsModal === 'upgrade'} onOpenChange={(open) => { if (!open) { setSettingsModal(null); setUpgradeKey(''); setUpgradeStatus('idle'); } }}>
+              <DialogContent className="max-w-[100vw] sm:max-w-[440px] p-0 gap-0 rounded-none sm:rounded-xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-border/60">
+                  <DialogHeader>
+                    <DialogTitle className="text-lg">{t('Nâng cấp hệ thống')}</DialogTitle>
+                    <DialogDescription className="text-sm">{t('Nhập mã nâng cấp để mở khoá tính năng cao cấp')}</DialogDescription>
+                  </DialogHeader>
+                </div>
+                <div className="px-5 py-6 space-y-4">
+                  <div className="flex items-center justify-center">
+                    <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-amber-100 to-amber-50 flex items-center justify-center">
+                      <Crown className="h-8 w-8 text-amber-600" />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Mã nâng cấp')}</Label>
+                    <Input
+                      value={upgradeKey}
+                      onChange={e => { setUpgradeKey(e.target.value.toUpperCase()); setUpgradeStatus('idle'); }}
+                      placeholder="XXXX-XXXX-XXXX-XXXX"
+                      className="mt-1.5 font-mono text-center text-lg tracking-widest h-12"
+                    />
+                  </div>
+                  {upgradeStatus === 'success' && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm">
+                      <Check className="h-4 w-4 shrink-0" />
+                      {t('Nâng cấp thành công! Tính năng đã được mở khoá.')}
+                    </div>
+                  )}
+                  {upgradeStatus === 'error' && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                      <AlertTriangle className="h-4 w-4 shrink-0" />
+                      {t('Mã không hợp lệ hoặc đã được sử dụng. Vui lòng thử lại.')}
+                    </div>
+                  )}
+                </div>
+                <div className="px-5 py-4 border-t border-border/60">
+                  <Button
+                    className="w-full h-12 text-base font-medium bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700"
+                    disabled={!upgradeKey.trim()}
+                    onClick={async () => {
+                      try {
+                        const { data, error } = await supabase.functions.invoke('validate-upgrade-key', {
+                          body: { key: upgradeKey.trim() },
+                        });
+                        if (error || !data?.valid) {
+                          setUpgradeStatus('error');
+                        } else {
+                          setUpgradeStatus('success');
+                          queryClient.invalidateQueries();
+                        }
+                      } catch {
+                        setUpgradeStatus('error');
+                      }
+                    }}
+                  >
+                    <Crown className="h-5 w-5 mr-2" />
+                    {t('Kích hoạt nâng cấp')}
+                  </Button>
+                  <p className="text-xs text-muted-foreground text-center mt-3">{t('Liên hệ nhà cung cấp để nhận mã nâng cấp')}</p>
+                </div>
+              </DialogContent>
+            </Dialog>
+
             {/* ── About Us Content Editor ── */}
             <Dialog open={settingsModal === 'about'} onOpenChange={(open) => !open && setSettingsModal(null)}>
               <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
@@ -4620,14 +4673,101 @@ const AdminDashboard = () => {
               </DialogContent>
             </Dialog>
 
-            {/* ── AI & Knowledge Base ── */}
+            {/* ── AI, Translation & Knowledge Base (unified) ── */}
             <Dialog open={settingsModal === 'ai_assistant'} onOpenChange={(open) => !open && setSettingsModal(null)}>
               <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>AI & Knowledge Base</DialogTitle>
+                  <div className="flex items-center justify-between">
+                    <DialogTitle>{t('AI, Dịch thuật & Knowledge Base')}</DialogTitle>
+                    {aiReplyConfig?.id && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">{t('AI Reply')}</span>
+                        <Switch
+                          checked={aiReplyConfig.ai_enabled}
+                          onCheckedChange={(checked) => toggleAiReply.mutate(checked)}
+                          disabled={toggleAiReply.isPending}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <DialogDescription className="text-xs">
+                    {t('Cấu hình AI tự động trả lời, dịch thuật giao diện, và cơ sở kiến thức')}
+                  </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-6 pt-2">
-                  <AISettingsPanel />
+                  {/* ── Translation Settings Section ── */}
+                  <div>
+                    <h3 className="text-sm font-semibold flex items-center gap-2 mb-3">
+                      <Languages className="h-4 w-4" /> {t('Dịch thuật giao diện')}
+                    </h3>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <Label className="text-xs">{t('OpenAI API Key')}</Label>
+                        <Input
+                          type="password"
+                          value={openaiApiKey}
+                          onChange={e => setOpenaiApiKey(e.target.value)}
+                          placeholder={openaiSettings?.['openai_api_key'] ? '••••••• (saved)' : 'sk-...'}
+                          className="mt-1 h-9 font-mono text-sm"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">{t('Model')}</Label>
+                        <Input
+                          value={openaiModel}
+                          onChange={e => setOpenaiModel(e.target.value)}
+                          placeholder="gpt-4o-mini"
+                          className="mt-1 h-9 font-mono text-sm"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">{t('Base URL')}</Label>
+                        <Input
+                          value={openaiBaseUrl}
+                          onChange={e => setOpenaiBaseUrl(e.target.value)}
+                          placeholder="https://api.openai.com/v1"
+                          className="mt-1 h-9 font-mono text-sm"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 mt-3">
+                      <Button size="sm" onClick={() => saveOpenaiSettings.mutate()} disabled={!openaiApiKey.trim() || saveOpenaiSettings.isPending}>
+                        {saveOpenaiSettings.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                        {t('Lưu dịch thuật')}
+                      </Button>
+                      {openaiSettings?.['openai_api_key'] && (
+                        <>
+                          <Button size="sm" variant="outline" disabled={!!populatingLang} onClick={() => populateTranslations('vi')}>
+                            {populatingLang === 'vi' ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                            {t('Dịch → Tiếng Việt')}
+                          </Button>
+                          <Button size="sm" variant="outline" disabled={!!populatingLang} onClick={() => populateTranslations('en')}>
+                            {populatingLang === 'en' ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                            {t('Dịch → English')}
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                    {populatingLang && (
+                      <div className="mt-2 space-y-1">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          {t('Đang dịch...')} {populateProgress.done}/{populateProgress.total} {t('batch')}
+                        </div>
+                        <div className="w-full bg-muted rounded-full h-1.5">
+                          <div className="bg-primary h-1.5 rounded-full transition-all" style={{ width: `${populateProgress.total ? (populateProgress.done / populateProgress.total) * 100 : 0}%` }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="border-t border-[#E5E5E5] pt-4">
+                    <h3 className="text-sm font-semibold flex items-center gap-2 mb-3">
+                      <Bot className="h-4 w-4" /> {t('AI Chat & Tự động trả lời')}
+                    </h3>
+                    <AISettingsPanel />
+                  </div>
+
                   <div className="border-t border-[#E5E5E5] pt-4">
                     <KnowledgeBaseManager />
                   </div>
