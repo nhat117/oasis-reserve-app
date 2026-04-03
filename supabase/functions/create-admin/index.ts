@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { createAdminSchema, parseBody } from "../_shared/validation.ts";
+import { checkRateLimitDb, rateLimitResponse } from "../_shared/rate-limit.ts";
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -21,6 +22,12 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+
+    // Rate limit: 5 account creation attempts per hour per IP
+    const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+    const rl = await checkRateLimitDb(serviceClient, `create-admin:${clientIp}`, 5, 3600);
+    if (!rl.allowed) return rateLimitResponse(rl.retry_after, corsHeaders);
 
     // Verify caller is admin
     const callerClient = createClient(supabaseUrl, anonKey, {
@@ -129,6 +136,14 @@ Deno.serve(async (req) => {
     } catch (emailErr) {
       console.error('Failed to send welcome email:', emailErr);
     }
+
+    // Audit log
+    await adminClient.from("activity_logs").insert({
+      user_id: caller.id,
+      action: "admin_create_account",
+      details: { created_user_id: newUser.user.id, email, role: assignRole },
+      tenant_id: callerTenantId,
+    });
 
     return new Response(
       JSON.stringify({ success: true, user_id: newUser.user.id, role: assignRole }),

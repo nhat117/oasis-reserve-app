@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { checkoutSchema, parseBody } from "../_shared/validation.ts";
+import { checkRateLimitDb, rateLimitResponse } from "../_shared/rate-limit.ts";
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -12,6 +13,11 @@ Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, supabaseKey);
+
+  // Rate limit: 5 checkout attempts per minute per IP
+  const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const rl = await checkRateLimitDb(supabase, `checkout:${clientIp}`, 5, 60);
+  if (!rl.allowed) return rateLimitResponse(rl.retry_after, corsHeaders);
 
   try {
     const rawBody = await req.json();

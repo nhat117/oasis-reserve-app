@@ -1,5 +1,25 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { checkRateLimitDb, rateLimitResponse } from "../_shared/rate-limit.ts";
+
+async function auditLog(
+  adminClient: ReturnType<typeof createClient>,
+  userId: string,
+  action: string,
+  details: Record<string, unknown>,
+  tenantId: string | null,
+) {
+  try {
+    await adminClient.from("activity_logs").insert({
+      user_id: userId,
+      action,
+      details,
+      ...(tenantId ? { tenant_id: tenantId } : {}),
+    });
+  } catch (e) {
+    console.error("[audit] Failed to log:", action, e);
+  }
+}
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -41,7 +61,7 @@ Deno.serve(async (req) => {
       _user_id: caller.id,
       _role: "employee",
     });
-    
+
     if (!isAdmin && !isEmployee) {
       return new Response(JSON.stringify({ error: "Access denied" }), {
         status: 403,
@@ -50,6 +70,10 @@ Deno.serve(async (req) => {
     }
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+    // Rate limit: 20 admin management requests per minute per user
+    const rl = await checkRateLimitDb(adminClient, `manage-admins:${caller.id}`, 20, 60);
+    if (!rl.allowed) return rateLimitResponse(rl.retry_after, corsHeaders);
 
     // Get caller's tenant_id for scoping
     const { data: callerRole } = await adminClient
@@ -140,6 +164,9 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Get target email for audit log before deletion
+      const { data: { user: targetUser } } = await adminClient.auth.admin.getUserById(user_id);
+
       const { error: roleError } = await adminClient
         .from("user_roles")
         .delete()
@@ -160,6 +187,11 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+
+      await auditLog(adminClient, caller.id, "admin_delete_user", {
+        deleted_user_id: user_id,
+        deleted_email: targetUser?.email ?? "unknown",
+      }, tenantId);
 
       return new Response(JSON.stringify({ success: true }), {
         status: 200,
@@ -209,6 +241,10 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+
+      await auditLog(adminClient, caller.id, "admin_reset_password", {
+        target_user_id: user_id,
+      }, tenantId);
 
       return new Response(JSON.stringify({ success: true }), {
         status: 200,

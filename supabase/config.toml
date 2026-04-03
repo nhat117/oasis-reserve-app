@@ -71,3 +71,6 @@ verify_jwt = true
 
 [functions.fresha-webhook]
 verify_jwt = false
+
+[functions.rotate-key]
+verify_jwt = true

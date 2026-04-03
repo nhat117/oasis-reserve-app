@@ -156,14 +156,19 @@ function sanitizeContent(content: string): string {
 
 // ─── Rate Limiting ──────────────────────────────────────────────────
 
+// Re-export the database-backed rate limiter for convenience.
+// Edge functions should use checkRateLimitDb() from rate-limit.ts instead
+// of the old in-memory approach (which resets on cold starts).
+export { checkRateLimitDb, rateLimitResponse } from "./rate-limit.ts";
+
 /**
- * Simple in-memory rate limiter for edge functions.
- * Tracks message count per conversation within a time window.
+ * @deprecated Use checkRateLimitDb() for production. This in-memory fallback
+ * is kept only for tests or environments without DB access.
  */
 const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
 
-const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
-const RATE_LIMIT_MAX_MESSAGES = 10; // max 10 messages per minute per conversation
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_MESSAGES = 10;
 
 export function checkRateLimit(conversationId: string): { allowed: boolean; retryAfterMs?: number } {
   const now = Date.now();
