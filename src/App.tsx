@@ -1,23 +1,15 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Analytics } from "@vercel/analytics/react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/useAuth";
 import { I18nProvider } from "@/hooks/useI18n";
-import Index from "./pages/Index";
-import Services from "./pages/Services";
-import Booking from "./pages/Booking";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminResetPassword from "./pages/AdminResetPassword";
 import NotFound from "./pages/NotFound";
-import Unsubscribe from "./pages/Unsubscribe";
-import About from "./pages/About";
-import SoftwareTerms from "./pages/SoftwareTerms";
-import PaymentSuccess from "./pages/PaymentSuccess";
-import PaymentCancel from "./pages/PaymentCancel";
 
 const queryClient = new QueryClient();
 
@@ -30,17 +22,10 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/services" element={<Services />} />
-            <Route path="/booking" element={<Booking />} />
+            <Route path="/" element={<Navigate to="/admin" replace />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/reset-password" element={<AdminResetPassword />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/software-terms" element={<SoftwareTerms />} />
-            <Route path="/booking/success" element={<PaymentSuccess />} />
-            <Route path="/booking/cancel" element={<PaymentCancel />} />
-            <Route path="/unsubscribe" element={<Unsubscribe />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
