@@ -12,16 +12,18 @@ Deno.serve(async (req) => {
   try {
     const body = await req.text();
 
-    // Verify Square webhook signature if configured
+    // Verify Square webhook signature against ALL configured tenant secrets.
+    // Square sends one webhook per subscription; we don't know which tenant
+    // it's for until we match a signature. Each tenant has its own subscription
+    // + its own signature_key, so we try each secret and accept the first match.
     const signatureHeader = req.headers.get("x-square-hmacsha256-signature");
-    const { data: squareWebhookSecret } = await supabase
+    const { data: secretRows } = await supabase
       .from("app_settings")
-      .select("value")
-      .eq("key", "square_webhook_secret")
-      .single();
+      .select("tenant_id, value")
+      .eq("key", "square_webhook_secret");
 
-    if (!squareWebhookSecret?.value) {
-      console.error("Square webhook secret not configured — rejecting request");
+    if (!secretRows || secretRows.length === 0) {
+      console.error("No square_webhook_secret configured for any tenant — rejecting");
       return new Response(JSON.stringify({ error: "Webhook not configured" }), {
         status: 500,
         headers: { "Content-Type": "application/json" },
@@ -37,14 +39,17 @@ Deno.serve(async (req) => {
     }
 
     const notificationUrl = `${supabaseUrl}/functions/v1/square-webhook`;
-    const verified = await verifySquareSignature(
-      body,
-      signatureHeader,
-      squareWebhookSecret.value,
-      notificationUrl
-    );
-    if (!verified) {
-      console.error("Square webhook signature verification failed");
+    let matchedTenantId: string | null = null;
+    for (const row of secretRows) {
+      if (!row.value) continue;
+      const ok = await verifySquareSignature(body, signatureHeader, row.value, notificationUrl);
+      if (ok) {
+        matchedTenantId = row.tenant_id;
+        break;
+      }
+    }
+    if (!matchedTenantId) {
+      console.error("Square webhook signature did not match any tenant secret");
       return new Response(JSON.stringify({ error: "Invalid signature" }), {
         status: 401,
         headers: { "Content-Type": "application/json" },
@@ -65,19 +70,19 @@ Deno.serve(async (req) => {
       if (status === "COMPLETED") {
         await supabase.from("bookings").update({
           payment_status: "paid",
-        }).eq("payment_intent_id", checkoutId);
+        }).eq("payment_intent_id", checkoutId).eq("tenant_id", matchedTenantId);
 
         await supabase.from("sales").update({
           payment_provider: "square",
-        }).eq("external_payment_id", checkoutId);
+        }).eq("external_payment_id", checkoutId).eq("tenant_id", matchedTenantId);
 
-        console.log(`Square checkout ${checkoutId} completed`);
+        console.log(`Square checkout ${checkoutId} completed for tenant ${matchedTenantId}`);
       } else if (status === "CANCELED") {
         await supabase.from("bookings").update({
           payment_status: "failed",
-        }).eq("payment_intent_id", checkoutId);
+        }).eq("payment_intent_id", checkoutId).eq("tenant_id", matchedTenantId);
 
-        console.log(`Square checkout ${checkoutId} canceled`);
+        console.log(`Square checkout ${checkoutId} canceled for tenant ${matchedTenantId}`);
       }
     } else if (eventType === "payment.updated") {
       const payment = event.data?.object?.payment;
@@ -87,7 +92,7 @@ Deno.serve(async (req) => {
         await supabase.from("bookings").update({
           payment_status: "paid",
           payment_provider: "square",
-        }).eq("id", payment.reference_id);
+        }).eq("id", payment.reference_id).eq("tenant_id", matchedTenantId);
       }
     }
 
