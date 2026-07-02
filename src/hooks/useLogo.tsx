@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import defaultLogo from '@/assets/logo.png';
+
+const defaultLogo =
+  'https://res.cloudinary.com/dzzoimn4v/image/upload/v1778645820/estique_logo_transparent_kwyboz.png';
 
 export function useLogo() {
   const { data: logoUrl } = useQuery({

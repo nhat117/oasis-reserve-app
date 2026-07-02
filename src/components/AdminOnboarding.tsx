@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, TENANT_ID } from '@/integrations/supabase/client';
 import { useI18n } from '@/hooks/useI18n';
 import {
   Scissors, Users, CreditCard, Settings, CalendarDays,
@@ -95,10 +95,10 @@ export function AdminOnboarding({ userId, onComplete }: AdminOnboardingProps) {
   const handleFinish = async () => {
     setExiting(true);
     // Save to DB
-    await supabase.from('app_settings').upsert({
-      key: `onboarding_completed_${userId}`,
-      value: 'true',
-    }).then(() => {});
+    await supabase.from('app_settings').upsert(
+      { key: `onboarding_completed_${userId}`, value: 'true', tenant_id: TENANT_ID },
+      { onConflict: 'tenant_id,key' },
+    ).then(() => {});
     setTimeout(() => onComplete(), 300);
   };
 

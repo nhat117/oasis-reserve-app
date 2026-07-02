@@ -42,6 +42,8 @@ import { AdminOnboarding } from '@/components/AdminOnboarding';
 import { InboxPanel } from '@/components/inbox/InboxPanel';
 import { KnowledgeBaseManager } from '@/components/settings/KnowledgeBaseManager';
 import { AISettingsPanel } from '@/components/settings/AISettingsPanel';
+import { PricingManager } from '@/components/settings/PricingManager';
+import { BranchesManager } from '@/components/settings/BranchesManager';
 
 const CURRENCIES = ['VND', 'USD', 'EUR', 'AUD'] as const;
 
@@ -77,6 +79,10 @@ const AdminDashboard = () => {
   const requireAdmin = () => {
     if (!isAdmin) throw new Error('Admin only');
   };
+  // app_settings is keyed by (tenant_id, key) — always upsert through this
+  // helper so writes never collide with another tenant's row for the same key.
+  const upsertSetting = (key: string, value: string) =>
+    supabase.from('app_settings').upsert({ key, value, tenant_id: TENANT_ID }, { onConflict: 'tenant_id,key' });
 
   // Onboarding: show only once for new admin accounts
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -482,6 +488,7 @@ const AdminDashboard = () => {
         sale_date: format(new Date(), 'yyyy-MM-dd'),
         customer_phone: saleCustomerPhone || null,
         customer_name: saleCustomerName || null,
+        tenant_id: TENANT_ID,
       };
       if (saleType === 'booking' && saleBookingId && saleBookingId !== 'none') payload.booking_id = saleBookingId;
       if (saleCouponCode.trim()) payload.notes = `${payload.notes || ''} [Coupon: ${saleCouponCode.trim().toUpperCase()}]`.trim();
@@ -601,7 +608,7 @@ const AdminDashboard = () => {
   const saveEmployeeTabs = useMutation({
     mutationFn: async (tabs: EmployeeTab[]) => {
       requireAdmin();
-      const { error } = await supabase.from('app_settings').upsert({ key: 'employee_visible_tabs', value: JSON.stringify(tabs) });
+      const { error } = await upsertSetting('employee_visible_tabs', JSON.stringify(tabs));
       if (error) throw error;
     },
     onSuccess: () => {
@@ -634,7 +641,7 @@ const AdminDashboard = () => {
   const toggleRandom = useMutation({
     mutationFn: async (enabled: boolean) => {
       requireAdmin();
-      const { error } = await supabase.from('app_settings').upsert({ key: 'random_therapist_enabled', value: String(enabled) });
+      const { error } = await upsertSetting('random_therapist_enabled', String(enabled));
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['random-therapist-setting'] }); toast({ title: t('Đã cập nhật cài đặt') }); },
@@ -656,7 +663,7 @@ const AdminDashboard = () => {
   const saveSmsNumber = useMutation({
     mutationFn: async () => {
       requireAdmin();
-      const { error } = await supabase.from('app_settings').upsert({ key: 'twilio_from_number', value: smsNumber });
+      const { error } = await upsertSetting('twilio_from_number', smsNumber);
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['twilio-number-setting'] }); toast({ title: t('Đã lưu số SMS') }); },
@@ -691,7 +698,7 @@ const AdminDashboard = () => {
         { key: 'twilio_phone_number', value: twilioPhoneNumber.trim() },
       ];
       for (const s of settings) {
-        const { error } = await supabase.from('app_settings').upsert(s);
+        const { error } = await upsertSetting(s.key, s.value);
         if (error) throw error;
       }
     },
@@ -733,7 +740,7 @@ const AdminDashboard = () => {
       ];
       for (const s of settings) {
         if (s.value) {
-          const { error } = await supabase.from('app_settings').upsert(s);
+          const { error } = await upsertSetting(s.key, s.value);
           if (error) throw error;
         }
       }
@@ -782,7 +789,7 @@ const AdminDashboard = () => {
       ];
       for (const s of settings) {
         if (s.value) {
-          const { error } = await supabase.from('app_settings').upsert(s);
+          const { error } = await upsertSetting(s.key, s.value);
           if (error) throw error;
         }
       }
@@ -806,7 +813,7 @@ const AdminDashboard = () => {
   const toggleWhatsapp = useMutation({
     mutationFn: async (enabled: boolean) => {
       requireAdmin();
-      const { error } = await supabase.from('app_settings').upsert({ key: 'whatsapp_enabled', value: String(enabled) });
+      const { error } = await upsertSetting('whatsapp_enabled', String(enabled));
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['whatsapp-setting'] }); toast({ title: t('Đã cập nhật WhatsApp') }); },
@@ -874,7 +881,7 @@ const AdminDashboard = () => {
         { key: 'show_holiday_closed', value: String(showHolidayClosed) },
       ];
       for (const row of rows) {
-        const { error } = await supabase.from('app_settings').upsert(row);
+        const { error } = await upsertSetting(row.key, row.value);
         if (error) throw error;
       }
     },
@@ -910,7 +917,7 @@ const AdminDashboard = () => {
       ];
       for (const row of rows) {
         if (row.value) {
-          const { error } = await supabase.from('app_settings').upsert(row);
+          const { error } = await upsertSetting(row.key, row.value);
           if (error) throw error;
         }
       }
@@ -936,7 +943,7 @@ const AdminDashboard = () => {
   const saveCardSurcharge = useMutation({
     mutationFn: async () => {
       requireAdmin();
-      const { error } = await supabase.from('app_settings').upsert({ key: 'card_surcharge_percent', value: cardSurchargePercent });
+      const { error } = await upsertSetting('card_surcharge_percent', cardSurchargePercent);
       if (error) throw error;
     },
     onSuccess: () => { logActivity('update_card_surcharge', `Surcharge: ${cardSurchargePercent}%`); queryClient.invalidateQueries({ queryKey: ['card-surcharge-setting'] }); toast({ title: t('Đã lưu phụ phí thẻ') }); },
@@ -1040,7 +1047,7 @@ const AdminDashboard = () => {
   const toggleInboxVisible = useMutation({
     mutationFn: async (enabled: boolean) => {
       requireAdmin();
-      const { error } = await supabase.from('app_settings').upsert({ key: 'inbox_enabled', value: String(enabled), tenant_id: TENANT_ID }, { onConflict: 'key,tenant_id' });
+      const { error } = await upsertSetting('inbox_enabled', String(enabled));
       if (error) throw error;
     },
     onSuccess: () => {
@@ -1059,7 +1066,7 @@ const AdminDashboard = () => {
       ];
       for (const row of rows) {
         if (row.value) {
-          const { error } = await supabase.from('app_settings').upsert(row);
+          const { error } = await upsertSetting(row.key, row.value);
           if (error) throw error;
         }
       }
@@ -1090,7 +1097,7 @@ const AdminDashboard = () => {
   const saveAboutContent = useMutation({
     mutationFn: async () => {
       requireAdmin();
-      const { error } = await supabase.from('app_settings').upsert({ key: 'about_content', value: aboutContent });
+      const { error } = await upsertSetting('about_content', aboutContent);
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['page-contents'] }); queryClient.invalidateQueries({ queryKey: ['about-settings'] }); toast({ title: t('Đã lưu nội dung Về chúng tôi') }); },
@@ -1099,7 +1106,7 @@ const AdminDashboard = () => {
   const saveTermsContent = useMutation({
     mutationFn: async () => {
       requireAdmin();
-      const { error } = await supabase.from('app_settings').upsert({ key: 'terms_content', value: termsContent });
+      const { error } = await upsertSetting('terms_content', termsContent);
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['page-contents'] }); queryClient.invalidateQueries({ queryKey: ['terms-content'] }); toast({ title: t('Đã lưu nội dung Điều khoản') }); },
@@ -1142,7 +1149,7 @@ const AdminDashboard = () => {
         { key: 'notify_phone', value: notifyPhone },
       ];
       for (const row of rows) {
-        const { error } = await supabase.from('app_settings').upsert(row);
+        const { error } = await upsertSetting(row.key, row.value);
         if (error) throw error;
       }
     },
@@ -1170,7 +1177,7 @@ const AdminDashboard = () => {
         const { error } = await supabase.from('membership_tiers').update(payload).eq('id', editingTier.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('membership_tiers').insert(payload);
+        const { error } = await supabase.from('membership_tiers').insert({ ...payload, tenant_id: TENANT_ID });
         if (error) throw error;
       }
     },
@@ -1226,7 +1233,7 @@ const AdminDashboard = () => {
         const { error } = await supabase.from('discount_codes').update(payload).eq('id', editingDiscount.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('discount_codes').insert(payload);
+        const { error } = await supabase.from('discount_codes').insert({ ...payload, tenant_id: TENANT_ID });
         if (error) throw error;
       }
     },
@@ -1269,6 +1276,7 @@ const AdminDashboard = () => {
         valid_to: giftCardValidTo || null,
         max_uses: maxUses,
         is_active: true,
+        tenant_id: TENANT_ID,
       }));
       const { error } = await supabase.from('discount_codes').insert(rows);
       if (error) throw error;
@@ -1305,7 +1313,7 @@ const AdminDashboard = () => {
   const toggleMembership = useMutation({
     mutationFn: async (enabled: boolean) => {
       requireAdmin();
-      const { error } = await supabase.from('app_settings').upsert({ key: 'membership_enabled', value: String(enabled) });
+      const { error } = await upsertSetting('membership_enabled', String(enabled));
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['membership-enabled'] }); toast({ title: t('Đã cập nhật') }); },
@@ -1314,7 +1322,7 @@ const AdminDashboard = () => {
   const toggleDiscountCodes = useMutation({
     mutationFn: async (enabled: boolean) => {
       requireAdmin();
-      const { error } = await supabase.from('app_settings').upsert({ key: 'discount_codes_enabled', value: String(enabled) });
+      const { error } = await upsertSetting('discount_codes_enabled', String(enabled));
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['discount-codes-enabled'] }); toast({ title: t('Đã cập nhật') }); },
@@ -1333,7 +1341,7 @@ const AdminDashboard = () => {
   const togglePrintReceipt = useMutation({
     mutationFn: async (enabled: boolean) => {
       requireAdmin();
-      const { error } = await supabase.from('app_settings').upsert({ key: 'print_receipt_enabled', value: String(enabled) });
+      const { error } = await upsertSetting('print_receipt_enabled', String(enabled));
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['print-receipt-enabled'] }); toast({ title: t('Đã cập nhật') }); },
@@ -1463,7 +1471,7 @@ const AdminDashboard = () => {
         { key: 'default_currency', value: defaultCurrency },
       ];
       for (const row of rows) {
-        const { error } = await supabase.from('app_settings').upsert(row);
+        const { error } = await upsertSetting(row.key, row.value);
         if (error) throw error;
       }
     },
@@ -1484,7 +1492,7 @@ const AdminDashboard = () => {
     mutationFn: async ({ therapistId, date, reason }: { therapistId: string; date: string; reason?: string }) => {
       const vErr = validateForm(unavailabilitySchema, { therapistId, date, reason: reason || '' });
       if (vErr) throw new Error(vErr);
-      const { error } = await supabase.from('therapist_unavailability').insert({ therapist_id: therapistId, unavailable_date: date, reason });
+      const { error } = await supabase.from('therapist_unavailability').insert({ therapist_id: therapistId, unavailable_date: date, reason, tenant_id: TENANT_ID });
       if (error) throw error;
     },
     onSuccess: () => { logActivity('add_unavailability', 'Added therapist unavailability'); queryClient.invalidateQueries({ queryKey: ['admin-unavailability'] }); toast({ title: t('Đã thêm ngày nghỉ') }); },
@@ -1550,6 +1558,7 @@ const AdminDashboard = () => {
         holiday_date: date,
         reason,
         early_close_hour: earlyCloseHour ?? null,
+        tenant_id: TENANT_ID,
       } as any);
       if (error) throw error;
     },
@@ -1678,6 +1687,7 @@ const AdminDashboard = () => {
         customer_email: bookingCustomerEmail || null,
         notes: bookingNotes || null,
         status: 'confirmed',
+        tenant_id: TENANT_ID,
       });
       if (error) throw error;
     },
@@ -1758,7 +1768,7 @@ const AdminDashboard = () => {
         const { error } = await supabase.from('services').update(payload).eq('id', editingService.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('services').insert(payload);
+        const { error } = await supabase.from('services').insert({ ...payload, tenant_id: TENANT_ID });
         if (error) throw error;
       }
     },
@@ -1813,7 +1823,7 @@ const AdminDashboard = () => {
         const { error } = await supabase.from('therapists').update(payload).eq('id', editingTherapist.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('therapists').insert(payload);
+        const { error } = await supabase.from('therapists').insert({ ...payload, tenant_id: TENANT_ID });
         if (error) throw error;
       }
     },
@@ -2001,8 +2011,16 @@ const AdminDashboard = () => {
     ...(isAiLicensed && inboxEnabled ? [{ value: 'inbox', icon: MessageSquare, label: t('Hộp thư') }] : []),
   ];
 
+  const adminContentNavItems = canAccessSettings
+    ? [
+        { value: 'pricing', icon: DollarSign, label: t('Bảng giá') },
+        { value: 'locations', icon: Store, label: t('Chi nhánh') },
+      ]
+    : [];
+
   const sidebarNavItems = [
     ...allNavItems.filter(item => isAdmin || employeeVisibleTabs.includes(item.value as EmployeeTab)),
+    ...adminContentNavItems,
     ...(canAccessSettings ? [{ value: 'settings', icon: Settings, label: t('Cài đặt') }] : []),
   ];
 
@@ -3728,6 +3746,20 @@ const AdminDashboard = () => {
             </DialogContent>
           </Dialog>
 
+          {/* Pricing Tab */}
+          {isAdmin && (
+          <TabsContent value="pricing">
+            <PricingManager />
+          </TabsContent>
+          )}
+
+          {/* Locations Tab */}
+          {isAdmin && (
+          <TabsContent value="locations">
+            <BranchesManager />
+          </TabsContent>
+          )}
+
           {/* Settings Tab */}
           {isAdmin && (
           <TabsContent value="settings" className="space-y-2">
@@ -3957,8 +3989,8 @@ const AdminDashboard = () => {
                             path = newPath;
                             setHeroMediaPath(path);
                           }
-                          await supabase.from('app_settings').upsert({ key: 'hero_mode', value: heroMode });
-                          await supabase.from('app_settings').upsert({ key: 'hero_media_path', value: path });
+                          await upsertSetting('hero_mode', heroMode);
+                          await upsertSetting('hero_media_path', path);
                           toast({ title: t('Đã lưu hero') });
                           setHeroMediaFile(null);
                         } catch (err: any) {

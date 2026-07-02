@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, createContext, useContext } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, TENANT_ID } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
 
 interface AuthContextType {
@@ -99,6 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user_email: user.email,
         action,
         details,
+        tenant_id: TENANT_ID,
       });
     } catch (e) {
       console.error('Failed to log activity:', e);

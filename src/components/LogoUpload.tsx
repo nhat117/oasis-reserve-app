@@ -1,11 +1,13 @@
 import { useState, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, TENANT_ID } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, Trash2 } from 'lucide-react';
-import defaultLogo from '@/assets/logo.png';
+
+const defaultLogo =
+  'https://res.cloudinary.com/dzzoimn4v/image/upload/v1778645820/estique_logo_transparent_kwyboz.png';
 
 export function LogoUpload({ t }: { t: (s: string) => string }) {
   const { toast } = useToast();
@@ -50,7 +52,10 @@ export function LogoUpload({ t }: { t: (s: string) => string }) {
       if (uploadErr) throw uploadErr;
 
       // Save path to settings
-      await supabase.from('app_settings').upsert({ key: 'shop_logo_path', value: path, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+      await supabase.from('app_settings').upsert(
+        { key: 'shop_logo_path', value: path, updated_at: new Date().toISOString(), tenant_id: TENANT_ID },
+        { onConflict: 'tenant_id,key' },
+      );
 
       queryClient.invalidateQueries({ queryKey: ['shop-logo-admin'] });
       queryClient.invalidateQueries({ queryKey: ['shop-logo'] });
@@ -67,7 +72,7 @@ export function LogoUpload({ t }: { t: (s: string) => string }) {
     if (!logoInfo?.path) return;
     try {
       await supabase.storage.from('logos').remove([logoInfo.path]);
-      await supabase.from('app_settings').delete().eq('key', 'shop_logo_path');
+      await supabase.from('app_settings').delete().eq('key', 'shop_logo_path').eq('tenant_id', TENANT_ID);
       queryClient.invalidateQueries({ queryKey: ['shop-logo-admin'] });
       queryClient.invalidateQueries({ queryKey: ['shop-logo'] });
       toast({ title: t('Đã xoá logo, sử dụng logo mặc định') });
