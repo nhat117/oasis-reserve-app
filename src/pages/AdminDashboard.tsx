@@ -2637,7 +2637,27 @@ const AdminDashboard = () => {
                     <button type="button" onClick={() => setPosTab('appointments')} className={cn('px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors', posTab === 'appointments' ? 'border-[#006AFF] text-[#006AFF]' : 'border-transparent text-muted-foreground hover:text-foreground')}>{t('Lịch hẹn')}</button>
                     <button type="button" onClick={() => setPosTab('library')} className={cn('px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors', posTab === 'library' ? 'border-[#006AFF] text-[#006AFF]' : 'border-transparent text-muted-foreground hover:text-foreground')}>{t('Dịch vụ')}</button>
                     <div className="ml-auto pr-3">
-                      <button type="button" onClick={() => setPosTab('library')} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"><Plus className="h-4 w-4" /></button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSaleBookingId('');
+                          setSaleServiceId('');
+                          setSaleCustomerName('');
+                          setSaleCustomerPhone('');
+                          setSaleAmount('');
+                          setSaleAddOns([]);
+                          setSaleCouponCode('');
+                          setSaleCouponDiscount(null);
+                          setSaleCouponError('');
+                          setSaleNotes('');
+                          setSaleType('walkin');
+                          setPosTab('library');
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#006AFF] text-white hover:bg-[#006AFF]/90 transition-colors"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        {t('Thanh toán mới')}
+                      </button>
                     </div>
                   </div>
 
