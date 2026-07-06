@@ -18,13 +18,13 @@ import { LogoUpload as LogoUploadComponent } from '@/components/LogoUpload';
 import { Textarea } from '@/components/ui/textarea';
 import { TipTapEditor } from '@/components/TipTapEditor';
 import { BookingStats } from '@/components/BookingStats';
-import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone, CreditCard, Square, RotateCcw, BookOpen, ScrollText, Eye, Clock, Check, Bot } from 'lucide-react';
+import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone, CreditCard, Square, RotateCcw, BookOpen, ScrollText, Eye, Clock, Check, Bot, FileSpreadsheet } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ALL_I18N_KEYS } from '@/lib/i18n-keys';
 import { Switch } from '@/components/ui/switch';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { format } from 'date-fns';
+import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear } from 'date-fns';
 import { cn } from '@/lib/utils';
 import {
   escapeHtml, validateForm,
@@ -158,6 +158,12 @@ const AdminDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [spaName, setSpaName] = useState('Oasis Reserve');
   const [settingsModal, setSettingsModal] = useState<string | null>(null);
+
+  // Excel export state
+  const [exportRangePreset, setExportRangePreset] = useState<'this_month' | 'last_month' | 'this_year' | 'custom'>('this_month');
+  const [exportCustomFrom, setExportCustomFrom] = useState<Date | undefined>(undefined);
+  const [exportCustomTo, setExportCustomTo] = useState<Date | undefined>(undefined);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Service form state
   const [serviceDialog, setServiceDialog] = useState(false);
@@ -3799,6 +3805,7 @@ const AdminDashboard = () => {
               { key: 'about', icon: BookOpen, label: t('Về chúng tôi'), desc: t('Chỉnh sửa nội dung trang Về chúng tôi') },
               { key: 'terms', icon: ScrollText, label: t('Điều khoản'), desc: t('Chỉnh sửa nội dung trang Điều khoản') },
               ...(isAdmin ? [{ key: 'logs', icon: FileText, label: t('Nhật ký hoạt động'), desc: t('Tải xuống CSV') }] : []),
+              ...(isAdmin ? [{ key: 'export_excel', icon: FileSpreadsheet, label: t('Xuất báo cáo Excel'), desc: t('Doanh thu, lịch hẹn, dịch vụ, nhân viên') }] : []),
               { key: 'upgrade', icon: Crown, label: t('Nâng cấp hệ thống'), desc: t('Nhập mã nâng cấp để mở khoá tính năng') },
               { key: 'software', icon: Info, label: t('Thông tin phần mềm'), desc: 'v1.0.0 · Olive Marketing' },
               ...(isAdmin ? [{ key: 'danger', icon: AlertTriangle, label: t('Vùng nguy hiểm'), desc: t('Xoá tất cả dữ liệu') }] : []),
@@ -4705,6 +4712,127 @@ const AdminDashboard = () => {
                     <Download className="h-3.5 w-3.5 mr-1" /> {t('Tải CSV')}
                   </Button>
                   {!activityLogs?.length && <p className="text-xs text-muted-foreground">{t('Chưa có nhật ký nào')}</p>}
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* ── Export Excel Modal ── */}
+            <Dialog open={settingsModal === 'export_excel'} onOpenChange={(open) => !open && setSettingsModal(null)}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>{t('Xuất báo cáo Excel')}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-2">
+                  <p className="text-sm text-muted-foreground">
+                    {t('Tạo file Excel gồm Doanh thu, Lịch hẹn, Dịch vụ và Nhân viên — phù hợp để gửi cho kế toán.')}
+                  </p>
+
+                  <div className="space-y-2">
+                    <Label>{t('Khoảng thời gian')}</Label>
+                    <Select value={exportRangePreset} onValueChange={(v) => setExportRangePreset(v as typeof exportRangePreset)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="this_month">{t('Tháng này')}</SelectItem>
+                        <SelectItem value="last_month">{t('Tháng trước')}</SelectItem>
+                        <SelectItem value="this_year">{t('Năm này')}</SelectItem>
+                        <SelectItem value="custom">{t('Tuỳ chọn')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {exportRangePreset === 'custom' && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">{t('Từ ngày')}</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button type="button" variant="outline" size="sm" className="w-full justify-start font-normal">
+                              <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
+                              {exportCustomFrom ? format(exportCustomFrom, 'dd/MM/yyyy') : t('Chọn ngày')}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0">
+                            <Calendar mode="single" selected={exportCustomFrom} onSelect={setExportCustomFrom} className="p-3 pointer-events-auto" />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">{t('Đến ngày')}</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button type="button" variant="outline" size="sm" className="w-full justify-start font-normal">
+                              <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
+                              {exportCustomTo ? format(exportCustomTo, 'dd/MM/yyyy') : t('Chọn ngày')}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0">
+                            <Calendar mode="single" selected={exportCustomTo} onSelect={setExportCustomTo} className="p-3 pointer-events-auto" />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="rounded-lg bg-muted/50 p-3 space-y-1">
+                    <p className="text-xs font-medium">{t('File sẽ gồm 5 trang tính:')}</p>
+                    <p className="text-xs text-muted-foreground">Summary · Sales · Appointments · Services · Staff</p>
+                  </div>
+
+                  <Button
+                    className="w-full bg-[#006AFF] hover:bg-[#006AFF]/90"
+                    disabled={isExporting || (exportRangePreset === 'custom' && (!exportCustomFrom || !exportCustomTo))}
+                    onClick={async () => {
+                      const now = new Date();
+                      let from: Date;
+                      let to: Date;
+                      let label: string;
+                      if (exportRangePreset === 'this_month') {
+                        from = startOfMonth(now);
+                        to = endOfMonth(now);
+                        label = format(now, 'MMMM yyyy');
+                      } else if (exportRangePreset === 'last_month') {
+                        const lastMonth = subMonths(now, 1);
+                        from = startOfMonth(lastMonth);
+                        to = endOfMonth(lastMonth);
+                        label = format(lastMonth, 'MMMM yyyy');
+                      } else if (exportRangePreset === 'this_year') {
+                        from = startOfYear(now);
+                        to = endOfYear(now);
+                        label = format(now, 'yyyy');
+                      } else {
+                        from = exportCustomFrom!;
+                        to = exportCustomTo!;
+                        label = `${format(from, 'dd/MM/yyyy')} - ${format(to, 'dd/MM/yyyy')}`;
+                      }
+                      // Include the full end day
+                      to = new Date(to.getFullYear(), to.getMonth(), to.getDate(), 23, 59, 59, 999);
+
+                      setIsExporting(true);
+                      try {
+                        const { exportBusinessReport, downloadWorkbook } = await import('@/lib/excelExport');
+                        const workbook = exportBusinessReport({
+                          spaName,
+                          sales: sales || [],
+                          bookings: (bookings || []) as any,
+                          services: services || [],
+                          therapists: therapists || [],
+                          range: { from, to, label },
+                        });
+                        await downloadWorkbook(workbook, `${spaName.replace(/\s+/g, '-').toLowerCase()}-financial-report`);
+                        toast({ title: t('Xuất file thành công') });
+                        setSettingsModal(null);
+                      } catch (err) {
+                        console.error('Excel export failed', err);
+                        toast({ title: t('Lỗi'), description: t('Không thể tạo file Excel. Vui lòng thử lại.'), variant: 'destructive' });
+                      } finally {
+                        setIsExporting(false);
+                      }
+                    }}
+                  >
+                    {isExporting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang tạo file...')}</> : <><FileSpreadsheet className="h-4 w-4 mr-2" />{t('Tải xuống Excel')}</>}
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
