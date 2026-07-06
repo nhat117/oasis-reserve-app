@@ -34,16 +34,13 @@ vi.mock('@/integrations/supabase/client', () => ({
   },
 }));
 
+// Mock Vercel Analytics (no-op in tests)
+vi.mock('@vercel/analytics/react', () => ({ Analytics: () => null }));
+
 // Mock all page components to isolate routing tests
-vi.mock('./pages/Index', () => ({ default: () => <div data-testid="index-page">Index</div> }));
-vi.mock('./pages/Services', () => ({ default: () => <div data-testid="services-page">Services</div> }));
-vi.mock('./pages/Booking', () => ({ default: () => <div data-testid="booking-page">Booking</div> }));
 vi.mock('./pages/AdminLogin', () => ({ default: () => <div data-testid="admin-login-page">Admin Login</div> }));
 vi.mock('./pages/AdminDashboard', () => ({ default: () => <div data-testid="admin-dashboard-page">Admin Dashboard</div> }));
 vi.mock('./pages/AdminResetPassword', () => ({ default: () => <div data-testid="admin-reset-page">Admin Reset</div> }));
-vi.mock('./pages/About', () => ({ default: () => <div data-testid="about-page">About</div> }));
-vi.mock('./pages/SoftwareTerms', () => ({ default: () => <div data-testid="terms-page">Software Terms</div> }));
-vi.mock('./pages/Unsubscribe', () => ({ default: () => <div data-testid="unsubscribe-page">Unsubscribe</div> }));
 vi.mock('./pages/NotFound', () => ({ default: () => <div data-testid="not-found-page">Not Found</div> }));
 
 // Mock image imports
@@ -72,27 +69,11 @@ describe('App routing', () => {
     localStorage.clear();
   });
 
-  it('renders Index page on /', async () => {
+  it('redirects / to /admin', async () => {
     currentPath = '/';
     render(<App />);
     await waitFor(() => {
-      expect(screen.getByTestId('index-page')).toBeInTheDocument();
-    });
-  });
-
-  it('renders Services page on /services', async () => {
-    currentPath = '/services';
-    render(<App />);
-    await waitFor(() => {
-      expect(screen.getByTestId('services-page')).toBeInTheDocument();
-    });
-  });
-
-  it('renders Booking page on /booking', async () => {
-    currentPath = '/booking';
-    render(<App />);
-    await waitFor(() => {
-      expect(screen.getByTestId('booking-page')).toBeInTheDocument();
+      expect(screen.getByTestId('admin-dashboard-page')).toBeInTheDocument();
     });
   });
 
@@ -112,27 +93,11 @@ describe('App routing', () => {
     });
   });
 
-  it('renders About page on /about', async () => {
-    currentPath = '/about';
+  it('renders Admin Reset Password on /admin/reset-password', async () => {
+    currentPath = '/admin/reset-password';
     render(<App />);
     await waitFor(() => {
-      expect(screen.getByTestId('about-page')).toBeInTheDocument();
-    });
-  });
-
-  it('renders SoftwareTerms page on /software-terms', async () => {
-    currentPath = '/software-terms';
-    render(<App />);
-    await waitFor(() => {
-      expect(screen.getByTestId('terms-page')).toBeInTheDocument();
-    });
-  });
-
-  it('renders Unsubscribe page on /unsubscribe', async () => {
-    currentPath = '/unsubscribe';
-    render(<App />);
-    await waitFor(() => {
-      expect(screen.getByTestId('unsubscribe-page')).toBeInTheDocument();
+      expect(screen.getByTestId('admin-reset-page')).toBeInTheDocument();
     });
   });
 
@@ -141,14 +106,6 @@ describe('App routing', () => {
     render(<App />);
     await waitFor(() => {
       expect(screen.getByTestId('not-found-page')).toBeInTheDocument();
-    });
-  });
-
-  it('renders Admin Reset Password on /admin/reset-password', async () => {
-    currentPath = '/admin/reset-password';
-    render(<App />);
-    await waitFor(() => {
-      expect(screen.getByTestId('admin-reset-page')).toBeInTheDocument();
     });
   });
 });
