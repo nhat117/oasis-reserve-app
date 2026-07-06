@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin Dashboard — User Guide</title>
+<title>Admin Dashboard — User Guide / Hướng dẫn sử dụng</title>
 <style>
   :root {
     --blue: #006AFF;
@@ -22,7 +22,7 @@
     padding: 0;
   }
   .wrap {
-    max-width: 800px;
+    max-width: 860px;
     margin: 0 auto;
     padding: 40px 24px 100px;
   }
@@ -39,8 +39,9 @@
   header.cover p {
     font-size: 16px;
     opacity: 0.9;
-    margin: 0;
+    margin: 4px 0 0;
   }
+
   nav.toc {
     background: var(--bg);
     border: 1px solid var(--border);
@@ -62,25 +63,42 @@
   nav.toc li { margin-bottom: 6px; }
   nav.toc a { color: var(--blue); text-decoration: none; }
   nav.toc a:hover { text-decoration: underline; }
+  nav.toc .vi { color: var(--gray); font-size: 13px; }
 
   section {
-    margin: 48px 0;
+    margin: 56px 0;
     padding-top: 8px;
   }
   section h2 {
     font-size: 24px;
     border-bottom: 2px solid var(--border);
     padding-bottom: 10px;
-    margin-bottom: 16px;
+    margin-bottom: 4px;
+  }
+  section h2 .vi {
+    display: block;
+    font-size: 15px;
+    font-weight: 400;
+    color: var(--gray);
+    margin-top: 4px;
   }
   section h3 {
     font-size: 17px;
-    margin: 24px 0 8px;
+    margin: 28px 0 4px;
     color: var(--dark);
   }
+  section h3 .vi {
+    display: block;
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--gray);
+    margin-top: 2px;
+  }
   p { margin: 8px 0; }
+  p.vi { color: var(--gray); font-size: 14px; margin-top: 2px; }
   ol, ul { padding-left: 22px; }
   li { margin-bottom: 6px; }
+  li .vi { display: block; color: var(--gray); font-size: 13px; }
 
   .step {
     display: flex;
@@ -100,8 +118,10 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    margin-top: 1px;
   }
   .step .txt { padding-top: 3px; }
+  .step .txt .vi { display: block; color: var(--gray); font-size: 13px; margin-top: 2px; }
 
   .placeholder {
     border: 2px dashed #cfcfcf;
@@ -133,6 +153,7 @@
     margin: 16px 0;
     font-size: 14px;
   }
+  .note .vi { color: #3b6fb0; font-size: 13px; margin-top: 4px; }
   .warn {
     background: #fef2f2;
     border-left: 4px solid #dc2626;
@@ -141,6 +162,17 @@
     margin: 16px 0;
     font-size: 14px;
   }
+  .warn .vi { color: #b91c1c; font-size: 13px; margin-top: 4px; }
+  .tip {
+    background: #f0fdf4;
+    border-left: 4px solid #16a34a;
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  .tip .vi { color: #15803d; font-size: 13px; margin-top: 4px; }
+
   .admin-only {
     display: inline-block;
     background: #fef3c7;
@@ -152,6 +184,20 @@
     padding: 2px 8px;
     border-radius: 5px;
     margin-left: 8px;
+    vertical-align: middle;
+  }
+  .everyone {
+    display: inline-block;
+    background: #dbeafe;
+    color: #1e40af;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 2px 8px;
+    border-radius: 5px;
+    margin-left: 8px;
+    vertical-align: middle;
   }
 
   code {
@@ -171,6 +217,7 @@
     text-align: left;
     padding: 10px 12px;
     border-bottom: 1px solid var(--border);
+    vertical-align: top;
   }
   th {
     color: var(--gray);
@@ -178,6 +225,18 @@
     text-transform: uppercase;
     letter-spacing: 0.03em;
   }
+  td .vi { display: block; color: var(--gray); font-size: 12px; margin-top: 2px; }
+
+  .qa {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 12px 0;
+  }
+  .qa .q { font-weight: 600; font-size: 14px; }
+  .qa .q .vi { color: var(--gray); font-weight: 400; font-size: 13px; display: block; margin-top: 2px; }
+  .qa .a { margin-top: 6px; font-size: 14px; }
+  .qa .a .vi { display: block; color: var(--gray); font-size: 13px; margin-top: 2px; }
 
   footer {
     text-align: center;
@@ -197,218 +256,518 @@
 
 <header class="cover">
   <h1>Estique Admin Dashboard</h1>
-  <p>A simple guide for staff and owners</p>
+  <p>A complete guide for staff and owners</p>
+  <p>Hướng dẫn đầy đủ cho nhân viên và chủ tiệm</p>
 </header>
 
 <div class="wrap">
 
   <nav class="toc">
-    <h2>Contents</h2>
+    <h2>Contents / Mục lục</h2>
     <ol>
-      <li><a href="#login">Logging In</a></li>
-      <li><a href="#layout">The Dashboard Layout</a></li>
-      <li><a href="#stats">Stats — Your Business at a Glance</a></li>
-      <li><a href="#bookings">Bookings — Managing Appointments</a></li>
-      <li><a href="#customers">Customers</a></li>
-      <li><a href="#sales">Sales (Point of Sale)</a></li>
-      <li><a href="#services">Services</a></li>
-      <li><a href="#staff">Staff & Time Off</a></li>
-      <li><a href="#pricing">Pricing Page</a></li>
-      <li><a href="#locations">Locations</a></li>
-      <li><a href="#settings">Settings</a></li>
-      <li><a href="#export">Exporting a Report for Your Accountant</a></li>
-      <li><a href="#help">Getting Help</a></li>
+      <li><a href="#login">Logging In</a> <span class="vi">— Đăng nhập</span></li>
+      <li><a href="#roles">Admin vs. Employee Accounts</a> <span class="vi">— Tài khoản Admin và Nhân viên</span></li>
+      <li><a href="#layout">The Dashboard Layout</a> <span class="vi">— Bố cục trang quản trị</span></li>
+      <li><a href="#stats">Stats — Your Business at a Glance</a> <span class="vi">— Thống kê</span></li>
+      <li><a href="#bookings">Bookings — Managing Appointments</a> <span class="vi">— Lịch hẹn</span></li>
+      <li><a href="#customers">Customers</a> <span class="vi">— Khách hàng</span></li>
+      <li><a href="#sales">Sales (Point of Sale)</a> <span class="vi">— Thanh toán</span></li>
+      <li><a href="#services">Services</a> <span class="vi">— Dịch vụ</span></li>
+      <li><a href="#staff">Staff & Time Off</a> <span class="vi">— Nhân viên & Lịch nghỉ</span></li>
+      <li><a href="#inbox">Inbox (AI Assistant)</a> <span class="vi">— Hộp thư (Trợ lý AI)</span></li>
+      <li><a href="#pricing">Pricing Page</a> <span class="vi">— Bảng giá</span></li>
+      <li><a href="#locations">Locations</a> <span class="vi">— Chi nhánh</span></li>
+      <li><a href="#settings">Settings — Full Reference</a> <span class="vi">— Cài đặt — Toàn bộ chi tiết</span></li>
+      <li><a href="#export">Exporting a Report for Your Accountant</a> <span class="vi">— Xuất báo cáo cho kế toán</span></li>
+      <li><a href="#faq">Frequently Asked Questions</a> <span class="vi">— Câu hỏi thường gặp</span></li>
+      <li><a href="#help">Getting Help</a> <span class="vi">— Cần hỗ trợ</span></li>
     </ol>
   </nav>
 
+  <!-- ============================================================ -->
   <section id="login">
-    <h2>1. Logging In</h2>
-    <p>Go to your dashboard address in a web browser (for example, <code>admin.estique.com.au</code>).</p>
+    <h2>1. Logging In<span class="vi">Đăng nhập</span></h2>
+
+    <p>Go to your dashboard address in a web browser — for example, <code>admin.estique.com.au</code>. This works on a computer, tablet, or phone.</p>
+    <p class="vi">Mở địa chỉ trang quản trị bằng trình duyệt web — ví dụ <code>admin.estique.com.au</code>. Bạn có thể dùng máy tính, máy tính bảng, hoặc điện thoại.</p>
+
     <div class="step">
       <div class="num">1</div>
-      <div class="txt">Type in your email and password.</div>
+      <div class="txt">Type in your email and password.<span class="vi">Nhập email và mật khẩu của bạn.</span></div>
     </div>
     <div class="step">
       <div class="num">2</div>
-      <div class="txt">Click <strong>Sign In</strong>.</div>
+      <div class="txt">Click <strong>Sign In</strong>.<span class="vi">Nhấn <strong>Sign In</strong> (Đăng nhập).</span></div>
     </div>
+
     <div class="placeholder">
       <div class="tag">Screenshot</div><br>
       Login screen
     </div>
-    <p>Forgot your password? Click <strong>Forgot password?</strong> under the Sign In button and follow the steps in the email you receive.</p>
-    <div class="note">There are two kinds of accounts: <strong>Admin</strong> and <strong>Employee</strong>. Admins can see everything, including money settings and staff accounts. Employees see a smaller, simpler version of the dashboard.</div>
+
+    <h3>Forgot your password?<span class="vi">Quên mật khẩu?</span></h3>
+    <div class="step">
+      <div class="num">1</div>
+      <div class="txt">Click <strong>Forgot password?</strong> under the Sign In button.<span class="vi">Nhấn <strong>Forgot password?</strong> ở dưới nút Sign In.</span></div>
+    </div>
+    <div class="step">
+      <div class="num">2</div>
+      <div class="txt">Type in your email address and submit the form.<span class="vi">Nhập địa chỉ email của bạn rồi gửi.</span></div>
+    </div>
+    <div class="step">
+      <div class="num">3</div>
+      <div class="txt">Check your email for a reset link, and follow it to set a new password.<span class="vi">Kiểm tra email để nhận liên kết đặt lại mật khẩu, rồi làm theo hướng dẫn để tạo mật khẩu mới.</span></div>
+    </div>
+
+    <div class="warn">
+      If the reset email doesn't arrive within a few minutes, check your spam/junk folder. If it still doesn't arrive, ask an Admin to reset your password for you from <strong>Settings → Account Management</strong>.
+      <span class="vi">Nếu email đặt lại không đến sau vài phút, hãy kiểm tra thư mục spam/junk. Nếu vẫn không thấy, hãy nhờ Admin đặt lại mật khẩu cho bạn trong <strong>Cài đặt → Quản lý tài khoản</strong>.</span>
+    </div>
   </section>
 
+  <!-- ============================================================ -->
+  <section id="roles">
+    <h2>2. Admin vs. Employee Accounts<span class="vi">Tài khoản Admin và Nhân viên</span></h2>
+
+    <p>Every login belongs to one of two roles. This decides what you can see and do in the dashboard.</p>
+    <p class="vi">Mỗi tài khoản đăng nhập thuộc một trong hai vai trò. Vai trò này quyết định bạn được xem và làm gì trong trang quản trị.</p>
+
+    <table>
+      <tr><th>Role</th><th>What they can do</th></tr>
+      <tr>
+        <td><strong>Admin</strong><span class="vi">Quản trị viên</span></td>
+        <td>
+          Sees every tab and setting. Can manage services, staff, pricing, locations, payments, discount codes, staff accounts, and export reports. There is no limit on what an Admin can see or change.
+          <span class="vi">Xem được tất cả các tab và cài đặt. Có thể quản lý dịch vụ, nhân viên, bảng giá, chi nhánh, thanh toán, mã giảm giá, tài khoản nhân viên, và xuất báo cáo. Admin không bị giới hạn xem hoặc thay đổi bất cứ điều gì.</span>
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Employee</strong><span class="vi">Nhân viên</span></td>
+        <td>
+          Sees a smaller set of tabs, chosen by an Admin (see <a href="#settings-permissions">Employee Permissions</a>). Cannot open Settings, cannot see Pricing or Locations, and cannot manage staff accounts or payment credentials.
+          <span class="vi">Chỉ xem được một số tab do Admin chọn (xem <a href="#settings-permissions">Quyền nhân viên</a>). Không thể mở Cài đặt, không thấy Bảng giá hoặc Chi nhánh, và không thể quản lý tài khoản nhân viên hoặc thông tin thanh toán.</span>
+        </td>
+      </tr>
+    </table>
+
+    <div class="note">
+      Anywhere in this guide, a section marked <span class="admin-only">Admin</span> means only Admin accounts can use it. A section marked <span class="everyone">Everyone</span> is available to both roles, though an Admin can turn a tab on or off for Employees.
+      <span class="vi">Trong hướng dẫn này, phần nào có nhãn <span class="admin-only">Admin</span> nghĩa là chỉ tài khoản Admin dùng được. Nhãn <span class="everyone">Everyone</span> (Mọi người) nghĩa là cả hai vai trò đều dùng được, nhưng Admin có thể tắt/mở tab đó cho Nhân viên.</span>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
   <section id="layout">
-    <h2>2. The Dashboard Layout</h2>
-    <p>Once you're signed in, you'll see a sidebar on the left with the different sections of the dashboard. On a phone, this becomes a menu you can open with the <strong>☰</strong> button.</p>
+    <h2>3. The Dashboard Layout<span class="vi">Bố cục trang quản trị</span></h2>
+
+    <p>Once you're signed in, you'll see a sidebar on the left with every section of the dashboard. On a phone or narrow screen, the sidebar becomes a menu you open with the <strong>☰</strong> button in the top corner.</p>
+    <p class="vi">Sau khi đăng nhập, bạn sẽ thấy một thanh bên (sidebar) ở phía trái với tất cả các phần của trang quản trị. Trên điện thoại hoặc màn hình nhỏ, thanh bên trở thành một menu mà bạn mở bằng nút <strong>☰</strong> ở góc trên.</p>
+
     <div class="placeholder">
       <div class="tag">Screenshot</div><br>
       Full dashboard with sidebar labeled
     </div>
-    <p>Your business name is shown at the top of the sidebar. Click the small arrow button to collapse the sidebar and make more room on screen.</p>
+
+    <p>At the top of the sidebar is your business name (this comes from <strong>Settings → Shop Info</strong>). Below it is the list of tabs you have access to. Click the small arrow button on the edge of the sidebar to collapse it and free up screen space — useful on smaller laptops.</p>
+    <p class="vi">Ở đầu thanh bên là tên tiệm của bạn (lấy từ <strong>Cài đặt → Thông tin tiệm</strong>). Bên dưới là danh sách các tab bạn có quyền truy cập. Nhấn nút mũi tên nhỏ ở cạnh thanh bên để thu nhỏ nó và có thêm không gian màn hình — hữu ích trên laptop màn hình nhỏ.</p>
+
+    <p>At the very top right of the dashboard you'll usually find a way to sign out. Always sign out if you're using a shared or public computer.</p>
+    <p class="vi">Ở góc trên bên phải của trang quản trị thường có nút đăng xuất. Luôn đăng xuất nếu bạn dùng máy tính chung hoặc máy tính công cộng.</p>
   </section>
 
+  <!-- ============================================================ -->
   <section id="stats">
-    <h2>3. Stats — Your Business at a Glance</h2>
-    <p>This is the first page you see. It shows quick numbers like how many bookings you've had, and other summary information for your business.</p>
+    <h2>4. Stats — Your Business at a Glance<span class="vi">Thống kê</span></h2>
+
+    <p>This is usually the first page you see after logging in. It gives you a quick health check on how the business is doing.</p>
+    <p class="vi">Đây thường là trang đầu tiên bạn thấy sau khi đăng nhập. Nó cho bạn cái nhìn nhanh về tình hình kinh doanh.</p>
+
+    <h3>What you'll see<span class="vi">Bạn sẽ thấy gì</span></h3>
+    <ul>
+      <li><strong>Revenue</strong> — total money taken in the selected time period.<span class="vi"><strong>Doanh thu</strong> — tổng số tiền thu được trong khoảng thời gian đã chọn.</span></li>
+      <li><strong>Bookings</strong> — how many appointments were made.<span class="vi"><strong>Lịch hẹn</strong> — số lượng lịch hẹn đã được đặt.</span></li>
+      <li><strong>Average booking value</strong> — the typical amount a customer spends per visit.<span class="vi"><strong>Giá trị lịch hẹn trung bình</strong> — số tiền trung bình một khách chi mỗi lần ghé.</span></li>
+    </ul>
+
+    <h3>Changing the time period<span class="vi">Thay đổi khoảng thời gian</span></h3>
+    <p>Use the dropdown near the top of the page to switch between the last 7, 14, 30, or 90 days. The charts and numbers update immediately.</p>
+    <p class="vi">Dùng menu kéo xuống ở gần đầu trang để chuyển giữa 7, 14, 30, hoặc 90 ngày gần nhất. Biểu đồ và số liệu sẽ tự động cập nhật.</p>
+
     <div class="placeholder">
       <div class="tag">Screenshot</div><br>
-      Stats tab
+      Stats tab with charts and date range selector
+    </div>
+
+    <div class="tip">
+      Stats are useful for spotting slow days or busy periods — for example, if Mondays are consistently quiet, that might be a good day to run a promotion.
+      <span class="vi">Thống kê giúp bạn nhận ra ngày vắng khách hoặc giờ cao điểm — ví dụ nếu thứ Hai luôn vắng, đó có thể là ngày tốt để chạy khuyến mãi.</span>
     </div>
   </section>
 
+  <!-- ============================================================ -->
   <section id="bookings">
-    <h2>4. Bookings — Managing Appointments</h2>
-    <p>This is where you see every appointment — past, today, and upcoming.</p>
+    <h2>5. Bookings — Managing Appointments<span class="vi">Lịch hẹn</span></h2>
 
-    <h3>Creating a new booking</h3>
-    <div class="step"><div class="num">1</div><div class="txt">Click the <strong>Tạo lịch</strong> (Create Booking) button.</div></div>
-    <div class="step"><div class="num">2</div><div class="txt">Choose the service and the staff member.</div></div>
-    <div class="step"><div class="num">3</div><div class="txt">Pick the date and time.</div></div>
-    <div class="step"><div class="num">4</div><div class="txt">Add the customer's name, phone number, and email.</div></div>
-    <div class="step"><div class="num">5</div><div class="txt">Click <strong>Save</strong>.</div></div>
+    <p>This is where every appointment lives — past, today, and upcoming. Customers can also book online through your public website, and those bookings will appear here automatically.</p>
+    <p class="vi">Đây là nơi lưu tất cả các lịch hẹn — đã qua, hôm nay, và sắp tới. Khách hàng cũng có thể đặt lịch trực tuyến qua trang web công khai của bạn, và những lịch đó sẽ tự động hiện ở đây.</p>
+
+    <h3>Creating a new booking<span class="vi">Tạo lịch hẹn mới</span></h3>
+    <div class="step"><div class="num">1</div><div class="txt">Click the <strong>Tạo lịch</strong> (Create Booking) button, usually top-right of the page.<span class="vi">Nhấn nút <strong>Tạo lịch</strong>, thường ở góc trên bên phải trang.</span></div></div>
+    <div class="step"><div class="num">2</div><div class="txt">Choose the service.<span class="vi">Chọn dịch vụ.</span></div></div>
+    <div class="step"><div class="num">3</div><div class="txt">Choose the staff member.<span class="vi">Chọn nhân viên phục vụ.</span></div></div>
+    <div class="step"><div class="num">4</div><div class="txt">Pick the date and time from the calendar.<span class="vi">Chọn ngày và giờ trên lịch.</span></div></div>
+    <div class="step"><div class="num">5</div><div class="txt">Add the customer's name, phone number, and email address.<span class="vi">Nhập tên, số điện thoại, và email của khách.</span></div></div>
+    <div class="step"><div class="num">6</div><div class="txt">Add any notes if needed (allergies, special requests, etc).<span class="vi">Thêm ghi chú nếu cần (dị ứng, yêu cầu đặc biệt, v.v.)</span></div></div>
+    <div class="step"><div class="num">7</div><div class="txt">Click <strong>Save</strong> to confirm the booking.<span class="vi">Nhấn <strong>Save</strong> (Lưu) để xác nhận lịch hẹn.</span></div></div>
+
     <div class="placeholder">
       <div class="tag">Screenshot</div><br>
       New booking form
     </div>
 
-    <h3>Changing or cancelling a booking</h3>
-    <p>Click on any booking in the list to open it. You can change the details, mark it as completed, or cancel it.</p>
-  </section>
-
-  <section id="customers">
-    <h2>5. Customers</h2>
-    <p>Every customer who books or pays is automatically added here — you don't need to type them in yourself. This list shows:</p>
+    <h3>Changing or cancelling a booking<span class="vi">Thay đổi hoặc hủy lịch hẹn</span></h3>
+    <p>Click on any booking in the list to open its details. From there you can:</p>
+    <p class="vi">Nhấn vào bất kỳ lịch hẹn nào trong danh sách để mở chi tiết. Từ đó bạn có thể:</p>
     <ul>
-      <li>Their name and phone number</li>
-      <li>How many times they've visited</li>
-      <li>Their membership tier, if they have one</li>
+      <li>Change the date, time, service, or staff member<span class="vi">Thay đổi ngày, giờ, dịch vụ, hoặc nhân viên phục vụ</span></li>
+      <li>Mark the booking as <strong>Completed</strong> once the customer has been served<span class="vi">Đánh dấu lịch hẹn là <strong>Completed</strong> (Hoàn thành) sau khi đã phục vụ khách</span></li>
+      <li>Cancel the booking if the customer doesn't show up or asks to cancel<span class="vi">Hủy lịch hẹn nếu khách không đến hoặc yêu cầu hủy</span></li>
     </ul>
-    <p>Use the search box at the top to find a customer by name or phone number.</p>
+
+    <div class="note">
+      Marking a booking as Completed is what allows that customer to show up correctly in your <a href="#customers">Customers</a> list and in staff appointment counts on the <a href="#export">Excel export</a>.
+      <span class="vi">Đánh dấu lịch hẹn là Completed sẽ giúp khách hàng đó hiện đúng trong danh sách <a href="#customers">Khách hàng</a> và trong số lượng lịch hẹn của nhân viên trên <a href="#export">báo cáo Excel</a>.</span>
+    </div>
+
+    <h3>Filtering by staff member<span class="vi">Lọc theo nhân viên</span></h3>
+    <p>Use the staff filter dropdown to see only the appointments for one specific person — handy for planning someone's day.</p>
+    <p class="vi">Dùng menu lọc theo nhân viên để chỉ xem lịch hẹn của một người cụ thể — hữu ích khi lên kế hoạch cho một ngày làm việc.</p>
+  </section>
+
+  <!-- ============================================================ -->
+  <section id="customers">
+    <h2>6. Customers<span class="vi">Khách hàng</span></h2>
+
+    <p>Every customer who books an appointment or pays for a service is added here automatically — you never need to type a new customer in by hand.</p>
+    <p class="vi">Mọi khách hàng đặt lịch hoặc thanh toán dịch vụ sẽ tự động được thêm vào đây — bạn không cần nhập khách hàng mới bằng tay.</p>
+
+    <h3>What the list shows<span class="vi">Danh sách hiển thị gì</span></h3>
+    <ul>
+      <li><strong>Name and phone number</strong><span class="vi"><strong>Tên và số điện thoại</strong></span></li>
+      <li><strong>Number of visits</strong> — how many times they've come in<span class="vi"><strong>Số lần ghé</strong> — số lần khách đã đến</span></li>
+      <li><strong>Membership tier</strong>, if the customer has reached one (see <a href="#settings-membership">Membership Tiers</a>)<span class="vi"><strong>Hạng thành viên</strong>, nếu khách đã đạt hạng (xem <a href="#settings-membership">Hạng thành viên</a>)</span></li>
+      <li><strong>Last updated</strong> — when their record last changed<span class="vi"><strong>Cập nhật</strong> — lần cuối thông tin thay đổi</span></li>
+    </ul>
+
+    <h3>Finding a customer<span class="vi">Tìm khách hàng</span></h3>
+    <p>Use the search box at the top of the page and type any part of their name or phone number. The list updates as you type.</p>
+    <p class="vi">Dùng ô tìm kiếm ở đầu trang và nhập một phần tên hoặc số điện thoại của khách. Danh sách sẽ tự động cập nhật khi bạn gõ.</p>
+
     <div class="placeholder">
       <div class="tag">Screenshot</div><br>
-      Customers list
+      Customers list with search box
     </div>
   </section>
 
+  <!-- ============================================================ -->
   <section id="sales">
-    <h2>6. Sales (Point of Sale)</h2>
-    <p>This is where you take payment for a service — either for a walk-in customer or someone with a booking.</p>
+    <h2>7. Sales (Point of Sale)<span class="vi">Thanh toán</span></h2>
 
-    <h3>Taking a payment</h3>
-    <div class="step"><div class="num">1</div><div class="txt">Click <strong>Thanh toán mới</strong> (New Sale) at the top of the list, or pick an existing appointment from the <strong>Lịch hẹn</strong> tab on the left.</div></div>
-    <div class="step"><div class="num">2</div><div class="txt">Choose the service (and any extra add-on services) from the list.</div></div>
-    <div class="step"><div class="num">3</div><div class="txt">If it's a walk-in, type in the customer's name and phone number.</div></div>
-    <div class="step"><div class="num">4</div><div class="txt">Add a discount code if the customer has one.</div></div>
-    <div class="step"><div class="num">5</div><div class="txt">Choose the payment method — cash, card, etc.</div></div>
-    <div class="step"><div class="num">6</div><div class="txt">Click the <strong>Charge</strong> button to complete the sale.</div></div>
+    <p>This is where you take payment for a service — for a walk-in customer with no booking, or for someone who already has an appointment.</p>
+    <p class="vi">Đây là nơi bạn nhận thanh toán cho một dịch vụ — cho khách vãng lai không có lịch hẹn, hoặc cho người đã có lịch hẹn sẵn.</p>
+
+    <h3>Taking a payment for an existing appointment<span class="vi">Thanh toán cho lịch hẹn có sẵn</span></h3>
+    <div class="step"><div class="num">1</div><div class="txt">Open the <strong>Lịch hẹn</strong> (Appointments) list on the left side of the Sales screen.<span class="vi">Mở danh sách <strong>Lịch hẹn</strong> ở bên trái màn hình Thanh toán.</span></div></div>
+    <div class="step"><div class="num">2</div><div class="txt">Find and click on the customer's appointment — it will fill in their name, phone, and service automatically.<span class="vi">Tìm và nhấn vào lịch hẹn của khách — thông tin tên, số điện thoại, và dịch vụ sẽ tự điền.</span></div></div>
+    <div class="step"><div class="num">3</div><div class="txt">Continue with the payment steps below.<span class="vi">Tiếp tục với các bước thanh toán dưới đây.</span></div></div>
+
+    <h3>Taking a payment for a walk-in customer<span class="vi">Thanh toán cho khách vãng lai</span></h3>
+    <div class="step"><div class="num">1</div><div class="txt">Click <strong>Thanh toán mới</strong> (New Sale) at the top of the appointments list. This clears any previous sale and switches you to the service list.<span class="vi">Nhấn <strong>Thanh toán mới</strong> ở đầu danh sách lịch hẹn. Nút này sẽ xóa giao dịch trước đó và chuyển sang danh sách dịch vụ.</span></div></div>
+    <div class="step"><div class="num">2</div><div class="txt">Click the main service the customer wants.<span class="vi">Nhấn vào dịch vụ chính mà khách muốn.</span></div></div>
+    <div class="step"><div class="num">3</div><div class="txt">Click any extra add-on services (for example, nail art on top of a manicure).<span class="vi">Nhấn thêm các dịch vụ phụ nếu có (ví dụ vẽ nail thêm vào làm móng thường).</span></div></div>
+    <div class="step"><div class="num">4</div><div class="txt">Type in the customer's name and phone number.<span class="vi">Nhập tên và số điện thoại của khách.</span></div></div>
+
+    <h3>Finishing the sale<span class="vi">Hoàn tất giao dịch</span></h3>
+    <div class="step"><div class="num">1</div><div class="txt">If the customer has a discount code, type it into the discount box and click <strong>Áp dụng</strong> (Apply).<span class="vi">Nếu khách có mã giảm giá, nhập vào ô giảm giá và nhấn <strong>Áp dụng</strong>.</span></div></div>
+    <div class="step"><div class="num">2</div><div class="txt">Add any notes about the sale if needed.<span class="vi">Thêm ghi chú về giao dịch nếu cần.</span></div></div>
+    <div class="step"><div class="num">3</div><div class="txt">Choose the payment method: Cash, Card, or another option your business has set up.<span class="vi">Chọn phương thức thanh toán: Tiền mặt, Thẻ, hoặc phương thức khác mà tiệm đã thiết lập.</span></div></div>
+    <div class="step"><div class="num">4</div><div class="txt">Check the total amount shown at the bottom.<span class="vi">Kiểm tra tổng số tiền hiển thị ở dưới.</span></div></div>
+    <div class="step"><div class="num">5</div><div class="txt">Click the <strong>Charge</strong> button to complete the sale.<span class="vi">Nhấn nút <strong>Charge</strong> để hoàn tất giao dịch.</span></div></div>
+
     <div class="placeholder">
       <div class="tag">Screenshot</div><br>
-      Point of sale screen with an appointment selected
+      Point of sale screen with an appointment selected and payment method chosen
     </div>
-    <div class="note">Every completed sale is saved automatically and shows up later in your Excel report — see <a href="#export">section 12</a>.</div>
+
+    <h3>Removing an item from the current sale<span class="vi">Xóa một mục khỏi giao dịch hiện tại</span></h3>
+    <p>Click the small <strong>×</strong> next to an add-on to remove it, or click <strong>Xoá</strong> (Clear) at the top of the payment panel to start over completely.</p>
+    <p class="vi">Nhấn dấu <strong>×</strong> nhỏ bên cạnh dịch vụ phụ để xóa, hoặc nhấn <strong>Xoá</strong> ở đầu khung thanh toán để bắt đầu lại từ đầu.</p>
+
+    <h3>Refunding a sale<span class="vi">Hoàn tiền cho giao dịch</span></h3>
+    <p>Find the sale in your sales history and mark it as refunded. Refunded sales are still kept on record, but they are automatically excluded from your net revenue total and from the payment-method breakdown in reports.</p>
+    <p class="vi">Tìm giao dịch trong lịch sử bán hàng và đánh dấu là đã hoàn tiền. Giao dịch đã hoàn tiền vẫn được lưu lại, nhưng sẽ tự động bị loại khỏi tổng doanh thu thực và bảng phân tích theo phương thức thanh toán trong báo cáo.</p>
+
+    <div class="note">
+      Every completed sale is saved automatically. You don't need to write anything down separately — it will show up later in your <a href="#export">Excel report</a> for your accountant.
+      <span class="vi">Mọi giao dịch hoàn tất được lưu tự động. Bạn không cần ghi chép riêng — nó sẽ tự xuất hiện trong <a href="#export">báo cáo Excel</a> gửi cho kế toán sau này.</span>
+    </div>
   </section>
 
+  <!-- ============================================================ -->
   <section id="services">
-    <h2>7. Services <span class="admin-only">Admin</span></h2>
-    <p>This is your price list — every treatment you offer, with its price and how long it takes.</p>
+    <h2>8. Services <span class="admin-only">Admin</span><span class="vi">Dịch vụ</span></h2>
 
-    <h3>Adding a new service</h3>
-    <div class="step"><div class="num">1</div><div class="txt">Click <strong>Thêm dịch vụ</strong> (Add Service).</div></div>
-    <div class="step"><div class="num">2</div><div class="txt">Type in the name and a short description.</div></div>
-    <div class="step"><div class="num">3</div><div class="txt">Set the price and how many minutes it takes.</div></div>
-    <div class="step"><div class="num">4</div><div class="txt">Upload a photo if you have one.</div></div>
-    <div class="step"><div class="num">5</div><div class="txt">Click <strong>Save</strong>.</div></div>
+    <p>This is your price list — every treatment you offer, along with its price, duration, and description. This list is what shows up when you or your customers pick a service to book.</p>
+    <p class="vi">Đây là bảng giá của bạn — mọi dịch vụ bạn cung cấp, kèm giá, thời gian, và mô tả. Danh sách này sẽ hiện ra khi bạn hoặc khách hàng chọn dịch vụ để đặt lịch.</p>
+
+    <h3>Adding a new service<span class="vi">Thêm dịch vụ mới</span></h3>
+    <div class="step"><div class="num">1</div><div class="txt">Click <strong>Thêm dịch vụ</strong> (Add Service).<span class="vi">Nhấn <strong>Thêm dịch vụ</strong>.</span></div></div>
+    <div class="step"><div class="num">2</div><div class="txt">Type in the service name.<span class="vi">Nhập tên dịch vụ.</span></div></div>
+    <div class="step"><div class="num">3</div><div class="txt">Add a short description explaining what's included.<span class="vi">Thêm mô tả ngắn giải thích dịch vụ gồm những gì.</span></div></div>
+    <div class="step"><div class="num">4</div><div class="txt">Set the price (in dollars) and how many minutes it takes.<span class="vi">Đặt giá (bằng đô-la) và thời gian thực hiện (bằng phút).</span></div></div>
+    <div class="step"><div class="num">5</div><div class="txt">Upload a photo, if you have one, by clicking the image upload button.<span class="vi">Tải lên hình ảnh nếu có, bằng cách nhấn nút tải ảnh.</span></div></div>
+    <div class="step"><div class="num">6</div><div class="txt">Click <strong>Save</strong>.<span class="vi">Nhấn <strong>Save</strong>.</span></div></div>
+
     <div class="placeholder">
       <div class="tag">Screenshot</div><br>
       Services list with Add Service form open
     </div>
-    <p>To edit or remove a service, click the pencil icon next to it, or the menu (⋯) to delete it.</p>
+
+    <h3>Editing or removing a service<span class="vi">Sửa hoặc xóa dịch vụ</span></h3>
+    <p>Click the pencil (✎) icon next to any service to change its details. Click the menu (⋯) next to it and choose <strong>Xoá dịch vụ</strong> (Delete Service) to remove it completely.</p>
+    <p class="vi">Nhấn biểu tượng bút chì (✎) bên cạnh dịch vụ để thay đổi thông tin. Nhấn menu (⋯) bên cạnh và chọn <strong>Xoá dịch vụ</strong> để xóa hoàn toàn.</p>
+
+    <div class="warn">
+      Deleting a service does not delete past bookings or sales that used it — those records stay in your history. If you just want to stop customers from booking a service (without deleting it), edit it and turn its "active" setting off instead.
+      <span class="vi">Xóa dịch vụ không xóa các lịch hẹn hoặc giao dịch cũ đã dùng dịch vụ đó — các bản ghi này vẫn còn trong lịch sử. Nếu bạn chỉ muốn ngừng cho khách đặt dịch vụ đó (mà không xóa), hãy sửa và tắt trạng thái "đang hoạt động" thay vì xóa.</span>
+    </div>
   </section>
 
+  <!-- ============================================================ -->
   <section id="staff">
-    <h2>8. Staff & Time Off <span class="admin-only">Admin</span></h2>
-    <p>Manage the people who work at your salon here.</p>
+    <h2>9. Staff & Time Off <span class="admin-only">Admin</span><span class="vi">Nhân viên & Lịch nghỉ</span></h2>
 
-    <h3>Adding a staff member</h3>
-    <div class="step"><div class="num">1</div><div class="txt">Click <strong>Thêm nhân viên</strong> (Add Staff).</div></div>
-    <div class="step"><div class="num">2</div><div class="txt">Enter their name, email, and phone number.</div></div>
-    <div class="step"><div class="num">3</div><div class="txt">Set their working hours and any regular break time.</div></div>
-    <div class="step"><div class="num">4</div><div class="txt">Click <strong>Save</strong>.</div></div>
+    <p>Manage the people who work at your salon here — their contact details, working hours, and days off.</p>
+    <p class="vi">Quản lý những người làm việc tại tiệm của bạn ở đây — thông tin liên hệ, giờ làm việc, và ngày nghỉ.</p>
+
+    <h3>Adding a staff member<span class="vi">Thêm nhân viên</span></h3>
+    <div class="step"><div class="num">1</div><div class="txt">Click <strong>Thêm nhân viên</strong> (Add Staff).<span class="vi">Nhấn <strong>Thêm nhân viên</strong>.</span></div></div>
+    <div class="step"><div class="num">2</div><div class="txt">Enter their full name.<span class="vi">Nhập họ và tên đầy đủ.</span></div></div>
+    <div class="step"><div class="num">3</div><div class="txt">Enter their email address and phone number.<span class="vi">Nhập email và số điện thoại.</span></div></div>
+    <div class="step"><div class="num">4</div><div class="txt">Set their regular break time (start and end hour), if they have one.<span class="vi">Đặt giờ nghỉ giữa ca (giờ bắt đầu và kết thúc), nếu có.</span></div></div>
+    <div class="step"><div class="num">5</div><div class="txt">Click <strong>Save</strong>.<span class="vi">Nhấn <strong>Save</strong>.</span></div></div>
+
     <div class="placeholder">
       <div class="tag">Screenshot</div><br>
-      Staff list
+      Staff list with Add Staff form open
     </div>
 
-    <h3>Marking a staff member as unavailable</h3>
-    <p>Use the section below the staff list to mark a specific day off for one staff member — for example, if they're sick or on holiday.</p>
+    <div class="note">
+      Adding someone here creates their staff profile (so they can be booked and assigned appointments), but it does <strong>not</strong> give them a login. To let them sign in to the dashboard themselves, create a login for them separately — see <a href="#settings-accounts">Account Management</a>.
+      <span class="vi">Thêm ở đây chỉ tạo hồ sơ nhân viên (để họ có thể được đặt lịch và giao việc), nhưng <strong>không</strong> tạo tài khoản đăng nhập. Để họ tự đăng nhập vào trang quản trị, hãy tạo tài khoản riêng — xem <a href="#settings-accounts">Quản lý tài khoản</a>.</span>
+    </div>
+
+    <h3>Marking a staff member as unavailable<span class="vi">Đánh dấu nhân viên nghỉ</span></h3>
+    <p>Use the section below the staff list to block out a specific day for one staff member — for example, if they're sick, on holiday, or have a personal appointment. Once marked, customers won't be able to book that person on that day.</p>
+    <p class="vi">Dùng phần bên dưới danh sách nhân viên để chặn một ngày cụ thể cho một nhân viên — ví dụ khi họ bị bệnh, đi nghỉ, hoặc có việc cá nhân. Sau khi đánh dấu, khách sẽ không thể đặt lịch với người đó vào ngày đó.</p>
+    <div class="step"><div class="num">1</div><div class="txt">Choose the staff member from the dropdown.<span class="vi">Chọn nhân viên từ menu kéo xuống.</span></div></div>
+    <div class="step"><div class="num">2</div><div class="txt">Pick the date they'll be away.<span class="vi">Chọn ngày họ sẽ nghỉ.</span></div></div>
+    <div class="step"><div class="num">3</div><div class="txt">Click <strong>Save</strong> to block that day.<span class="vi">Nhấn <strong>Save</strong> để chặn ngày đó.</span></div></div>
   </section>
 
+  <!-- ============================================================ -->
+  <section id="inbox">
+    <h2>10. Inbox (AI Assistant) <span class="admin-only">If enabled</span><span class="vi">Hộp thư (Trợ lý AI)</span></h2>
+
+    <p>This tab only appears if your business has an AI Assistant license activated (see <a href="#settings-ai">AI, Translation & Knowledge Base</a>) and the inbox feature is turned on. It shows customer conversations handled by the AI assistant, so you can review what it said and step in if needed.</p>
+    <p class="vi">Tab này chỉ hiện khi tiệm của bạn đã kích hoạt giấy phép Trợ lý AI (xem <a href="#settings-ai">AI, Dịch thuật & Kho kiến thức</a>) và tính năng hộp thư đã được mở. Nó hiển thị các cuộc trò chuyện với khách hàng do trợ lý AI xử lý, để bạn xem lại và can thiệp nếu cần.</p>
+
+    <div class="placeholder">
+      <div class="tag">Screenshot</div><br>
+      Inbox / conversation list
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
   <section id="pricing">
-    <h2>9. Pricing Page <span class="admin-only">Admin</span></h2>
-    <p>This controls the price list your customers see on your public website. You can organise it into categories and tables, which is useful if you offer many different treatments at different prices.</p>
+    <h2>11. Pricing Page <span class="admin-only">Admin</span><span class="vi">Bảng giá</span></h2>
+
+    <p>This controls the price list your customers see on your public website — not the same as the simple Services list, this one lets you organise prices into categories and tables (for example, separating "Hands" and "Feet" treatments, or "Her" and "Him" pricing for waxing).</p>
+    <p class="vi">Đây là bảng giá mà khách hàng thấy trên trang web công khai của bạn — khác với danh sách Dịch vụ đơn giản, phần này cho phép bạn sắp xếp giá theo danh mục và bảng (ví dụ tách riêng "Tay" và "Chân", hoặc giá "Nữ" và "Nam" cho waxing).</p>
+
+    <p>Use this if your price list is complex — many categories, many options per treatment, or notes and disclaimers that need to appear alongside prices.</p>
+    <p class="vi">Dùng phần này nếu bảng giá của bạn phức tạp — nhiều danh mục, nhiều lựa chọn cho mỗi dịch vụ, hoặc cần ghi chú/lưu ý đi kèm với giá.</p>
+
     <div class="placeholder">
       <div class="tag">Screenshot</div><br>
-      Pricing manager
+      Pricing manager with categories and tables
     </div>
   </section>
 
+  <!-- ============================================================ -->
   <section id="locations">
-    <h2>10. Locations <span class="admin-only">Admin</span></h2>
-    <p>If your business has more than one branch, manage their addresses and opening hours here.</p>
+    <h2>12. Locations <span class="admin-only">Admin</span><span class="vi">Chi nhánh</span></h2>
+
+    <p>If your business has more than one branch, manage each one's address, phone number, and opening hours here. This information appears on your public website's Location page.</p>
+    <p class="vi">Nếu tiệm bạn có nhiều chi nhánh, quản lý địa chỉ, số điện thoại, và giờ mở cửa của từng chi nhánh ở đây. Thông tin này sẽ hiện trên trang Vị trí của trang web công khai.</p>
+
     <div class="placeholder">
       <div class="tag">Screenshot</div><br>
       Locations manager
     </div>
   </section>
 
+  <!-- ============================================================ -->
   <section id="settings">
-    <h2>11. Settings <span class="admin-only">Admin</span></h2>
-    <p>Settings is a menu of smaller tools. Tap any row to open it.</p>
-    <table>
-      <tr><th>Setting</th><th>What it does</th></tr>
-      <tr><td>Shop Info</td><td>Your business name, address, and opening hours.</td></tr>
-      <tr><td>Display & Theme</td><td>Your logo and homepage image.</td></tr>
-      <tr><td>Account Management</td><td>Add or remove admin/employee logins.</td></tr>
-      <tr><td>Employee Permissions</td><td>Choose which tabs employees are allowed to see.</td></tr>
-      <tr><td>Payments</td><td>Turn on card payments (Stripe/Square) and set surcharges.</td></tr>
-      <tr><td>Notifications</td><td>Turn on SMS/email reminders sent to customers before their appointment.</td></tr>
-      <tr><td>Email Settings</td><td>Connect the email service used to send messages to customers.</td></tr>
-      <tr><td>Membership Tiers</td><td>Set up loyalty tiers for repeat customers.</td></tr>
-      <tr><td>Discount Codes</td><td>Create promo codes customers can use at checkout.</td></tr>
-      <tr><td>Activity Log</td><td>See a history of changes made in the dashboard, and download it as a CSV file.</td></tr>
-      <tr><td><strong>Export Excel Report</strong></td><td>Download your sales and bookings as an Excel file — see below.</td></tr>
-    </table>
+    <h2>13. Settings — Full Reference <span class="admin-only">Admin</span><span class="vi">Cài đặt — Toàn bộ chi tiết</span></h2>
+
+    <p>Settings is a menu of smaller tools, each one covering a different part of how your business runs. Tap any row to open it. Below is what each one does, in detail.</p>
+    <p class="vi">Cài đặt là một menu gồm nhiều công cụ nhỏ, mỗi công cụ phụ trách một phần khác nhau trong vận hành tiệm. Nhấn vào từng dòng để mở. Dưới đây là chi tiết từng phần.</p>
+
     <div class="placeholder">
       <div class="tag">Screenshot</div><br>
       Settings menu
     </div>
+
+    <h3>Shop Info<span class="vi">Thông tin tiệm</span></h3>
+    <p>Your business name, address, and opening hours (including special hours for public holidays). The business name shown here is what appears at the top of your dashboard sidebar.</p>
+    <p class="vi">Tên tiệm, địa chỉ, và giờ mở cửa (kể cả giờ đặc biệt vào ngày lễ). Tên tiệm ở đây sẽ hiện ở đầu thanh bên trang quản trị của bạn.</p>
+
+    <h3>Display & Theme<span class="vi">Hiển thị & Giao diện</span></h3>
+    <p>Upload your logo and choose the hero image used on your homepage. This also controls whether a "random available staff" option is offered to customers when booking, and whether closed public holidays are shown on your booking page.</p>
+    <p class="vi">Tải lên logo và chọn ảnh nền trang chủ. Phần này cũng kiểm soát việc có cho khách chọn "thợ ngẫu nhiên" khi đặt lịch hay không, và có hiển thị ngày lễ đóng cửa trên trang đặt lịch hay không.</p>
+
+    <h3 id="settings-accounts">Account Management<span class="vi">Quản lý tài khoản</span></h3>
+    <p>Create, edit, or remove dashboard logins for Admins and Employees.</p>
+    <p class="vi">Tạo, sửa, hoặc xóa tài khoản đăng nhập trang quản trị cho Admin và Nhân viên.</p>
+    <div class="step"><div class="num">1</div><div class="txt">Click <strong>Tạo tài khoản</strong> (Create Account).<span class="vi">Nhấn <strong>Tạo tài khoản</strong>.</span></div></div>
+    <div class="step"><div class="num">2</div><div class="txt">Enter their email address and a starting password.<span class="vi">Nhập email và mật khẩu ban đầu.</span></div></div>
+    <div class="step"><div class="num">3</div><div class="txt">Choose their role: Admin or Employee.<span class="vi">Chọn vai trò: Admin hoặc Employee.</span></div></div>
+    <div class="step"><div class="num">4</div><div class="txt">Click <strong>Save</strong>.<span class="vi">Nhấn <strong>Save</strong>.</span></div></div>
+    <p>To change someone's password later, click the pencil icon next to their name. To remove someone's access completely, click the trash icon (you cannot remove your own account this way).</p>
+    <p class="vi">Để đổi mật khẩu của ai đó sau này, nhấn biểu tượng bút chì bên cạnh tên họ. Để xóa hoàn toàn quyền truy cập, nhấn biểu tượng thùng rác (bạn không thể xóa tài khoản của chính mình theo cách này).</p>
+
+    <h3 id="settings-permissions">Employee Permissions<span class="vi">Quyền nhân viên</span></h3>
+    <p>Choose exactly which tabs Employee accounts are allowed to see when they log in. Admin accounts always see everything, no matter what is chosen here.</p>
+    <p class="vi">Chọn chính xác những tab mà tài khoản Nhân viên được xem khi đăng nhập. Tài khoản Admin luôn xem được tất cả, bất kể lựa chọn ở đây.</p>
+    <div class="step"><div class="num">1</div><div class="txt">Tap any tab in the list (Stats, Bookings, Customers, Sales, Services, Staff, Inbox) to turn it on or off with the switch.<span class="vi">Nhấn vào từng tab trong danh sách (Thống kê, Lịch hẹn, Khách hàng, Thanh toán, Dịch vụ, Thợ, Hộp thư) để tắt/mở bằng nút gạt.</span></div></div>
+    <div class="step"><div class="num">2</div><div class="txt">Click <strong>Lưu quyền</strong> (Save Permissions) at the bottom.<span class="vi">Nhấn <strong>Lưu quyền</strong> ở dưới.</span></div></div>
+    <div class="note">Settings, Pricing, and Locations are never available to Employees — only Admins can access those, no matter what.<span class="vi">Cài đặt, Bảng giá, và Chi nhánh không bao giờ khả dụng cho Nhân viên — chỉ Admin mới truy cập được, bất kể thiết lập nào.</span></div>
+
+    <h3>Payments<span class="vi">Thanh toán</span></h3>
+    <p>Turn on and configure card payment providers so customers can pay online or in person by card.</p>
+    <p class="vi">Mở và thiết lập các nhà cung cấp thanh toán bằng thẻ để khách có thể thanh toán trực tuyến hoặc bằng thẻ tại tiệm.</p>
+    <ul>
+      <li><strong>Stripe</strong> — for online payments when a customer books through your website. You'll need your Publishable Key, Secret Key, and (optionally) a Webhook Secret from your Stripe dashboard at <code>dashboard.stripe.com</code>.<span class="vi"><strong>Stripe</strong> — dùng cho thanh toán trực tuyến khi khách đặt lịch qua trang web. Bạn cần Publishable Key, Secret Key, và (không bắt buộc) Webhook Secret từ trang quản trị Stripe tại <code>dashboard.stripe.com</code>.</span></li>
+      <li><strong>Square</strong> — for in-person card payments and Square Terminal.<span class="vi"><strong>Square</strong> — dùng cho thanh toán bằng thẻ tại tiệm và máy Square Terminal.</span></li>
+      <li><strong>Card surcharge</strong> — an optional small extra percentage added when a customer pays by card, to cover processing fees.<span class="vi"><strong>Phụ phí thẻ</strong> — phần trăm nhỏ tùy chọn được cộng thêm khi khách trả bằng thẻ, để bù chi phí xử lý giao dịch.</span></li>
+    </ul>
+    <div class="warn">
+      Your Secret Key should never be shared with anyone outside your business — it gives full access to move money through your payment account. Only enter it directly into this screen.
+      <span class="vi">Secret Key không nên chia sẻ với bất kỳ ai ngoài tiệm của bạn — nó cho quyền truy cập đầy đủ để chuyển tiền qua tài khoản thanh toán. Chỉ nhập trực tiếp vào màn hình này.</span>
+    </div>
+
+    <h3>Twilio Configuration<span class="vi">Cấu hình Twilio</span></h3>
+    <p>Connects your account to Twilio, used for sending SMS text messages to customers (appointment reminders, confirmations).</p>
+    <p class="vi">Kết nối tài khoản của bạn với Twilio, dùng để gửi tin nhắn SMS cho khách (nhắc lịch, xác nhận).</p>
+
+    <h3>Notifications<span class="vi">Thông báo & Nhắc lịch</span></h3>
+    <p>Turn on automatic reminders sent to customers before their appointment — by SMS, WhatsApp, or email. You can usually set how many hours before the appointment the first and second reminders go out.</p>
+    <p class="vi">Mở nhắc lịch tự động gửi cho khách trước giờ hẹn — qua SMS, WhatsApp, hoặc email. Bạn thường có thể chọn số giờ trước lịch hẹn để gửi nhắc lần 1 và lần 2.</p>
+
+    <h3>Email Settings<span class="vi">Cài đặt email</span></h3>
+    <p>Connect the Resend email service used to send transactional emails to customers (booking confirmations, reminders). You'll need an API key from your Resend account.</p>
+    <p class="vi">Kết nối dịch vụ email Resend dùng để gửi email tự động cho khách (xác nhận đặt lịch, nhắc lịch). Bạn cần một API key từ tài khoản Resend của mình.</p>
+
+    <h3 id="settings-ai">AI, Translation & Knowledge Base<span class="vi">AI, Dịch thuật & Kho kiến thức</span></h3>
+    <p>If your business has an AI Assistant license, this is where you turn AI auto-reply on or off, manage automatic translation, and add knowledge base articles the AI can use to answer customer questions. Without an active license key, this tab shows booking-only mode.</p>
+    <p class="vi">Nếu tiệm có giấy phép Trợ lý AI, đây là nơi bạn tắt/mở tính năng AI tự động trả lời, quản lý dịch thuật tự động, và thêm bài viết vào kho kiến thức để AI dùng khi trả lời câu hỏi khách hàng. Nếu chưa có mã bản quyền, tab này chỉ hoạt động ở chế độ đặt lịch.</p>
+
+    <h3 id="settings-membership">Membership Tiers<span class="vi">Hạng thành viên</span></h3>
+    <p>Set up loyalty tiers that reward repeat customers — for example, after 5 visits a customer could automatically move to a "Gold" tier with a discount. Tiers are shown next to a customer's name in the <a href="#customers">Customers</a> list.</p>
+    <p class="vi">Thiết lập các hạng thành viên để khuyến khích khách quay lại — ví dụ sau 5 lần ghé, khách có thể tự động lên hạng "Vàng" kèm ưu đãi giảm giá. Hạng thành viên hiện bên cạnh tên khách trong danh sách <a href="#customers">Khách hàng</a>.</p>
+
+    <h3>Discount Codes<span class="vi">Mã giảm giá</span></h3>
+    <p>Create promo codes customers can use at checkout — either a percentage off, or a fixed dollar amount off. You can set a start date, expiry date, and a maximum number of times the code can be used.</p>
+    <p class="vi">Tạo mã giảm giá mà khách có thể dùng khi thanh toán — giảm theo phần trăm hoặc số tiền cố định. Bạn có thể đặt ngày bắt đầu, ngày hết hạn, và số lần dùng tối đa cho mã.</p>
+
+    <h3>About Us / Terms<span class="vi">Về chúng tôi / Điều khoản</span></h3>
+    <p>Edit the text content shown on your public website's About page and Terms & Conditions page.</p>
+    <p class="vi">Sửa nội dung hiển thị trên trang Về chúng tôi và trang Điều khoản của trang web công khai.</p>
+
+    <h3>Activity Log <span class="admin-only">Admin</span><span class="vi">Nhật ký hoạt động</span></h3>
+    <p>A running history of actions taken in the dashboard — who did what, and when. Click <strong>Tải CSV</strong> (Download CSV) to save the log as a spreadsheet file.</p>
+    <p class="vi">Lịch sử các hành động đã thực hiện trong trang quản trị — ai đã làm gì, và khi nào. Nhấn <strong>Tải CSV</strong> để lưu nhật ký thành file bảng tính.</p>
+
+    <h3>Upgrade System<span class="vi">Nâng cấp hệ thống</span></h3>
+    <p>If you've purchased an upgrade key (for example, to unlock the AI Assistant), enter it here.</p>
+    <p class="vi">Nếu bạn đã mua mã nâng cấp (ví dụ để mở khóa Trợ lý AI), nhập mã vào đây.</p>
+
+    <h3>Danger Zone <span class="admin-only">Admin</span><span class="vi">Vùng nguy hiểm</span></h3>
+    <div class="warn">
+      This deletes all data — bookings, sales, customers, everything. This cannot be undone. Only use this if you genuinely want to wipe the account clean, such as before selling the business or starting over completely. Always export your Excel report first if there's any chance you'll need the records later.
+      <span class="vi">Phần này xóa toàn bộ dữ liệu — lịch hẹn, giao dịch, khách hàng, tất cả. Không thể hoàn tác. Chỉ dùng khi bạn thực sự muốn xóa sạch tài khoản, ví dụ trước khi bán tiệm hoặc làm lại từ đầu. Luôn xuất báo cáo Excel trước nếu có khả năng bạn cần dữ liệu sau này.</span>
+    </div>
   </section>
 
+  <!-- ============================================================ -->
   <section id="export">
-    <h2>12. Exporting a Report for Your Accountant</h2>
-    <p>This creates an Excel file with everything a bookkeeper needs: your sales, appointments, service price list, and staff — all in one file, ready to send.</p>
+    <h2>14. Exporting a Report for Your Accountant <span class="admin-only">Admin</span><span class="vi">Xuất báo cáo cho kế toán</span></h2>
 
-    <div class="step"><div class="num">1</div><div class="txt">Go to <strong>Settings</strong> and tap <strong>Xuất báo cáo Excel</strong> (Export Excel Report).</div></div>
-    <div class="step"><div class="num">2</div><div class="txt">Choose the time period: This Month, Last Month, This Year, or a Custom range.</div></div>
-    <div class="step"><div class="num">3</div><div class="txt">Click <strong>Tải xuống Excel</strong> (Download Excel).</div></div>
-    <div class="step"><div class="num">4</div><div class="txt">The file downloads to your computer — you can email it straight to your bookkeeper.</div></div>
+    <p>This creates a single Excel file with everything a bookkeeper or tax accountant needs: your sales, appointments, service price list, and staff — all cleanly organised and ready to send.</p>
+    <p class="vi">Phần này tạo ra một file Excel duy nhất chứa mọi thứ kế toán hoặc người làm sổ sách cần: giao dịch bán hàng, lịch hẹn, bảng giá dịch vụ, và nhân viên — được sắp xếp gọn gàng và sẵn sàng để gửi.</p>
+
+    <h3>How to generate the report<span class="vi">Cách tạo báo cáo</span></h3>
+    <div class="step"><div class="num">1</div><div class="txt">Go to <strong>Settings</strong>.<span class="vi">Vào <strong>Cài đặt</strong>.</span></div></div>
+    <div class="step"><div class="num">2</div><div class="txt">Tap <strong>Xuất báo cáo Excel</strong> (Export Excel Report).<span class="vi">Nhấn <strong>Xuất báo cáo Excel</strong>.</span></div></div>
+    <div class="step"><div class="num">3</div><div class="txt">Choose the time period: <strong>Tháng này</strong> (This Month), <strong>Tháng trước</strong> (Last Month), <strong>Năm này</strong> (This Year), or <strong>Tuỳ chọn</strong> (Custom range).<span class="vi">Chọn khoảng thời gian: <strong>Tháng này</strong>, <strong>Tháng trước</strong>, <strong>Năm này</strong>, hoặc <strong>Tuỳ chọn</strong>.</span></div></div>
+    <div class="step"><div class="num">4</div><div class="txt">If you chose Custom, pick a start date and an end date using the calendar pickers.<span class="vi">Nếu chọn Tuỳ chọn, chọn ngày bắt đầu và ngày kết thúc bằng lịch.</span></div></div>
+    <div class="step"><div class="num">5</div><div class="txt">Click <strong>Tải xuống Excel</strong> (Download Excel).<span class="vi">Nhấn <strong>Tải xuống Excel</strong>.</span></div></div>
+    <div class="step"><div class="num">6</div><div class="txt">The file downloads to your computer's Downloads folder. You can attach it directly to an email to your bookkeeper.<span class="vi">File sẽ tải về thư mục Downloads của máy bạn. Bạn có thể đính kèm trực tiếp vào email gửi cho kế toán.</span></div></div>
 
     <div class="placeholder">
       <div class="tag">Screenshot</div><br>
       Export Excel modal with date range selected
     </div>
 
-    <h3>What's inside the file</h3>
+    <h3>What's inside the file<span class="vi">File này gồm những gì</span></h3>
     <table>
       <tr><th>Sheet</th><th>Contents</th></tr>
-      <tr><td>Summary</td><td>Total revenue, refunds, net revenue, and a breakdown by payment method.</td></tr>
-      <tr><td>Sales</td><td>Every payment taken, with date, customer, amount, and payment method.</td></tr>
-      <tr><td>Appointments</td><td>Every booking, with date, time, customer, staff member, and status.</td></tr>
-      <tr><td>Services</td><td>Your full price list.</td></tr>
-      <tr><td>Staff</td><td>Your team, with how many appointments each person has completed.</td></tr>
+      <tr>
+        <td><strong>Summary</strong></td>
+        <td>
+          Total number of sales, gross revenue, refunded amount, net revenue, total/completed/cancelled appointment counts, and a breakdown of revenue by payment method (cash, card, etc).
+          <span class="vi">Tổng số giao dịch, tổng doanh thu, số tiền đã hoàn, doanh thu thực, số lịch hẹn tổng/hoàn thành/hủy, và phân tích doanh thu theo phương thức thanh toán (tiền mặt, thẻ, v.v.)</span>
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Sales</strong></td>
+        <td>
+          Every payment taken in the period — date, customer name and phone, service, amount, payment method, and whether it was refunded. Ends with a total row.
+          <span class="vi">Mọi giao dịch trong khoảng thời gian — ngày, tên và số điện thoại khách, dịch vụ, số tiền, phương thức thanh toán, và có hoàn tiền hay không. Kết thúc bằng dòng tổng.</span>
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Appointments</strong></td>
+        <td>
+          Every booking in the period — date, time, customer contact details, service, staff member, status, and payment status.
+          <span class="vi">Mọi lịch hẹn trong khoảng thời gian — ngày, giờ, thông tin liên hệ khách, dịch vụ, nhân viên phục vụ, trạng thái, và trạng thái thanh toán.</span>
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Services</strong></td>
+        <td>
+          Your full price list — name, category, description, duration, price, and whether it's currently active. This is not filtered by date.
+          <span class="vi">Toàn bộ bảng giá — tên, danh mục, mô tả, thời gian, giá, và có đang hoạt động hay không. Không lọc theo ngày.</span>
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Staff</strong></td>
+        <td>
+          Your team — name, phone, email, active status, and how many appointments each person completed in the selected period.
+          <span class="vi">Danh sách nhân viên — tên, số điện thoại, email, trạng thái hoạt động, và số lịch hẹn mỗi người đã hoàn thành trong khoảng thời gian đã chọn.</span>
+        </td>
+      </tr>
     </table>
 
     <div class="placeholder">
@@ -416,23 +775,70 @@
       Opened Excel file showing the Summary sheet
     </div>
 
-    <div class="note">The file only includes the date range you picked — so pick "This Year" if you want everything for a tax return.</div>
+    <div class="note">
+      All money amounts are already formatted as currency, and every sheet has filter buttons on its header row — your accountant can sort or filter by any column without extra setup.
+      <span class="vi">Tất cả số tiền đã được định dạng sẵn theo kiểu tiền tệ, và mỗi trang tính có nút lọc ở dòng đầu — kế toán có thể sắp xếp hoặc lọc theo bất kỳ cột nào mà không cần thiết lập thêm.</span>
+    </div>
+
+    <div class="tip">
+      For a full tax year, choose <strong>Năm này</strong> (This Year). For a specific quarter or custom period your accountant asked for, use <strong>Tuỳ chọn</strong> (Custom) and set the exact start and end dates.
+      <span class="vi">Để lấy đủ một năm tài chính, chọn <strong>Năm này</strong>. Với một quý cụ thể hoặc khoảng thời gian riêng mà kế toán yêu cầu, dùng <strong>Tuỳ chọn</strong> và đặt đúng ngày bắt đầu, kết thúc.</span>
+    </div>
   </section>
 
+  <!-- ============================================================ -->
+  <section id="faq">
+    <h2>15. Frequently Asked Questions<span class="vi">Câu hỏi thường gặp</span></h2>
+
+    <div class="qa">
+      <div class="q">Why can't I see Settings, Pricing, or Locations?<span class="vi">Tại sao tôi không thấy Cài đặt, Bảng giá, hoặc Chi nhánh?</span></div>
+      <div class="a">These are only available to Admin accounts. If you believe you should have access, ask an Admin to check your role in <strong>Settings → Account Management</strong>.<span class="vi">Những phần này chỉ dành cho tài khoản Admin. Nếu bạn cho rằng mình nên có quyền, hãy nhờ Admin kiểm tra vai trò của bạn trong <strong>Cài đặt → Quản lý tài khoản</strong>.</span></div>
+    </div>
+
+    <div class="qa">
+      <div class="q">A customer isn't showing up in my Customers list. Why?<span class="vi">Một khách hàng không hiện trong danh sách Khách hàng. Tại sao?</span></div>
+      <div class="a">Customers appear automatically once they book or pay for something. If a booking was made but never completed or paid, it may not have generated a full customer record yet. Double-check the booking's status in the Bookings tab.<span class="vi">Khách hàng tự hiện sau khi đặt lịch hoặc thanh toán. Nếu lịch hẹn đã tạo nhưng chưa hoàn thành hoặc chưa thanh toán, có thể hồ sơ khách chưa được tạo đầy đủ. Kiểm tra lại trạng thái lịch hẹn trong tab Lịch hẹn.</span></div>
+    </div>
+
+    <div class="qa">
+      <div class="q">I made a mistake on a sale I already charged. What do I do?<span class="vi">Tôi lỡ làm sai một giao dịch đã thanh toán. Tôi phải làm gì?</span></div>
+      <div class="a">Find the sale in your sales history and mark it as refunded, then create a new correct sale if needed. Don't just leave the mistaken sale as-is — it will affect your revenue totals and reports.<span class="vi">Tìm giao dịch trong lịch sử bán hàng và đánh dấu hoàn tiền, sau đó tạo giao dịch mới đúng nếu cần. Không nên để giao dịch sai nguyên như vậy — nó sẽ ảnh hưởng đến tổng doanh thu và báo cáo.</span></div>
+    </div>
+
+    <div class="qa">
+      <div class="q">The Excel file downloaded but it's empty / has no rows. Why?<span class="vi">File Excel tải về nhưng trống / không có dữ liệu. Tại sao?</span></div>
+      <div class="a">This usually means there were no sales or bookings within the date range you selected. Double check the date range — for a brand-new business, try "This Year" instead of "Last Month".<span class="vi">Thường là do không có giao dịch hoặc lịch hẹn nào trong khoảng thời gian bạn chọn. Kiểm tra lại khoảng thời gian — với tiệm mới, hãy thử "Năm này" thay vì "Tháng trước".</span></div>
+    </div>
+
+    <div class="qa">
+      <div class="q">Can I use the dashboard on my phone?<span class="vi">Tôi có thể dùng trang quản trị trên điện thoại không?</span></div>
+      <div class="a">Yes. The layout adjusts automatically for smaller screens, and the sidebar becomes a menu you open with the ☰ button.<span class="vi">Được. Bố cục sẽ tự điều chỉnh cho màn hình nhỏ, và thanh bên trở thành menu mở bằng nút ☰.</span></div>
+    </div>
+
+    <div class="qa">
+      <div class="q">How do I add a second branch/location?<span class="vi">Làm sao để thêm chi nhánh thứ hai?</span></div>
+      <div class="a">Go to <strong>Locations</strong> (Admin only) and add the new branch's address, phone number, and opening hours there.<span class="vi">Vào <strong>Chi nhánh</strong> (chỉ Admin) và thêm địa chỉ, số điện thoại, và giờ mở cửa của chi nhánh mới.</span></div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
   <section id="help">
-    <h2>13. Getting Help</h2>
-    <p>If something looks wrong or isn't working, contact your system administrator or developer with:</p>
+    <h2>16. Getting Help<span class="vi">Cần hỗ trợ</span></h2>
+
+    <p>If something looks wrong or isn't working the way this guide describes, contact your system administrator or developer with as much of the following as you can:</p>
+    <p class="vi">Nếu có gì không đúng hoặc không hoạt động như hướng dẫn này mô tả, hãy liên hệ quản trị hệ thống hoặc lập trình viên với càng nhiều thông tin sau càng tốt:</p>
     <ul>
-      <li>What you were trying to do</li>
-      <li>What happened instead</li>
-      <li>A screenshot, if possible</li>
+      <li>What you were trying to do<span class="vi">Bạn đang cố làm gì</span></li>
+      <li>What happened instead (any error message, exact wording if possible)<span class="vi">Điều gì đã xảy ra thay vào đó (thông báo lỗi nếu có, càng chính xác càng tốt)</span></li>
+      <li>A screenshot, if possible<span class="vi">Ảnh chụp màn hình, nếu có thể</span></li>
+      <li>Which account you were logged in as (Admin or Employee, and which email)<span class="vi">Bạn đang đăng nhập bằng tài khoản nào (Admin hay Employee, và email nào)</span></li>
     </ul>
   </section>
 
 </div>
 
 <footer>
-  Estique Admin Dashboard — User Guide
+  Estique Admin Dashboard — User Guide / Hướng dẫn sử dụng
 </footer>
 
 </body>
