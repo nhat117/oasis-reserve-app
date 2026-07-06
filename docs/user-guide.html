@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Dashboard — User Guide</title>
+<style>
+  :root {
+    --blue: #006AFF;
+    --dark: #1B1B1B;
+    --gray: #737373;
+    --border: #E5E5E5;
+    --bg: #FAFAFA;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--dark);
+    background: #fff;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+  }
+  .wrap {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 40px 24px 100px;
+  }
+  header.cover {
+    background: linear-gradient(135deg, #b45309, #92400e);
+    color: white;
+    padding: 60px 24px;
+    text-align: center;
+  }
+  header.cover h1 {
+    font-size: 32px;
+    margin: 0 0 8px;
+  }
+  header.cover p {
+    font-size: 16px;
+    opacity: 0.9;
+    margin: 0;
+  }
+  nav.toc {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin: 32px 0;
+  }
+  nav.toc h2 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--gray);
+    margin: 0 0 12px;
+  }
+  nav.toc ol {
+    margin: 0;
+    padding-left: 20px;
+  }
+  nav.toc li { margin-bottom: 6px; }
+  nav.toc a { color: var(--blue); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+
+  section {
+    margin: 48px 0;
+    padding-top: 8px;
+  }
+  section h2 {
+    font-size: 24px;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 10px;
+    margin-bottom: 16px;
+  }
+  section h3 {
+    font-size: 17px;
+    margin: 24px 0 8px;
+    color: var(--dark);
+  }
+  p { margin: 8px 0; }
+  ol, ul { padding-left: 22px; }
+  li { margin-bottom: 6px; }
+
+  .step {
+    display: flex;
+    gap: 14px;
+    margin: 14px 0;
+    align-items: flex-start;
+  }
+  .step .num {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--blue);
+    color: white;
+    font-weight: 600;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .step .txt { padding-top: 3px; }
+
+  .placeholder {
+    border: 2px dashed #cfcfcf;
+    border-radius: 10px;
+    background: #fafafa;
+    color: #9a9a9a;
+    text-align: center;
+    padding: 60px 20px;
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  .placeholder .tag {
+    display: inline-block;
+    background: #ececec;
+    color: #737373;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 3px 10px;
+    border-radius: 999px;
+    margin-bottom: 10px;
+  }
+
+  .note {
+    background: #eff6ff;
+    border-left: 4px solid var(--blue);
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  .warn {
+    background: #fef2f2;
+    border-left: 4px solid #dc2626;
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  .admin-only {
+    display: inline-block;
+    background: #fef3c7;
+    color: #92400e;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 2px 8px;
+    border-radius: 5px;
+    margin-left: 8px;
+  }
+
+  code {
+    background: #f1f1f1;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    color: var(--gray);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  footer {
+    text-align: center;
+    color: var(--gray);
+    font-size: 13px;
+    padding: 40px 0;
+    border-top: 1px solid var(--border);
+  }
+
+  @media print {
+    nav.toc { break-after: page; }
+    section { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<header class="cover">
+  <h1>Estique Admin Dashboard</h1>
+  <p>A simple guide for staff and owners</p>
+</header>
+
+<div class="wrap">
+
+  <nav class="toc">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#login">Logging In</a></li>
+      <li><a href="#layout">The Dashboard Layout</a></li>
+      <li><a href="#stats">Stats — Your Business at a Glance</a></li>
+      <li><a href="#bookings">Bookings — Managing Appointments</a></li>
+      <li><a href="#customers">Customers</a></li>
+      <li><a href="#sales">Sales (Point of Sale)</a></li>
+      <li><a href="#services">Services</a></li>
+      <li><a href="#staff">Staff & Time Off</a></li>
+      <li><a href="#pricing">Pricing Page</a></li>
+      <li><a href="#locations">Locations</a></li>
+      <li><a href="#settings">Settings</a></li>
+      <li><a href="#export">Exporting a Report for Your Accountant</a></li>
+      <li><a href="#help">Getting Help</a></li>
+    </ol>
+  </nav>
+
+  <section id="login">
+    <h2>1. Logging In</h2>
+    <p>Go to your dashboard address in a web browser (for example, <code>admin.estique.com.au</code>).</p>
+    <div class="step">
+      <div class="num">1</div>
+      <div class="txt">Type in your email and password.</div>
+    </div>
+    <div class="step">
+      <div class="num">2</div>
+      <div class="txt">Click <strong>Sign In</strong>.</div>
+    </div>
+    <div class="placeholder">
+      <div class="tag">Screenshot</div><br>
+      Login screen
+    </div>
+    <p>Forgot your password? Click <strong>Forgot password?</strong> under the Sign In button and follow the steps in the email you receive.</p>
+    <div class="note">There are two kinds of accounts: <strong>Admin</strong> and <strong>Employee</strong>. Admins can see everything, including money settings and staff accounts. Employees see a smaller, simpler version of the dashboard.</div>
+  </section>
+
+  <section id="layout">
+    <h2>2. The Dashboard Layout</h2>
+    <p>Once you're signed in, you'll see a sidebar on the left with the different sections of the dashboard. On a phone, this becomes a menu you can open with the <strong>☰</strong> button.</p>
+    <div class="placeholder">
+      <div class="tag">Screenshot</div><br>
+      Full dashboard with sidebar labeled
+    </div>
+    <p>Your business name is shown at the top of the sidebar. Click the small arrow button to collapse the sidebar and make more room on screen.</p>
+  </section>
+
+  <section id="stats">
+    <h2>3. Stats — Your Business at a Glance</h2>
+    <p>This is the first page you see. It shows quick numbers like how many bookings you've had, and other summary information for your business.</p>
+    <div class="placeholder">
+      <div class="tag">Screenshot</div><br>
+      Stats tab
+    </div>
+  </section>
+
+  <section id="bookings">
+    <h2>4. Bookings — Managing Appointments</h2>
+    <p>This is where you see every appointment — past, today, and upcoming.</p>
+
+    <h3>Creating a new booking</h3>
+    <div class="step"><div class="num">1</div><div class="txt">Click the <strong>Tạo lịch</strong> (Create Booking) button.</div></div>
+    <div class="step"><div class="num">2</div><div class="txt">Choose the service and the staff member.</div></div>
+    <div class="step"><div class="num">3</div><div class="txt">Pick the date and time.</div></div>
+    <div class="step"><div class="num">4</div><div class="txt">Add the customer's name, phone number, and email.</div></div>
+    <div class="step"><div class="num">5</div><div class="txt">Click <strong>Save</strong>.</div></div>
+    <div class="placeholder">
+      <div class="tag">Screenshot</div><br>
+      New booking form
+    </div>
+
+    <h3>Changing or cancelling a booking</h3>
+    <p>Click on any booking in the list to open it. You can change the details, mark it as completed, or cancel it.</p>
+  </section>
+
+  <section id="customers">
+    <h2>5. Customers</h2>
+    <p>Every customer who books or pays is automatically added here — you don't need to type them in yourself. This list shows:</p>
+    <ul>
+      <li>Their name and phone number</li>
+      <li>How many times they've visited</li>
+      <li>Their membership tier, if they have one</li>
+    </ul>
+    <p>Use the search box at the top to find a customer by name or phone number.</p>
+    <div class="placeholder">
+      <div class="tag">Screenshot</div><br>
+      Customers list
+    </div>
+  </section>
+
+  <section id="sales">
+    <h2>6. Sales (Point of Sale)</h2>
+    <p>This is where you take payment for a service — either for a walk-in customer or someone with a booking.</p>
+
+    <h3>Taking a payment</h3>
+    <div class="step"><div class="num">1</div><div class="txt">Click <strong>Thanh toán mới</strong> (New Sale) at the top of the list, or pick an existing appointment from the <strong>Lịch hẹn</strong> tab on the left.</div></div>
+    <div class="step"><div class="num">2</div><div class="txt">Choose the service (and any extra add-on services) from the list.</div></div>
+    <div class="step"><div class="num">3</div><div class="txt">If it's a walk-in, type in the customer's name and phone number.</div></div>
+    <div class="step"><div class="num">4</div><div class="txt">Add a discount code if the customer has one.</div></div>
+    <div class="step"><div class="num">5</div><div class="txt">Choose the payment method — cash, card, etc.</div></div>
+    <div class="step"><div class="num">6</div><div class="txt">Click the <strong>Charge</strong> button to complete the sale.</div></div>
+    <div class="placeholder">
+      <div class="tag">Screenshot</div><br>
+      Point of sale screen with an appointment selected
+    </div>
+    <div class="note">Every completed sale is saved automatically and shows up later in your Excel report — see <a href="#export">section 12</a>.</div>
+  </section>
+
+  <section id="services">
+    <h2>7. Services <span class="admin-only">Admin</span></h2>
+    <p>This is your price list — every treatment you offer, with its price and how long it takes.</p>
+
+    <h3>Adding a new service</h3>
+    <div class="step"><div class="num">1</div><div class="txt">Click <strong>Thêm dịch vụ</strong> (Add Service).</div></div>
+    <div class="step"><div class="num">2</div><div class="txt">Type in the name and a short description.</div></div>
+    <div class="step"><div class="num">3</div><div class="txt">Set the price and how many minutes it takes.</div></div>
+    <div class="step"><div class="num">4</div><div class="txt">Upload a photo if you have one.</div></div>
+    <div class="step"><div class="num">5</div><div class="txt">Click <strong>Save</strong>.</div></div>
+    <div class="placeholder">
+      <div class="tag">Screenshot</div><br>
+      Services list with Add Service form open
+    </div>
+    <p>To edit or remove a service, click the pencil icon next to it, or the menu (⋯) to delete it.</p>
+  </section>
+
+  <section id="staff">
+    <h2>8. Staff & Time Off <span class="admin-only">Admin</span></h2>
+    <p>Manage the people who work at your salon here.</p>
+
+    <h3>Adding a staff member</h3>
+    <div class="step"><div class="num">1</div><div class="txt">Click <strong>Thêm nhân viên</strong> (Add Staff).</div></div>
+    <div class="step"><div class="num">2</div><div class="txt">Enter their name, email, and phone number.</div></div>
+    <div class="step"><div class="num">3</div><div class="txt">Set their working hours and any regular break time.</div></div>
+    <div class="step"><div class="num">4</div><div class="txt">Click <strong>Save</strong>.</div></div>
+    <div class="placeholder">
+      <div class="tag">Screenshot</div><br>
+      Staff list
+    </div>
+
+    <h3>Marking a staff member as unavailable</h3>
+    <p>Use the section below the staff list to mark a specific day off for one staff member — for example, if they're sick or on holiday.</p>
+  </section>
+
+  <section id="pricing">
+    <h2>9. Pricing Page <span class="admin-only">Admin</span></h2>
+    <p>This controls the price list your customers see on your public website. You can organise it into categories and tables, which is useful if you offer many different treatments at different prices.</p>
+    <div class="placeholder">
+      <div class="tag">Screenshot</div><br>
+      Pricing manager
+    </div>
+  </section>
+
+  <section id="locations">
+    <h2>10. Locations <span class="admin-only">Admin</span></h2>
+    <p>If your business has more than one branch, manage their addresses and opening hours here.</p>
+    <div class="placeholder">
+      <div class="tag">Screenshot</div><br>
+      Locations manager
+    </div>
+  </section>
+
+  <section id="settings">
+    <h2>11. Settings <span class="admin-only">Admin</span></h2>
+    <p>Settings is a menu of smaller tools. Tap any row to open it.</p>
+    <table>
+      <tr><th>Setting</th><th>What it does</th></tr>
+      <tr><td>Shop Info</td><td>Your business name, address, and opening hours.</td></tr>
+      <tr><td>Display & Theme</td><td>Your logo and homepage image.</td></tr>
+      <tr><td>Account Management</td><td>Add or remove admin/employee logins.</td></tr>
+      <tr><td>Employee Permissions</td><td>Choose which tabs employees are allowed to see.</td></tr>
+      <tr><td>Payments</td><td>Turn on card payments (Stripe/Square) and set surcharges.</td></tr>
+      <tr><td>Notifications</td><td>Turn on SMS/email reminders sent to customers before their appointment.</td></tr>
+      <tr><td>Email Settings</td><td>Connect the email service used to send messages to customers.</td></tr>
+      <tr><td>Membership Tiers</td><td>Set up loyalty tiers for repeat customers.</td></tr>
+      <tr><td>Discount Codes</td><td>Create promo codes customers can use at checkout.</td></tr>
+      <tr><td>Activity Log</td><td>See a history of changes made in the dashboard, and download it as a CSV file.</td></tr>
+      <tr><td><strong>Export Excel Report</strong></td><td>Download your sales and bookings as an Excel file — see below.</td></tr>
+    </table>
+    <div class="placeholder">
+      <div class="tag">Screenshot</div><br>
+      Settings menu
+    </div>
+  </section>
+
+  <section id="export">
+    <h2>12. Exporting a Report for Your Accountant</h2>
+    <p>This creates an Excel file with everything a bookkeeper needs: your sales, appointments, service price list, and staff — all in one file, ready to send.</p>
+
+    <div class="step"><div class="num">1</div><div class="txt">Go to <strong>Settings</strong> and tap <strong>Xuất báo cáo Excel</strong> (Export Excel Report).</div></div>
+    <div class="step"><div class="num">2</div><div class="txt">Choose the time period: This Month, Last Month, This Year, or a Custom range.</div></div>
+    <div class="step"><div class="num">3</div><div class="txt">Click <strong>Tải xuống Excel</strong> (Download Excel).</div></div>
+    <div class="step"><div class="num">4</div><div class="txt">The file downloads to your computer — you can email it straight to your bookkeeper.</div></div>
+
+    <div class="placeholder">
+      <div class="tag">Screenshot</div><br>
+      Export Excel modal with date range selected
+    </div>
+
+    <h3>What's inside the file</h3>
+    <table>
+      <tr><th>Sheet</th><th>Contents</th></tr>
+      <tr><td>Summary</td><td>Total revenue, refunds, net revenue, and a breakdown by payment method.</td></tr>
+      <tr><td>Sales</td><td>Every payment taken, with date, customer, amount, and payment method.</td></tr>
+      <tr><td>Appointments</td><td>Every booking, with date, time, customer, staff member, and status.</td></tr>
+      <tr><td>Services</td><td>Your full price list.</td></tr>
+      <tr><td>Staff</td><td>Your team, with how many appointments each person has completed.</td></tr>
+    </table>
+
+    <div class="placeholder">
+      <div class="tag">Screenshot</div><br>
+      Opened Excel file showing the Summary sheet
+    </div>
+
+    <div class="note">The file only includes the date range you picked — so pick "This Year" if you want everything for a tax return.</div>
+  </section>
+
+  <section id="help">
+    <h2>13. Getting Help</h2>
+    <p>If something looks wrong or isn't working, contact your system administrator or developer with:</p>
+    <ul>
+      <li>What you were trying to do</li>
+      <li>What happened instead</li>
+      <li>A screenshot, if possible</li>
+    </ul>
+  </section>
+
+</div>
+
+<footer>
+  Estique Admin Dashboard — User Guide
+</footer>
+
+</body>
+</html>
