@@ -1355,7 +1355,14 @@ const AdminDashboard = () => {
 
   const printReceipt = (sale: { amount: number; customerName: string; customerPhone: string; serviceName: string; addOns: { name: string; price: number }[]; paymentMethod: string; discount?: number; surcharge?: number; coupon?: string; date: string }) => {
     const win = window.open('', '_blank', 'width=320,height=600');
-    if (!win) return;
+    if (!win) {
+      toast({
+        title: t('Trình duyệt đã chặn cửa sổ in hoá đơn'),
+        description: t('Vui lòng cho phép popup cho trang này trong cài đặt trình duyệt, rồi thử lại.'),
+        variant: 'destructive',
+      });
+      return;
+    }
     const addOnLines = sale.addOns.map(a => `<tr><td style="padding:2px 0">&nbsp;&nbsp;${a.name}</td><td style="text-align:right;padding:2px 0">A$ ${a.price.toLocaleString()}</td></tr>`).join('');
     const subtotal = sale.amount + (sale.discount || 0) - (sale.surcharge || 0);
     win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt</title><style>
