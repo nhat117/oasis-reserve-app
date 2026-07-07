@@ -3319,11 +3319,26 @@ const AdminDashboard = () => {
                         </div>
                         <span className="text-lg font-semibold tabular-nums">{formatPrice(Number(s.amount))}</span>
                       </div>
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <p className="text-xs text-muted-foreground">{t('Dịch vụ')}</p>
-                          <p className="font-medium mt-0.5">{s.bookings?.services?.name || '—'}</p>
-                        </div>
+
+                      {/* Services table */}
+                      <div className="rounded-lg border border-border/50 overflow-hidden">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="h-8 text-xs">{t('Dịch vụ')}</TableHead>
+                              <TableHead className="h-8 text-xs text-right">{t('Số tiền')}</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            <TableRow>
+                              <TableCell className="py-2 text-sm font-medium">{s.bookings?.services?.name || '—'}</TableCell>
+                              <TableCell className="py-2 text-sm text-right tabular-nums">{formatPrice(Number(s.amount))}</TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-3 text-sm">
                         <div>
                           <p className="text-xs text-muted-foreground">{t('Ngày')}</p>
                           <p className="font-medium mt-0.5">{s.sale_date}</p>
