@@ -1,7 +1,7 @@
 {
-  "name": "Oasis Reserve",
-  "short_name": "Oasis",
-  "description": "Spa booking & admin management",
+  "name": "ESTIQUE Admin",
+  "short_name": "ESTIQUE",
+  "description": "Estique Nail Salon booking & admin management",
   "start_url": "/admin",
   "display": "standalone",
   "background_color": "#1a1a2e",
