@@ -18,7 +18,7 @@ import { LogoUpload as LogoUploadComponent } from '@/components/LogoUpload';
 import { Textarea } from '@/components/ui/textarea';
 import { TipTapEditor } from '@/components/TipTapEditor';
 import { BookingStats } from '@/components/BookingStats';
-import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone, CreditCard, Square, RotateCcw, BookOpen, ScrollText, Eye, Clock, Check, Bot, FileSpreadsheet } from 'lucide-react';
+import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone, CreditCard, Square, RotateCcw, BookOpen, ScrollText, Eye, Clock, Check, Bot, FileSpreadsheet, Printer, History } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ALL_I18N_KEYS } from '@/lib/i18n-keys';
 import { Switch } from '@/components/ui/switch';
@@ -226,6 +226,7 @@ const AdminDashboard = () => {
   const [saleServiceSearch, setSaleServiceSearch] = useState('');
   const [saleAddOnSearch, setSaleAddOnSearch] = useState('');
   const [saleBookingSearch, setSaleBookingSearch] = useState('');
+  const [visibleServiceCount, setVisibleServiceCount] = useState(24);
 
   // Create admin state
   const [newAdminEmail, setNewAdminEmail] = useState('');
@@ -252,6 +253,7 @@ const AdminDashboard = () => {
   // Shop info state
   const [shopPhone, setShopPhone] = useState('');
   const [shopAddress, setShopAddress] = useState('');
+  const [shopAbn, setShopAbn] = useState('');
   const [openingHours, setOpeningHours] = useState('');
   const [openDays, setOpenDays] = useState<number[]>([1, 2, 3, 4, 5, 6]); // Mon=1..Sun=7
   const [openTime, setOpenTime] = useState('09:00');
@@ -285,12 +287,13 @@ const AdminDashboard = () => {
   const [cardSurchargePercent, setCardSurchargePercent] = useState('0');
 
   // Employee visible tabs — default all visible
-  const EMPLOYEE_TABS = ['stats', 'bookings', 'customers', 'sales', 'services', 'therapists', 'inbox'] as const;
+  const EMPLOYEE_TABS = ['stats', 'bookings', 'customers', 'sales', 'payment_history', 'services', 'therapists', 'inbox'] as const;
   type EmployeeTab = typeof EMPLOYEE_TABS[number];
   const [employeeVisibleTabs, setEmployeeVisibleTabs] = useState<EmployeeTab[]>([...EMPLOYEE_TABS]);
 
   // Sales filter state
   const [salesFilterMethod, setSalesFilterMethod] = useState('all');
+  const [selectedSaleDetail, setSelectedSaleDetail] = useState<any>(null);
   const [salesFilterDateFrom, setSalesFilterDateFrom] = useState('');
   const [salesFilterDateTo, setSalesFilterDateTo] = useState('');
   const [salesFilterSearch, setSalesFilterSearch] = useState('');
@@ -843,7 +846,7 @@ const AdminDashboard = () => {
     queryKey: ['shop-info-settings'],
     queryFn: async () => {
       const { data, error } = await supabase.from('app_settings').select('key, value')
-        .in('key', ['shop_phone', 'shop_address', 'opening_hours', 'open_days', 'open_time', 'close_time', 'shop_state', 'shop_timezone', 'show_holiday_closed', 'hero_mode', 'hero_media_path']);
+        .in('key', ['shop_phone', 'shop_address', 'shop_abn', 'opening_hours', 'open_days', 'open_time', 'close_time', 'shop_state', 'shop_timezone', 'show_holiday_closed', 'hero_mode', 'hero_media_path']);
       if (error) throw error;
       const map: Record<string, string> = {};
       data?.forEach(r => { map[r.key] = r.value; });
@@ -855,6 +858,7 @@ const AdminDashboard = () => {
     if (shopInfoSettings) {
       setShopPhone(shopInfoSettings['shop_phone'] || '');
       setShopAddress(shopInfoSettings['shop_address'] || '');
+      setShopAbn(shopInfoSettings['shop_abn'] || '');
       setOpeningHours(shopInfoSettings['opening_hours'] || '');
       if (shopInfoSettings['open_days']) setOpenDays(JSON.parse(shopInfoSettings['open_days']));
       if (shopInfoSettings['open_time']) setOpenTime(shopInfoSettings['open_time']);
@@ -878,6 +882,7 @@ const AdminDashboard = () => {
         { key: 'spa_name', value: spaName },
         { key: 'shop_phone', value: shopPhone },
         { key: 'shop_address', value: shopAddress },
+        { key: 'shop_abn', value: shopAbn },
         { key: 'opening_hours', value: openingHours },
         { key: 'open_days', value: JSON.stringify(openDays) },
         { key: 'open_time', value: openTime },
@@ -1354,7 +1359,7 @@ const AdminDashboard = () => {
   });
 
   const printReceipt = (sale: { amount: number; customerName: string; customerPhone: string; serviceName: string; addOns: { name: string; price: number }[]; paymentMethod: string; discount?: number; surcharge?: number; coupon?: string; date: string }) => {
-    const win = window.open('', '_blank', 'width=320,height=600');
+    const win = window.open('about:blank', '_blank');
     if (!win) {
       toast({
         title: t('Trình duyệt đã chặn cửa sổ in hoá đơn'),
@@ -1363,7 +1368,8 @@ const AdminDashboard = () => {
       });
       return;
     }
-    const addOnLines = sale.addOns.map(a => `<tr><td style="padding:2px 0">&nbsp;&nbsp;${a.name}</td><td style="text-align:right;padding:2px 0">A$ ${a.price.toLocaleString()}</td></tr>`).join('');
+    const esc = escapeHtml;
+    const addOnLines = sale.addOns.map(a => `<tr><td style="padding:2px 0">&nbsp;&nbsp;${esc(a.name)}</td><td style="text-align:right;padding:2px 0">A$ ${a.price.toLocaleString()}</td></tr>`).join('');
     const subtotal = sale.amount + (sale.discount || 0) - (sale.surcharge || 0);
     win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt</title><style>
       body{font-family:'Courier New',monospace;font-size:12px;width:280px;margin:0 auto;padding:16px;color:#000}
@@ -1377,15 +1383,17 @@ const AdminDashboard = () => {
       .total{font-size:14px;font-weight:bold}
       @media print{body{margin:0;padding:8px}}
     </style></head><body>
-      <h2>${spaName}</h2>
-      <p class="center" style="font-size:10px;color:#666">${sale.date}</p>
+      <h2>${esc(spaName)}</h2>
+      ${shopAddress ? `<p class="center" style="font-size:10px;color:#666">${esc(shopAddress)}</p>` : ''}
+      ${shopAbn ? `<p class="center" style="font-size:10px;color:#666">ABN ${esc(shopAbn)}</p>` : ''}
+      <p class="center" style="font-size:10px;color:#666">${esc(sale.date)}</p>
       <div class="line"></div>
-      ${sale.customerName ? `<p><b>${sale.customerName}</b>${sale.customerPhone ? ` · ${sale.customerPhone}` : ''}</p>` : ''}
+      ${sale.customerName ? `<p><b>${esc(sale.customerName)}</b>${sale.customerPhone ? ` · ${esc(sale.customerPhone)}` : ''}</p>` : ''}
       <div class="line"></div>
       <table>
-        <tr><td class="bold">${sale.serviceName}</td><td class="right">A$ ${subtotal.toLocaleString()}</td></tr>
+        <tr><td class="bold">${esc(sale.serviceName)}</td><td class="right">A$ ${subtotal.toLocaleString()}</td></tr>
         ${addOnLines}
-        ${(sale.discount || 0) > 0 ? `<tr><td>${sale.coupon ? `Discount (${sale.coupon})` : 'Discount'}</td><td class="right" style="color:#16a34a">-A$ ${(sale.discount || 0).toLocaleString()}</td></tr>` : ''}
+        ${(sale.discount || 0) > 0 ? `<tr><td>${sale.coupon ? `Discount (${esc(sale.coupon)})` : 'Discount'}</td><td class="right" style="color:#16a34a">-A$ ${(sale.discount || 0).toLocaleString()}</td></tr>` : ''}
         ${(sale.surcharge || 0) > 0 ? `<tr><td>Card surcharge</td><td class="right">A$ ${(sale.surcharge || 0).toLocaleString()}</td></tr>` : ''}
       </table>
       <div class="line"></div>
@@ -1463,7 +1471,37 @@ const AdminDashboard = () => {
   // Progressive rendering for large lists
   const { visibleItems: visibleCustomers, hasMore: hasMoreCustomers, sentinelRef: customerSentinelRef } = useLoadMore(filteredCustomers);
   const { visibleItems: visibleSales, hasMore: hasMoreSales, sentinelRef: salesSentinelRef } = useLoadMore(filteredSales);
-  
+
+  // Filtered active services for POS service picker
+  const filteredActiveServices = useMemo(() => (services || []).filter(s => s.is_active).filter(s => {
+    if (!saleServiceSearch.trim()) return true;
+    return s.name.toLowerCase().includes(saleServiceSearch.toLowerCase());
+  }), [services, saleServiceSearch]);
+  const visibleServices = filteredActiveServices.slice(0, visibleServiceCount);
+  const hasMoreServices = visibleServiceCount < filteredActiveServices.length;
+  const serviceSentinelRef = useRef<HTMLDivElement | null>(null);
+
+  // Reset visible service count whenever the search term changes
+  useEffect(() => {
+    setVisibleServiceCount(24);
+  }, [saleServiceSearch]);
+
+  // IntersectionObserver sentinel for the service library "load more"
+  useEffect(() => {
+    const el = serviceSentinelRef.current;
+    if (!el || !hasMoreServices) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setVisibleServiceCount(prev => Math.min(prev + 24, filteredActiveServices.length));
+        }
+      },
+      { rootMargin: '200px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMoreServices, filteredActiveServices.length]);
+
 
   useEffect(() => {
     if (currencySettings) {
@@ -2019,6 +2057,7 @@ const AdminDashboard = () => {
     { value: 'bookings', icon: CalendarDays, label: t('Lịch hẹn') },
     { value: 'customers', icon: UserCheck, label: t('Khách hàng') },
     { value: 'sales', icon: DollarSign, label: t('Thanh toán') },
+    { value: 'payment_history', icon: History, label: t('Lịch sử thanh toán') },
     { value: 'services', icon: Scissors, label: t('Dịch vụ') },
     { value: 'therapists', icon: Users, label: t('Thợ') },
     ...(isAiLicensed && inboxEnabled ? [{ value: 'inbox', icon: MessageSquare, label: t('Hộp thư') }] : []),
@@ -2229,6 +2268,7 @@ const AdminDashboard = () => {
           ];
           const moreTabs = [
             { value: 'sales', icon: DollarSign, label: t('Thanh toán') },
+            { value: 'payment_history', icon: History, label: t('Lịch sử thanh toán') },
             { value: 'therapists', icon: Users, label: t('Thợ') },
             ...(canAccessSettings ? [{ value: 'settings', icon: Settings, label: t('Cài đặt') }] : []),
           ];
@@ -2769,11 +2809,9 @@ const AdminDashboard = () => {
                       </div>
                     ) : (
                       /* Service library */
+                      <div>
                       <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {services?.filter(s => s.is_active).filter(s => {
-                          if (!saleServiceSearch.trim()) return true;
-                          return s.name.toLowerCase().includes(saleServiceSearch.toLowerCase());
-                        }).map(s => {
+                        {visibleServices.map(s => {
                           const isSelected = saleServiceId === s.id || saleAddOns.includes(s.id);
                           const imgUrl = s.image_path ? supabase.storage.from('service-images').getPublicUrl(s.image_path).data.publicUrl : null;
                           return (
@@ -2809,6 +2847,8 @@ const AdminDashboard = () => {
                             </button>
                           );
                         })}
+                      </div>
+                      {hasMoreServices && <div ref={serviceSentinelRef} className="py-4 text-center text-xs text-muted-foreground/50"><Loader2 className="h-4 w-4 animate-spin inline mr-1.5" />{t('Đang tải thêm...')}</div>}
                       </div>
                     )}
                   </div>
@@ -2913,9 +2953,6 @@ const AdminDashboard = () => {
                             <button type="button" className="p-1 text-muted-foreground hover:text-destructive" onClick={() => { setSaleCouponCode(''); setSaleCouponDiscount(null); }}><X className="h-3 w-3" /></button>
                           </div>
                         )}
-
-                        {/* Notes */}
-                        <Input value={saleNotes} onChange={e => setSaleNotes(e.target.value)} className="h-9 text-sm bg-[#F5F5F5] border-0" placeholder={t('Ghi chú...')} />
                       </div>
                     ) : (
                       <div className="flex flex-col items-center justify-center h-full text-muted-foreground/30">
@@ -2928,6 +2965,9 @@ const AdminDashboard = () => {
                   {/* Footer — Payment method + Charge */}
                   {saleServiceId && (
                     <div className="border-t border-[#E5E5E5]/40 px-5 py-4 space-y-3">
+                      {/* Notes */}
+                      <Input value={saleNotes} onChange={e => setSaleNotes(e.target.value)} className="h-9 text-sm bg-[#F5F5F5] border-0" placeholder={t('Ghi chú...')} />
+
                       {/* Payment method pills */}
                       <div className="flex gap-2">
                         <button type="button" className={cn('flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-medium transition-all', salePaymentMethod === 'cash' ? 'bg-[#006AFF] text-white' : 'bg-muted text-muted-foreground hover:bg-muted/80')} onClick={() => setSalePaymentMethod('cash')}>
@@ -3036,7 +3076,12 @@ const AdminDashboard = () => {
                   )}
                 </div>
               </div>
+            </div>
+          </TabsContent>
 
+          {/* Payment History Tab */}
+          <TabsContent value="payment_history">
+            <div className="space-y-6">
               {/* Sale history header */}
               <div className="flex items-center justify-between">
                 <div>
@@ -3089,7 +3134,7 @@ const AdminDashboard = () => {
                         const customerName = s.customer_name || s.bookings?.customer_name || '—';
                         const customerPhone = s.customer_phone || s.bookings?.customer_phone || '';
                         return (
-                          <div key={s.id} className="bg-white rounded-xl border border-[#E5E5E5]/40 p-4 space-y-2.5 transition-colors hover:border-[#CCCCCC]">
+                          <div key={s.id} className="bg-white rounded-xl border border-[#E5E5E5]/40 p-4 space-y-2.5 transition-colors hover:border-[#CCCCCC] cursor-pointer" onClick={() => setSelectedSaleDetail(s)}>
                             <div className="flex items-start justify-between">
                               <div>
                                 <p className="text-[15px] font-semibold text-[#1B1B1B]">{formatPrice(Number(s.amount))}</p>
@@ -3112,11 +3157,25 @@ const AdminDashboard = () => {
                               {isAdmin && (
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/40">
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/40" onClick={(e) => e.stopPropagation()}>
                                       <MoreHorizontal className="h-4 w-4" />
                                     </Button>
                                   </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
+                                  <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                                    <DropdownMenuItem onClick={() => printReceipt({
+                                      amount: Number(s.amount),
+                                      customerName: s.customer_name || s.bookings?.customer_name || '',
+                                      customerPhone: s.customer_phone || s.bookings?.customer_phone || '',
+                                      serviceName: s.bookings?.services?.name || '',
+                                      addOns: [],
+                                      paymentMethod: s.payment_method,
+                                      discount: 0,
+                                      surcharge: 0,
+                                      coupon: undefined,
+                                      date: s.sale_date,
+                                    })}>
+                                      <Printer className="h-3.5 w-3.5 mr-2" /> {t('In lại hoá đơn')}
+                                    </DropdownMenuItem>
                                     {!s.is_refunded && (
                                       <DropdownMenuItem className="text-amber-600" onClick={() => openConfirm(t('Hoàn tiền'), t('Xác nhận đánh dấu hoàn tiền?'), () => refundSale.mutate(s.id))}>
                                         <RotateCcw className="h-3.5 w-3.5 mr-2" /> {t('Hoàn tiền')}
@@ -3157,7 +3216,8 @@ const AdminDashboard = () => {
                           return (
                             <div
                               key={s.id}
-                              className="group grid grid-cols-[1fr_1fr_auto_auto_44px] gap-4 items-center px-5 py-3.5 rounded-xl transition-colors hover:bg-[#F5F5F5]/60"
+                              className="group grid grid-cols-[1fr_1fr_auto_auto_44px] gap-4 items-center px-5 py-3.5 rounded-xl transition-colors hover:bg-[#F5F5F5]/60 cursor-pointer"
+                              onClick={() => setSelectedSaleDetail(s)}
                             >
                               {/* Customer + phone stacked */}
                               <div className="min-w-0">
@@ -3203,11 +3263,26 @@ const AdminDashboard = () => {
                                         variant="ghost"
                                         size="icon"
                                         className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground/40 hover:text-muted-foreground"
+                                        onClick={(e) => e.stopPropagation()}
                                       >
                                         <MoreHorizontal className="h-4 w-4" />
                                       </Button>
                                     </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-36">
+                                    <DropdownMenuContent align="end" className="w-36" onClick={(e) => e.stopPropagation()}>
+                                      <DropdownMenuItem className="text-xs" onClick={() => printReceipt({
+                                        amount: Number(s.amount),
+                                        customerName: s.customer_name || s.bookings?.customer_name || '',
+                                        customerPhone: s.customer_phone || s.bookings?.customer_phone || '',
+                                        serviceName: s.bookings?.services?.name || '',
+                                        addOns: [],
+                                        paymentMethod: s.payment_method,
+                                        discount: 0,
+                                        surcharge: 0,
+                                        coupon: undefined,
+                                        date: s.sale_date,
+                                      })}>
+                                        <Printer className="h-3.5 w-3.5 mr-2" /> {t('In lại hoá đơn')}
+                                      </DropdownMenuItem>
                                       {!s.is_refunded && (
                                         <DropdownMenuItem className="text-amber-600 text-xs" onClick={() => openConfirm(t('Hoàn tiền'), t('Xác nhận đánh dấu hoàn tiền?'), () => refundSale.mutate(s.id))}>
                                           <RotateCcw className="h-3.5 w-3.5 mr-2" /> {t('Hoàn tiền')}
@@ -3230,6 +3305,98 @@ const AdminDashboard = () => {
               )}
             </div>
           </TabsContent>
+
+          {/* Payment Detail Dialog */}
+          <Dialog open={!!selectedSaleDetail} onOpenChange={(open) => !open && setSelectedSaleDetail(null)}>
+            <DialogContent className="max-w-md">
+              {selectedSaleDetail && (() => {
+                const s = selectedSaleDetail;
+                const customerName = s.customer_name || s.bookings?.customer_name || t('Khách vãng lai');
+                const customerPhone = s.customer_phone || s.bookings?.customer_phone || '';
+                return (
+                  <>
+                    <DialogHeader>
+                      <DialogTitle>{t('Chi tiết thanh toán')}</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 pt-2">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-sm font-medium">{customerName}</p>
+                          {customerPhone && <p className="text-xs text-muted-foreground font-mono mt-0.5">{customerPhone}</p>}
+                        </div>
+                        <span className="text-lg font-semibold tabular-nums">{formatPrice(Number(s.amount))}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <p className="text-xs text-muted-foreground">{t('Dịch vụ')}</p>
+                          <p className="font-medium mt-0.5">{s.bookings?.services?.name || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">{t('Ngày')}</p>
+                          <p className="font-medium mt-0.5">{s.sale_date}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">{t('Phương thức')}</p>
+                          <p className="font-medium mt-0.5">{s.payment_method === 'card' ? t('Thẻ') : t('Tiền mặt')}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">{t('Trạng thái')}</p>
+                          <p className="font-medium mt-0.5">{s.is_refunded ? t('Đã hoàn tiền') : t('Đã thanh toán')}</p>
+                        </div>
+                      </div>
+                      {s.notes && (
+                        <div>
+                          <p className="text-xs text-muted-foreground">{t('Ghi chú')}</p>
+                          <p className="text-sm mt-0.5">{s.notes}</p>
+                        </div>
+                      )}
+                      {isAdmin && (
+                        <div className="flex gap-2 pt-2 border-t border-border/40">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1"
+                            onClick={() => printReceipt({
+                              amount: Number(s.amount),
+                              customerName: s.customer_name || s.bookings?.customer_name || '',
+                              customerPhone: s.customer_phone || s.bookings?.customer_phone || '',
+                              serviceName: s.bookings?.services?.name || '',
+                              addOns: [],
+                              paymentMethod: s.payment_method,
+                              discount: 0,
+                              surcharge: 0,
+                              coupon: undefined,
+                              date: s.sale_date,
+                            })}
+                          >
+                            <Printer className="h-3.5 w-3.5 mr-1.5" /> {t('In lại hoá đơn')}
+                          </Button>
+                          {!s.is_refunded && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1 text-amber-600 hover:text-amber-600"
+                              onClick={() => { setSelectedSaleDetail(null); openConfirm(t('Hoàn tiền'), t('Xác nhận đánh dấu hoàn tiền?'), () => refundSale.mutate(s.id)); }}
+                            >
+                              <RotateCcw className="h-3.5 w-3.5 mr-1.5" /> {t('Hoàn tiền')}
+                            </Button>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 text-destructive hover:text-destructive"
+                            onClick={() => { setSelectedSaleDetail(null); openConfirm(t('Xoá thanh toán'), t('Bạn có chắc muốn xoá thanh toán này?'), () => deleteSale.mutate(s.id)); }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-1.5" /> {t('Xóa')}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+            </DialogContent>
+          </Dialog>
 
           {/* Services Tab */}
           <TabsContent value="services">
@@ -3867,6 +4034,11 @@ const AdminDashboard = () => {
                     <Input value={shopAddress} onChange={e => setShopAddress(e.target.value)} className="mt-1" placeholder={t('Nhập địa chỉ tiệm')} />
                   </div>
                   <div>
+                    <Label>ABN</Label>
+                    <Input value={shopAbn} onChange={e => setShopAbn(e.target.value)} className="mt-1" placeholder="12 345 678 901" />
+                    <p className="text-xs text-muted-foreground mt-1">{t('Hiển thị trên hoá đơn in cho khách')}</p>
+                  </div>
+                  <div>
                     <Label>{t('Ngày mở cửa')}</Label>
                     <div className="flex flex-wrap gap-1.5 mt-1.5">
                       {[
@@ -4281,6 +4453,7 @@ const AdminDashboard = () => {
                     { value: 'bookings' as EmployeeTab, icon: CalendarDays, label: t('Lịch hẹn') },
                     { value: 'customers' as EmployeeTab, icon: UserCheck, label: t('Khách hàng') },
                     { value: 'sales' as EmployeeTab, icon: DollarSign, label: t('Thanh toán') },
+                    { value: 'payment_history' as EmployeeTab, icon: History, label: t('Lịch sử thanh toán') },
                     { value: 'services' as EmployeeTab, icon: Scissors, label: t('Dịch vụ') },
                     { value: 'therapists' as EmployeeTab, icon: Users, label: t('Thợ') },
                     { value: 'inbox' as EmployeeTab, icon: MessageSquare, label: t('Hộp thư') },
