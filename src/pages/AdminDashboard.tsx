@@ -3200,9 +3200,8 @@ const AdminDashboard = () => {
                     {/* Desktop row layout */}
                     <div className="hidden sm:block rounded-xl border border-[#E5E5E5]/50 bg-white overflow-hidden">
                       {/* Column headers */}
-                      <div className="grid grid-cols-[1fr_1fr_auto_auto_44px] gap-4 px-5 py-3 text-[11px] font-medium tracking-wider uppercase text-muted-foreground/60 border-b border-[#E5E5E5]/30 bg-[#F5F5F5]/50">
+                      <div className="grid grid-cols-[1fr_auto_auto_44px] gap-4 px-5 py-3 text-[11px] font-medium tracking-wider uppercase text-muted-foreground/60 border-b border-[#E5E5E5]/30 bg-[#F5F5F5]/50">
                         <span>{t('Khách hàng')}</span>
-                        <span>{t('Dịch vụ')}</span>
                         <span className="text-right w-24">{t('Số tiền')}</span>
                         <span className="text-center w-20">{t('Phương thức')}</span>
                         <span></span>
@@ -3216,7 +3215,7 @@ const AdminDashboard = () => {
                           return (
                             <div
                               key={s.id}
-                              className="group grid grid-cols-[1fr_1fr_auto_auto_44px] gap-4 items-center px-5 py-3.5 rounded-xl transition-colors hover:bg-[#F5F5F5]/60 cursor-pointer"
+                              className="group grid grid-cols-[1fr_auto_auto_44px] gap-4 items-center px-5 py-3.5 rounded-xl transition-colors hover:bg-[#F5F5F5]/60 cursor-pointer"
                               onClick={() => setSelectedSaleDetail(s)}
                             >
                               {/* Customer + phone stacked */}
@@ -3226,12 +3225,6 @@ const AdminDashboard = () => {
                                   {customerPhone && <span className="text-[11px] text-muted-foreground/60 font-mono">{customerPhone}</span>}
                                   <span className="text-[11px] text-muted-foreground/40">{s.sale_date}</span>
                                 </div>
-                              </div>
-
-                              {/* Service + notes stacked */}
-                              <div className="min-w-0">
-                                <p className="text-[13px] text-[#555555] truncate">{s.bookings?.services?.name || '—'}</p>
-                                {s.notes && <p className="text-[11px] text-muted-foreground/50 truncate mt-0.5">{s.notes}</p>}
                               </div>
 
                               {/* Amount */}
