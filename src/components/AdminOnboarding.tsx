@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { supabase, TENANT_ID } from '@/integrations/supabase/client';
 import { useI18n } from '@/hooks/useI18n';
+import { useToast } from '@/hooks/use-toast';
 import {
   Scissors, Users, CreditCard, Settings, CalendarDays,
   ArrowRight, Check, Sparkles, Store, Bell, Globe,
@@ -67,9 +68,11 @@ const STEPS = [
 
 export function AdminOnboarding({ userId, onComplete }: AdminOnboardingProps) {
   const { t } = useI18n();
+  const { toast } = useToast();
   const [step, setStep] = useState(0);
   const [exiting, setExiting] = useState(false);
   const [entering, setEntering] = useState(true);
+  const [saving, setSaving] = useState(false);
   const totalSteps = STEPS.length;
   const current = STEPS[step];
   const Icon = current.icon;
@@ -93,12 +96,22 @@ export function AdminOnboarding({ userId, onComplete }: AdminOnboardingProps) {
   };
 
   const handleFinish = async () => {
-    setExiting(true);
-    // Save to DB
-    await supabase.from('app_settings').upsert(
+    setSaving(true);
+    const { error } = await supabase.from('app_settings').upsert(
       { key: `onboarding_completed_${userId}`, value: 'true', tenant_id: TENANT_ID },
       { onConflict: 'tenant_id,key' },
-    ).then(() => {});
+    );
+    setSaving(false);
+    if (error) {
+      console.error('Failed to save onboarding completion', error);
+      toast({
+        title: t('Không thể lưu trạng thái'),
+        description: t('Vui lòng thử lại. Nếu vẫn lỗi, hãy tải lại trang.'),
+        variant: 'destructive',
+      });
+      return;
+    }
+    setExiting(true);
     setTimeout(() => onComplete(), 300);
   };
 
@@ -168,6 +181,7 @@ export function AdminOnboarding({ userId, onComplete }: AdminOnboardingProps) {
                   variant="ghost"
                   className="flex-1 h-12 text-[#737373] hover:text-[#1B1B1B]"
                   onClick={handleSkip}
+                  disabled={saving}
                 >
                   {t('Bỏ qua')}
                 </Button>
@@ -185,6 +199,7 @@ export function AdminOnboarding({ userId, onComplete }: AdminOnboardingProps) {
                 className="w-full h-12 text-white font-medium rounded-xl"
                 style={{ backgroundColor: current.color }}
                 onClick={handleFinish}
+                disabled={saving}
               >
                 <Check className="h-4 w-4 mr-2" />
                 {t('Bắt đầu sử dụng')}

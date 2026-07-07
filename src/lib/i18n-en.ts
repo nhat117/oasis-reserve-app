@@ -781,6 +781,10 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   // Stats
   "Đã xử lý": "Processed",
 
+  // Onboarding error handling
+  "Không thể lưu trạng thái": "Could not save your progress",
+  "Vui lòng thử lại. Nếu vẫn lỗi, hãy tải lại trang.": "Please try again. If it keeps failing, reload the page.",
+
   // Translation tool
   "batch": "batch",
 };

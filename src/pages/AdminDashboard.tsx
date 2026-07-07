@@ -90,7 +90,17 @@ const AdminDashboard = () => {
     queryKey: ['onboarding-check', user?.id],
     queryFn: async () => {
       if (!user?.id) return true;
-      const { data } = await supabase.from('app_settings').select('value').eq('key', `onboarding_completed_${user.id}`).single();
+      const { data, error } = await supabase.from('app_settings')
+        .select('value')
+        .eq('tenant_id', TENANT_ID)
+        .eq('key', `onboarding_completed_${user.id}`)
+        .maybeSingle();
+      if (error) {
+        // Don't force onboarding back onto an existing user just because
+        // the check itself failed (network blip, RLS hiccup, etc).
+        console.error('Failed to check onboarding status', error);
+        return true;
+      }
       return data?.value === 'true';
     },
     enabled: !!user?.id && isAdmin,
