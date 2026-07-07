@@ -379,7 +379,6 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Mã chưa có hiệu lực": "Code not yet active",
   "Mã đã hết hạn": "Code has expired",
   "Mã đã hết lượt sử dụng": "Code usage limit reached",
-  "giảm": "off",
 
   // Gift cards
   "Phiếu quà tặng": "Gift Cards",
@@ -492,7 +491,6 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Test Link": "Test Link",
   "Hôm nay": "Today",
   "Đang lưu...": "Saving...",
-  "Đang tạo...": "Creating...",
   "Đang tải...": "Loading...",
   "Đang xoá...": "Deleting...",
   "Đang xử lý...": "Processing...",
@@ -573,7 +571,6 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Tìm theo tên, dịch vụ...": "Search by name, service...",
   "Tìm dịch vụ...": "Search services...",
   "Tìm dịch vụ thêm...": "Search add-on services...",
-  "Không liên kết": "Not linked",
 
   // Payment flow
   "Đang chuyển đến trang thanh toán...": "Redirecting to payment...",
@@ -602,20 +599,14 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Chưa cấu hình — nhấn để thiết lập": "Not configured — tap to set up",
 
   // Square online payment (booking flow)
-  "Thanh toán": "Payment",
   "Hoàn tất thanh toán cho đặt lịch của bạn": "Complete payment for your booking",
   "Tổng cộng": "Total",
   "Thanh toán sau": "Pay later",
   "Đang tải biểu mẫu thanh toán...": "Loading payment form...",
-  "Nhập thông tin thẻ": "Enter card details",
-  "Thẻ, Apple Pay & Google Pay": "Card, Apple Pay & Google Pay",
-  "Lỗi thanh toán": "Payment error",
   "Không thể xử lý thanh toán. Vui lòng thử lại hoặc thanh toán tại quầy.": "Could not process payment. Please try again or pay at the counter.",
-  "Thanh toán thành công": "Payment successful",
   "Đã thanh toán qua thẻ.": "Paid by card.",
   "Bạn có thể thanh toán tại quầy.": "You can pay at the counter.",
   "Mã thiết bị Square Terminal (tìm trong Settings > Device Code trên máy)": "Square Terminal Device ID (find in Settings > Device Code on the terminal)",
-  "Thanh toán qua thẻ / Tap to Pay": "Card / Tap to Pay",
 
   // Refund
   "Hoàn tiền": "Refund",
@@ -651,9 +642,7 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   // Admin onboarding
   "Chào mừng đến Admin Dashboard!": "Welcome to Admin Dashboard!",
   "Hãy cùng thiết lập cửa hàng của bạn trong vài bước đơn giản.": "Let's set up your store in a few simple steps.",
-  "Thêm dịch vụ": "Add Services",
   "Tạo danh sách dịch vụ với giá, thời lượng và hình ảnh để khách hàng đặt lịch.": "Create your service list with pricing, duration and images for customers to book.",
-  "Thêm nhân viên": "Add Staff",
   "Thêm thợ và nhân viên, thiết lập lịch làm việc và ngày nghỉ.": "Add therapists and staff, set up work schedules and days off.",
   "Cấu hình cửa hàng": "Configure Store",
   "Đặt tên cửa hàng, giờ mở cửa, ngày nghỉ và thông tin liên hệ.": "Set store name, opening hours, holidays and contact info.",
@@ -664,7 +653,6 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Website & Đặt lịch": "Website & Booking",
   "Tuỳ chỉnh trang chủ, About, Terms và mở hệ thống đặt lịch online.": "Customize homepage, About, Terms and enable online booking.",
   "Bỏ qua": "Skip",
-  "Tiếp tục": "Continue",
   "Bắt đầu sử dụng": "Get Started",
 
   // POS Checkout
@@ -675,7 +663,6 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Sắp tới": "Upcoming",
   "Không có lịch hẹn": "No appointments",
   "Đã bao gồm": "Included",
-  "Mã giảm giá": "Discount code",
   "Lịch sử thanh toán": "Payment history",
   "Tên khách (tuỳ chọn)": "Customer name (optional)",
   "Nhập thẻ": "Enter card",
@@ -742,8 +729,6 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Hộp thư": "Inbox",
 
   // Employee permissions
-  "Cho phép khách chọn \"bất kỳ thợ trống\" khi đặt lịch": "Allow customers to choose \"any available staff\" when booking",
-  "Hiển thị \"Đóng cửa\" ngày lễ": "Show \"Closed\" on holidays",
 
   // Admin accounts
   "Tạo tài khoản cho nhân viên hoặc quản trị viên": "Create account for staff or admin",
@@ -765,4 +750,37 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Bạn có chắc muốn xoá lịch hẹn này? Dữ liệu thanh toán liên quan cũng sẽ bị xoá.": "Are you sure you want to delete this appointment? Related payment data will also be deleted.",
   "Bạn có chắc muốn xoá thanh toán này?": "Are you sure you want to delete this payment?",
   "lỗi": "error",
+
+  // Payment history tab & detail dialog
+  "Chi nhánh": "Locations",
+  "Chi tiết thanh toán": "Payment Details",
+  "Thanh toán mới": "New Sale",
+  "In lại hoá đơn": "Reprint Receipt",
+
+  // Excel export
+  "Bảng giá": "Pricing",
+  "Xuất báo cáo Excel": "Export Excel Report",
+  "Doanh thu, lịch hẹn, dịch vụ, nhân viên": "Revenue, appointments, services, staff",
+  "Tạo file Excel gồm Doanh thu, Lịch hẹn, Dịch vụ và Nhân viên — phù hợp để gửi cho kế toán.": "Creates an Excel file with Revenue, Appointments, Services, and Staff — ready to send to your accountant.",
+  "Khoảng thời gian": "Date range",
+  "Tháng này": "This month",
+  "Tháng trước": "Last month",
+  "Năm này": "This year",
+  "Tuỳ chọn": "Custom",
+  "File sẽ gồm 5 trang tính:": "The file will include 5 sheets:",
+  "Tải xuống Excel": "Download Excel",
+  "Đang tạo file...": "Generating file...",
+  "Xuất file thành công": "File exported successfully",
+  "Không thể tạo file Excel. Vui lòng thử lại.": "Could not generate the Excel file. Please try again.",
+
+  // Receipt printing
+  "Trình duyệt đã chặn cửa sổ in hoá đơn": "Your browser blocked the receipt print window",
+  "Vui lòng cho phép popup cho trang này trong cài đặt trình duyệt, rồi thử lại.": "Please allow popups for this site in your browser settings, then try again.",
+  "Hiển thị trên hoá đơn in cho khách": "Shown on printed receipts for customers",
+
+  // Stats
+  "Đã xử lý": "Processed",
+
+  // Translation tool
+  "batch": "batch",
 };
