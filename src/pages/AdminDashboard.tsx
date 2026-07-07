@@ -442,7 +442,7 @@ const AdminDashboard = () => {
     queryKey: ['admin-sales'],
     queryFn: async () => {
       const { data, error } = await supabase.from('sales')
-        .select('*, bookings(customer_name, customer_phone, booking_date, start_time, services(name)), is_refunded')
+        .select('*, bookings(customer_name, customer_phone, booking_date, start_time, services(name)), is_refunded, sale_items(service_name, price, is_addon)')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data as any[];
@@ -503,6 +503,22 @@ const AdminDashboard = () => {
       if (saleCouponCode.trim()) payload.notes = `${payload.notes || ''} [Coupon: ${saleCouponCode.trim().toUpperCase()}]`.trim();
       const { data: saleData, error } = await supabase.from('sales').insert(payload).select('id').single();
       if (error) throw error;
+
+      // Record each service/add-on as its own line item for a real itemized breakdown
+      const mainService = services?.find(sv => sv.id === saleServiceId);
+      const lineItems = [
+        ...(mainService ? [{ service_id: mainService.id, service_name: mainService.name, price: mainService.price, is_addon: false }] : []),
+        ...saleAddOns.map(id => {
+          const a = services?.find(sv => sv.id === id);
+          return a ? { service_id: a.id, service_name: a.name, price: a.price, is_addon: true } : null;
+        }).filter((item): item is { service_id: string; service_name: string; price: number; is_addon: boolean } => item !== null),
+      ];
+      if (lineItems.length > 0 && saleData?.id) {
+        const { error: itemsError } = await supabase.from('sale_items').insert(
+          lineItems.map(item => ({ ...item, sale_id: saleData.id, tenant_id: TENANT_ID }))
+        );
+        if (itemsError) console.error('Failed to record sale items', itemsError);
+      }
 
       // Increment coupon usage
       if (saleCouponDiscount && saleCouponCode.trim()) {
@@ -3306,6 +3322,9 @@ const AdminDashboard = () => {
                 const s = selectedSaleDetail;
                 const customerName = s.customer_name || s.bookings?.customer_name || t('Khách vãng lai');
                 const customerPhone = s.customer_phone || s.bookings?.customer_phone || '';
+                const items: { service_name: string; price: number; is_addon: boolean }[] = s.sale_items?.length
+                  ? s.sale_items
+                  : [{ service_name: s.bookings?.services?.name || '—', price: Number(s.amount), is_addon: false }];
                 return (
                   <>
                     <DialogHeader>
@@ -3330,10 +3349,12 @@ const AdminDashboard = () => {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            <TableRow>
-                              <TableCell className="py-2 text-sm font-medium">{s.bookings?.services?.name || '—'}</TableCell>
-                              <TableCell className="py-2 text-sm text-right tabular-nums">{formatPrice(Number(s.amount))}</TableCell>
-                            </TableRow>
+                            {items.map((item, i) => (
+                              <TableRow key={i}>
+                                <TableCell className="py-2 text-sm font-medium">{item.service_name}</TableCell>
+                                <TableCell className="py-2 text-sm text-right tabular-nums">{formatPrice(Number(item.price))}</TableCell>
+                              </TableRow>
+                            ))}
                           </TableBody>
                         </Table>
                       </div>
