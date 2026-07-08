@@ -24,6 +24,10 @@ import { ALL_I18N_KEYS } from '@/lib/i18n-keys';
 import { Switch } from '@/components/ui/switch';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import FullCalendar from '@fullcalendar/react';
+import dayGridPlugin from '@fullcalendar/daygrid';
+import interactionPlugin, { DateClickArg } from '@fullcalendar/interaction';
+import { EventClickArg } from '@fullcalendar/core';
 import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear } from 'date-fns';
 import { cn } from '@/lib/utils';
 import {
@@ -46,6 +50,11 @@ import { PricingManager } from '@/components/settings/PricingManager';
 import { BranchesManager } from '@/components/settings/BranchesManager';
 
 const CURRENCIES = ['VND', 'USD', 'EUR', 'AUD'] as const;
+
+const THERAPIST_COLORS = [
+  '#3b82f6', '#f43f5e', '#10b981', '#f59e0b',
+  '#8b5cf6', '#06b6d4', '#ec4899', '#f97316',
+];
 
 const resizeImage = (file: File, maxW = 800, maxH = 600, quality = 0.85): Promise<File> =>
   new Promise((resolve) => {
@@ -74,7 +83,7 @@ const AdminDashboard = () => {
   const { user, isAdmin, isEmployee, isStaff, userRole, loading, signOut, logActivity } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const canAccessSettings = isAdmin;
   const requireAdmin = () => {
     if (!isAdmin) throw new Error('Admin only');
@@ -201,9 +210,11 @@ const AdminDashboard = () => {
   const [therapistBreakEnd, setTherapistBreakEnd] = useState('');
   const [unavailDate, setUnavailDate] = useState<Date | undefined>();
   const [unavailTherapist, setUnavailTherapist] = useState('');
+  const [unavailCalendarOpen, setUnavailCalendarOpen] = useState(false);
   const [holidayDate, setHolidayDate] = useState<Date | undefined>();
   const [holidayReason, setHolidayReason] = useState('');
   const [earlyCloseHour, setEarlyCloseHour] = useState('none');
+  const [holidayCalendarOpen, setHolidayCalendarOpen] = useState(false);
 
   // Create booking form state
   const [bookingDialog, setBookingDialog] = useState(false);
@@ -3647,38 +3658,16 @@ const AdminDashboard = () => {
               <div className="rounded-xl border border-[#E5E5E5]/40 bg-white overflow-hidden">
                 {/* Day off controls */}
                 <div className="p-5 sm:p-6">
-                  <p className="text-[13px] font-semibold text-[#1B1B1B] mb-3">{t('Ngày nghỉ nhân viên')}</p>
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
-                    <Select value={unavailTherapist} onValueChange={setUnavailTherapist}>
-                      <SelectTrigger className="w-full sm:w-[160px] h-9 text-sm bg-[#F5F5F5] border-[#E5E5E5]/50"><SelectValue placeholder={t('Chọn thợ')} /></SelectTrigger>
-                      <SelectContent>
-                        {therapists?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm" className={cn("h-9 text-sm", !unavailDate && "text-muted-foreground")}>
-                          <CalendarOff className="h-3.5 w-3.5 mr-1.5" />
-                          {unavailDate ? format(unavailDate, 'dd/MM/yyyy') : t('Chọn ngày')}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={unavailDate} onSelect={setUnavailDate} className="p-3 pointer-events-auto" />
-                      </PopoverContent>
-                    </Popover>
-                    <Button size="sm" className="h-9" disabled={!unavailTherapist || !unavailDate || addUnavailability.isPending}
-                      onClick={() => {
-                        if (unavailTherapist && unavailDate) {
-                          addUnavailability.mutate({ therapistId: unavailTherapist, date: format(unavailDate, 'yyyy-MM-dd') });
-                          setUnavailDate(undefined);
-                        }
-                      }}>
-                      <Plus className="h-3.5 w-3.5 mr-1" /> {t('Thêm ngày nghỉ')}
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[13px] font-semibold text-[#1B1B1B]">{t('Ngày nghỉ nhân viên')}</p>
+                    <Button variant="outline" size="sm" className="h-9 text-sm rounded-full" onClick={() => { setUnavailTherapist('all'); setUnavailCalendarOpen(true); }}>
+                      <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
+                      {t('Xem lịch')}
                     </Button>
                   </div>
-                  {/* Staff day-off pills */}
-                  {therapists && unavailabilities && (
-                    <div className="flex flex-wrap gap-2 mt-3">
+                  {/* Staff day-off pills — one per staff, bounded by staff count regardless of how many days off exist */}
+                  {therapists && unavailabilities && therapists.some(th => unavailabilities.filter((u: any) => u.therapist_id === th.id && u.unavailable_date >= format(new Date(), 'yyyy-MM-dd')).length > 0) ? (
+                    <div className="flex flex-wrap gap-2">
                       {therapists.map(th => {
                         const todayStr = format(new Date(), 'yyyy-MM-dd');
                         const count = unavailabilities.filter((u: any) => u.therapist_id === th.id && u.unavailable_date >= todayStr).length;
@@ -3687,7 +3676,7 @@ const AdminDashboard = () => {
                           <button
                             key={th.id}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F5F5F5] border border-[#E5E5E5]/60 text-xs text-[#737373] hover:bg-[#F5F5F5] transition-colors"
-                            onClick={() => { setViewingTherapist(th); setUnavailMonthFilter(format(new Date(), 'yyyy-MM')); setTherapistInfoDialog(true); }}
+                            onClick={() => { setUnavailTherapist(th.id); setUnavailCalendarOpen(true); }}
                           >
                             <span className="font-medium">{th.name}</span>
                             <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-[#F0F0F0] text-[10px] font-semibold text-[#1B1B1B]">{count}</span>
@@ -3695,72 +3684,313 @@ const AdminDashboard = () => {
                         );
                       })}
                     </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">{t('Không có ngày nghỉ trong tháng này')}</p>
                   )}
                 </div>
+
+                {/* Staff days-off calendar dialog */}
+                <Dialog open={unavailCalendarOpen} onOpenChange={(open) => { setUnavailCalendarOpen(open); if (!open) setUnavailDate(undefined); }}>
+                  <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+                    <DialogHeader>
+                      <DialogTitle>{t('Ngày nghỉ nhân viên')}</DialogTitle>
+                      <DialogDescription>{t('Chọn ngày trên lịch để thêm ngày nghỉ cho nhân viên')}</DialogDescription>
+                    </DialogHeader>
+                    <Select value={unavailTherapist} onValueChange={(v) => { setUnavailTherapist(v); setUnavailDate(undefined); }}>
+                      <SelectTrigger className="w-full sm:w-[200px] h-9 text-sm rounded-full bg-[#F5F5F5] border-[#E5E5E5]/50"><SelectValue placeholder={t('Chọn thợ')} /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{t('Tất cả thợ')}</SelectItem>
+                        {therapists?.map(th => <SelectItem key={th.id} value={th.id}>{th.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <div className="fc-custom fc-mini shrink-0">
+                      <FullCalendar
+                        plugins={[dayGridPlugin, interactionPlugin]}
+                        initialView="dayGridMonth"
+                        headerToolbar={{ left: 'prev,next today', center: 'title', right: '' }}
+                        locale={lang === 'vi' ? 'vi' : 'en-au'}
+                        height="auto"
+                        dayMaxEvents={unavailTherapist === 'all' ? 3 : 1}
+                        selectable={false}
+                        dateClick={(info: DateClickArg) => unavailTherapist !== 'all' && setUnavailDate(info.date)}
+                        eventClick={(info: EventClickArg) => unavailTherapist !== 'all' && setUnavailDate(info.event.start || undefined)}
+                        dayCellClassNames={(arg) => {
+                          const ds = format(arg.date, 'yyyy-MM-dd');
+                          if (unavailDate && format(unavailDate, 'yyyy-MM-dd') === ds) return ['fc-day-selected'];
+                          return [];
+                        }}
+                        events={(unavailabilities || [])
+                          .filter((u: any) => unavailTherapist === 'all' || u.therapist_id === unavailTherapist)
+                          .map((u: any) => ({
+                            start: u.unavailable_date,
+                            allDay: true,
+                            display: 'list-item',
+                            title: unavailTherapist === 'all' ? (u.therapists?.name || t('Ngày nghỉ')) : (u.reason || t('Ngày nghỉ')),
+                            color: unavailTherapist === 'all'
+                              ? THERAPIST_COLORS[Math.max(0, therapists?.findIndex(th => th.id === u.therapist_id) ?? 0) % THERAPIST_COLORS.length]
+                              : '#ef4444',
+                          }))}
+                        buttonText={{ today: t('Hôm nay') }}
+                      />
+                    </div>
+
+                    {/* Scrollable region: interaction panel + upcoming list. Calendar above stays fully visible/clickable. */}
+                    <div className="flex-1 min-h-0 overflow-y-auto">
+                      {/* Selected day detail / interaction panel — hidden in "all staff" overview mode, which is view-only */}
+                      {unavailTherapist !== 'all' && (
+                        <div className="border-t border-[#E5E5E5]/30 pt-4">
+                          {!unavailTherapist ? (
+                            <p className="text-sm text-muted-foreground">{t('Chọn thợ')}</p>
+                          ) : !unavailDate ? (
+                            <p className="text-sm text-muted-foreground">{t('Chọn ngày trên lịch để thêm ngày nghỉ cho nhân viên')}</p>
+                          ) : (() => {
+                            const ds = format(unavailDate, 'yyyy-MM-dd');
+                            const existing = (unavailabilities || []).find((u: any) => u.therapist_id === unavailTherapist && u.unavailable_date === ds);
+                            return (
+                              <div className="flex flex-col gap-3">
+                                <p className="text-sm font-medium text-[#1B1B1B]">{format(unavailDate, 'dd/MM/yyyy')}</p>
+                                {existing ? (
+                                  <div className="flex items-center justify-between py-2.5 px-4 bg-red-50/60 rounded-full text-sm border border-red-100/50">
+                                    <span className="text-[13px] text-muted-foreground">{existing.reason || t('Ngày nghỉ')}</span>
+                                    <AdminOnlyButton variant="ghost" size="icon" className="h-7 w-7 rounded-full text-muted-foreground/40 hover:text-destructive" onClick={() => openConfirm(t('Xoá ngày nghỉ'), t('Xoá ngày nghỉ này?'), () => { removeUnavailability.mutate(existing.id); setUnavailDate(undefined); })}>
+                                      <X className="h-3.5 w-3.5" />
+                                    </AdminOnlyButton>
+                                  </div>
+                                ) : (
+                                  <Button size="sm" className="h-9 w-fit rounded-full" disabled={addUnavailability.isPending}
+                                    onClick={() => {
+                                      addUnavailability.mutate({ therapistId: unavailTherapist, date: ds });
+                                      setUnavailDate(undefined);
+                                    }}>
+                                    <Plus className="h-3.5 w-3.5 mr-1" /> {t('Thêm ngày nghỉ')}
+                                  </Button>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
+
+                      {/* Upcoming days off — scrollable list so staff with many entries can be reviewed/removed without flipping through months */}
+                      {unavailTherapist && (() => {
+                        const todayStr = format(new Date(), 'yyyy-MM-dd');
+                        const upcoming = (unavailabilities || [])
+                          .filter((u: any) => (unavailTherapist === 'all' || u.therapist_id === unavailTherapist) && u.unavailable_date >= todayStr)
+                          .sort((a: any, b: any) => a.unavailable_date.localeCompare(b.unavailable_date));
+                        if (!upcoming.length) return null;
+                        return (
+                          <div className="border-t border-[#E5E5E5]/30 pt-4">
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                              {t('Ngày nghỉ')} ({upcoming.length})
+                            </p>
+                            <div className="space-y-1.5 pr-1">
+                              {upcoming.map((u: any) => (
+                                <div key={u.id} className="flex items-center justify-between py-2 px-4 bg-red-50/60 rounded-full text-sm border border-red-100/50">
+                                  <span className="text-[13px]">
+                                    <span className="font-medium text-[#1B1B1B]">{format(new Date(`${u.unavailable_date}T00:00:00`), 'dd/MM/yyyy')}</span>
+                                    {unavailTherapist === 'all' && <span className="text-muted-foreground ml-2">{u.therapists?.name}</span>}
+                                    {u.reason && <span className="text-muted-foreground ml-2">{u.reason}</span>}
+                                  </span>
+                                  <AdminOnlyButton variant="ghost" size="icon" className="h-7 w-7 rounded-full text-muted-foreground/40 hover:text-destructive" onClick={() => openConfirm(t('Xoá ngày nghỉ'), t('Xoá ngày nghỉ này?'), () => { removeUnavailability.mutate(u.id); if (unavailDate && format(unavailDate, 'yyyy-MM-dd') === u.unavailable_date) setUnavailDate(undefined); })}>
+                                    <X className="h-3.5 w-3.5" />
+                                  </AdminOnlyButton>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </DialogContent>
+                </Dialog>
 
                 {/* Divider */}
                 <div className="border-t border-[#E5E5E5]/30" />
 
                 {/* Shop holidays */}
                 <div className="p-5 sm:p-6">
-                  <p className="text-[13px] font-semibold text-[#1B1B1B] mb-3">{t('Ngày nghỉ tiệm / Đóng cửa sớm')}</p>
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm" className={cn("h-9 text-sm", !holidayDate && "text-muted-foreground")}>
-                          <CalendarOff className="h-3.5 w-3.5 mr-1.5" />
-                          {holidayDate ? format(holidayDate, 'dd/MM/yyyy') : t('Chọn ngày')}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={holidayDate} onSelect={setHolidayDate} className="p-3 pointer-events-auto" />
-                      </PopoverContent>
-                    </Popover>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground/70 whitespace-nowrap">{t('Đóng cửa sớm lúc')}</span>
-                      <Select value={earlyCloseHour} onValueChange={setEarlyCloseHour}>
-                        <SelectTrigger className="w-[100px] h-9 text-sm bg-[#F5F5F5] border-[#E5E5E5]/50"><SelectValue placeholder={t('Không')} /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">{t('Nghỉ cả ngày')}</SelectItem>
-                          {Array.from({ length: 13 }, (_, i) => i + 10).map(h => (
-                            <SelectItem key={h} value={String(h)}>{h}:00</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Button size="sm" className="h-9" disabled={!holidayDate || addHoliday.isPending}
-                      onClick={() => {
-                        if (holidayDate) {
-                          addHoliday.mutate({
-                            date: format(holidayDate, 'yyyy-MM-dd'),
-                            earlyCloseHour: earlyCloseHour !== 'none' ? parseInt(earlyCloseHour) : undefined,
-                          });
-                          setHolidayDate(undefined);
-                          setEarlyCloseHour('none');
-                        }
-                      }}>
-                      <Plus className="h-3.5 w-3.5 mr-1" /> {t('Thêm')}
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[13px] font-semibold text-[#1B1B1B]">{t('Ngày nghỉ tiệm / Đóng cửa sớm')}</p>
+                    <Button variant="outline" size="sm" className="h-9 text-sm rounded-full" onClick={() => setHolidayCalendarOpen(true)}>
+                      <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
+                      {t('Xem lịch')}
                     </Button>
                   </div>
-                  {shopHolidays && shopHolidays.length > 0 && (
-                    <div className="space-y-1.5 mt-3">
-                      {shopHolidays.filter((h: any) => h.holiday_date >= format(new Date(), 'yyyy-MM-dd')).map((h: any) => (
-                        <div key={h.id} className="flex items-center justify-between py-2.5 px-4 bg-red-50/60 rounded-lg text-sm border border-red-100/50">
-                          <span className="text-[13px]">
-                            <span className="font-medium text-[#1B1B1B]">{h.holiday_date}</span>
-                            <span className="text-muted-foreground ml-2">
-                              {h.early_close_hour ? `${t('Đóng cửa lúc')} ${h.early_close_hour}:00` : t('Nghỉ cả ngày')}
+                  {(() => {
+                    const upcoming = (shopHolidays || [])
+                      .filter((h: any) => h.holiday_date >= format(new Date(), 'yyyy-MM-dd'))
+                      .sort((a: any, b: any) => a.holiday_date.localeCompare(b.holiday_date));
+                    if (!upcoming.length) return <p className="text-sm text-muted-foreground">{t('Chưa có ngày nghỉ tiệm nào')}</p>;
+                    const PREVIEW_LIMIT = 3;
+                    const preview = upcoming.slice(0, PREVIEW_LIMIT);
+                    const remaining = upcoming.length - preview.length;
+                    return (
+                      <div className="space-y-1.5">
+                        {preview.map((h: any) => (
+                          <div key={h.id} className="flex items-center justify-between py-2.5 px-4 bg-red-50/60 rounded-full text-sm border border-red-100/50">
+                            <span className="text-[13px]">
+                              <span className="font-medium text-[#1B1B1B]">{h.holiday_date}</span>
+                              <span className="text-muted-foreground ml-2">
+                                {h.early_close_hour ? `${t('Đóng cửa lúc')} ${h.early_close_hour}:00` : t('Nghỉ cả ngày')}
+                              </span>
                             </span>
-                          </span>
-                          <AdminOnlyButton variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/40 hover:text-destructive" onClick={() => openConfirm(t('Xoá ngày nghỉ'), t('Xoá ngày nghỉ tiệm này?'), () => removeHoliday.mutate(h.id))}>
-                            <X className="h-3.5 w-3.5" />
-                          </AdminOnlyButton>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                            <AdminOnlyButton variant="ghost" size="icon" className="h-7 w-7 rounded-full text-muted-foreground/40 hover:text-destructive" onClick={() => openConfirm(t('Xoá ngày nghỉ'), t('Xoá ngày nghỉ tiệm này?'), () => removeHoliday.mutate(h.id))}>
+                              <X className="h-3.5 w-3.5" />
+                            </AdminOnlyButton>
+                          </div>
+                        ))}
+                        {remaining > 0 && (
+                          <button
+                            className="w-full text-center text-xs text-muted-foreground hover:text-foreground py-1.5"
+                            onClick={() => setHolidayCalendarOpen(true)}
+                          >
+                            +{remaining} {t('Xem lịch')}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
+
+              {/* Shop holiday calendar dialog */}
+              <Dialog open={holidayCalendarOpen} onOpenChange={(open) => { setHolidayCalendarOpen(open); if (!open) { setHolidayDate(undefined); setEarlyCloseHour('none'); } }}>
+                <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+                  <DialogHeader>
+                    <DialogTitle>{t('Ngày nghỉ tiệm / Đóng cửa sớm')}</DialogTitle>
+                    <DialogDescription>{t('Chọn ngày trên lịch để thêm ngày nghỉ')}</DialogDescription>
+                  </DialogHeader>
+                  <div className="fc-custom fc-mini shrink-0">
+                    <FullCalendar
+                      plugins={[dayGridPlugin, interactionPlugin]}
+                      initialView="dayGridMonth"
+                      headerToolbar={{ left: 'prev,next today', center: 'title', right: '' }}
+                      locale={lang === 'vi' ? 'vi' : 'en-au'}
+                      height="auto"
+                      dayMaxEvents={1}
+                      selectable={false}
+                      dateClick={(info: DateClickArg) => {
+                        const date = info.date;
+                        setHolidayDate(date);
+                        const ds = format(date, 'yyyy-MM-dd');
+                        const existing = (shopHolidays || []).find((h: any) => h.holiday_date === ds);
+                        setEarlyCloseHour(existing?.early_close_hour ? String(existing.early_close_hour) : 'none');
+                      }}
+                      eventClick={(info: EventClickArg) => {
+                        const date = info.event.start;
+                        if (!date) return;
+                        setHolidayDate(date);
+                        const ds = format(date, 'yyyy-MM-dd');
+                        const existing = (shopHolidays || []).find((h: any) => h.holiday_date === ds);
+                        setEarlyCloseHour(existing?.early_close_hour ? String(existing.early_close_hour) : 'none');
+                      }}
+                      dayCellClassNames={(arg) => {
+                        const ds = format(arg.date, 'yyyy-MM-dd');
+                        if (holidayDate && format(holidayDate, 'yyyy-MM-dd') === ds) return ['fc-day-selected'];
+                        return [];
+                      }}
+                      events={(shopHolidays || []).map((h: any) => ({
+                        start: h.holiday_date,
+                        allDay: true,
+                        display: 'list-item',
+                        title: h.early_close_hour ? `${t('Đóng cửa lúc')} ${h.early_close_hour}:00` : t('Nghỉ cả ngày'),
+                        color: h.early_close_hour ? '#f59e0b' : '#ef4444',
+                      }))}
+                      buttonText={{ today: t('Hôm nay') }}
+                    />
+                  </div>
+                  {/* Scrollable region: legend + interaction panel + upcoming list. Calendar above stays fully visible/clickable. */}
+                  <div className="flex-1 min-h-0 overflow-y-auto">
+                  {/* Legend */}
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground/70 pb-1">
+                    <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-red-500" />{t('Nghỉ cả ngày')}</span>
+                    <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-amber-500" />{t('Đóng cửa sớm')}</span>
+                  </div>
+
+                  {/* Selected day detail / interaction panel */}
+                  <div className="border-t border-[#E5E5E5]/30 pt-4">
+                    {!holidayDate ? (
+                      <p className="text-sm text-muted-foreground">{t('Chọn ngày trên lịch để thêm ngày nghỉ')}</p>
+                    ) : (() => {
+                      const ds = format(holidayDate, 'yyyy-MM-dd');
+                      const existing = (shopHolidays || []).find((h: any) => h.holiday_date === ds);
+                      return (
+                        <div className="flex flex-col gap-3">
+                          <p className="text-sm font-medium text-[#1B1B1B]">{format(holidayDate, 'dd/MM/yyyy')}</p>
+                          {existing ? (
+                            <div className="flex items-center justify-between py-2.5 px-4 bg-red-50/60 rounded-full text-sm border border-red-100/50">
+                              <span className="text-[13px] text-muted-foreground">
+                                {existing.early_close_hour ? `${t('Đóng cửa lúc')} ${existing.early_close_hour}:00` : t('Nghỉ cả ngày')}
+                              </span>
+                              <AdminOnlyButton variant="ghost" size="icon" className="h-7 w-7 rounded-full text-muted-foreground/40 hover:text-destructive" onClick={() => openConfirm(t('Xoá ngày nghỉ'), t('Xoá ngày nghỉ tiệm này?'), () => { removeHoliday.mutate(existing.id); setHolidayDate(undefined); })}>
+                                <X className="h-3.5 w-3.5" />
+                              </AdminOnlyButton>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground/70 whitespace-nowrap">{t('Đóng cửa sớm lúc')}</span>
+                                <Select value={earlyCloseHour} onValueChange={setEarlyCloseHour}>
+                                  <SelectTrigger className="w-[100px] h-9 text-sm rounded-full bg-[#F5F5F5] border-[#E5E5E5]/50"><SelectValue placeholder={t('Không')} /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="none">{t('Nghỉ cả ngày')}</SelectItem>
+                                    {Array.from({ length: 13 }, (_, i) => i + 10).map(h => (
+                                      <SelectItem key={h} value={String(h)}>{h}:00</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <Button size="sm" className="h-9 rounded-full" disabled={addHoliday.isPending}
+                                onClick={() => {
+                                  addHoliday.mutate({
+                                    date: ds,
+                                    earlyCloseHour: earlyCloseHour !== 'none' ? parseInt(earlyCloseHour) : undefined,
+                                  });
+                                  setHolidayDate(undefined);
+                                  setEarlyCloseHour('none');
+                                }}>
+                                <Plus className="h-3.5 w-3.5 mr-1" /> {t('Thêm')}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Upcoming holidays — scrollable list so shops with many entries can be reviewed/removed without flipping through months */}
+                  {(() => {
+                    const todayStr = format(new Date(), 'yyyy-MM-dd');
+                    const upcoming = (shopHolidays || [])
+                      .filter((h: any) => h.holiday_date >= todayStr)
+                      .sort((a: any, b: any) => a.holiday_date.localeCompare(b.holiday_date));
+                    if (!upcoming.length) return null;
+                    return (
+                      <div className="border-t border-[#E5E5E5]/30 pt-4">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                          {t('Ngày nghỉ')} ({upcoming.length})
+                        </p>
+                        <div className="space-y-1.5 pr-1">
+                          {upcoming.map((h: any) => (
+                            <div key={h.id} className="flex items-center justify-between py-2 px-4 bg-red-50/60 rounded-full text-sm border border-red-100/50">
+                              <span className="text-[13px]">
+                                <span className="font-medium text-[#1B1B1B]">{h.holiday_date}</span>
+                                <span className="text-muted-foreground ml-2">
+                                  {h.early_close_hour ? `${t('Đóng cửa lúc')} ${h.early_close_hour}:00` : t('Nghỉ cả ngày')}
+                                </span>
+                              </span>
+                              <AdminOnlyButton variant="ghost" size="icon" className="h-7 w-7 rounded-full text-muted-foreground/40 hover:text-destructive" onClick={() => openConfirm(t('Xoá ngày nghỉ'), t('Xoá ngày nghỉ tiệm này?'), () => { removeHoliday.mutate(h.id); if (holidayDate && format(holidayDate, 'yyyy-MM-dd') === h.holiday_date) setHolidayDate(undefined); })}>
+                                <X className="h-3.5 w-3.5" />
+                              </AdminOnlyButton>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  </div>
+                </DialogContent>
+              </Dialog>
 
               {/* Staff list */}
               {!therapists?.length ? (
