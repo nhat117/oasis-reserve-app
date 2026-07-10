@@ -39,14 +39,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+    let knownUserId: string | null = null;
 
-    const applySession = async (nextSession: Session | null) => {
+    const applySession = async (nextSession: Session | null, showLoading: boolean) => {
       if (!mounted) return;
 
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
 
       if (!nextSession?.user) {
+        knownUserId = null;
         roleRequestRef.current += 1;
         setIsAdmin(false);
         setIsEmployee(false);
@@ -54,9 +56,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      setLoading(true);
-      setIsAdmin(false);
-      setIsEmployee(false);
+      knownUserId = nextSession.user.id;
+      if (showLoading) {
+        setLoading(true);
+        setIsAdmin(false);
+        setIsEmployee(false);
+      }
 
       const requestId = ++roleRequestRef.current;
       const roles = await checkRoles(nextSession.user.id);
@@ -69,11 +74,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      void applySession(session);
+      // Supabase re-validates the session (e.g. TOKEN_REFRESHED) whenever the
+      // tab regains visibility. Only show the full-page loading state when the
+      // signed-in user actually changes, so switching tabs doesn't re-mount the
+      // whole dashboard.
+      const isSameUser = !!session?.user && session.user.id === knownUserId;
+      void applySession(session, !isSameUser);
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      void applySession(session);
+      void applySession(session, true);
     });
 
     return () => {
