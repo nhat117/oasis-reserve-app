@@ -2070,7 +2070,7 @@ const AdminDashboard = () => {
   const availableSlots = getAvailableTimeSlots();
 
   if (loading) return (
-    <div className="min-h-screen bg-[#F5F5F5] flex items-center justify-center">
+    <div className="min-h-screen bg-white flex items-center justify-center">
       <div className="flex flex-col items-center gap-3">
         <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-amber-700 to-yellow-800 flex items-center justify-center animate-pulse">
           <Leaf className="h-5 w-5 text-white" />
@@ -2081,7 +2081,7 @@ const AdminDashboard = () => {
   );
   if (!user) return <Navigate to="/admin/login" />;
   if (!isStaff) return (
-    <div className="min-h-screen bg-[#F5F5F5] flex items-center justify-center">
+    <div className="min-h-screen bg-white flex items-center justify-center">
       <div className="text-center space-y-2">
         <Shield className="h-10 w-10 text-gray-300 mx-auto" />
         <p className="text-sm text-gray-500 font-medium">{t('Bạn không có quyền truy cập.')}</p>
@@ -2114,14 +2114,14 @@ const AdminDashboard = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-[#F5F5F5] admin-shell">
+    <div className="min-h-screen bg-white admin-shell">
       {showOnboarding && user?.id && (
         <AdminOnboarding userId={user.id} onComplete={() => setShowOnboarding(false)} />
       )}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         {/* Desktop Sidebar */}
         <aside className={cn(
-          "hidden sm:flex fixed inset-y-0 left-0 z-40 flex-col bg-[#FAFAFA] border-r border-[#E5E5E5] transition-all duration-300 ease-in-out",
+          "hidden sm:flex fixed inset-y-0 left-0 z-40 flex-col bg-white border-r border-[#E5E5E5] transition-all duration-300 ease-in-out",
           sidebarOpen ? "w-[220px]" : "w-[68px]"
         )}>
           {/* Floating toggle on sidebar edge */}
@@ -2225,7 +2225,7 @@ const AdminDashboard = () => {
         </aside>
 
         {/* Mobile top header — minimal, just brand + hamburger */}
-        <header className="sm:hidden sticky top-0 z-50 bg-[#F5F5F5]/95 backdrop-blur-md border-b border-[#E5E5E5]/60">
+        <header className="sm:hidden sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-[#E5E5E5]/60">
           <div className="px-4 py-2.5 flex items-center justify-between">
             <Link to="/" className="flex items-center gap-2">
               <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-amber-700 to-yellow-800 flex items-center justify-center">
@@ -2248,7 +2248,7 @@ const AdminDashboard = () => {
           <div className="sm:hidden fixed inset-0 z-[60]" onClick={() => setMobileMenuOpen(false)}>
             <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
             <div
-              className="absolute top-0 left-0 right-0 bg-[#F5F5F5] shadow-xl rounded-b-2xl overflow-hidden animate-[slideDown_0.2s_ease-out]"
+              className="absolute top-0 left-0 right-0 bg-white shadow-xl rounded-b-2xl overflow-hidden animate-[slideDown_0.2s_ease-out]"
               onClick={e => e.stopPropagation()}
             >
               {/* Header inside overlay */}
@@ -2313,7 +2313,7 @@ const AdminDashboard = () => {
 
           return (
             <div className="fixed bottom-0 left-0 right-0 z-50 sm:hidden safe-bottom">
-              <div className="bg-[#F5F5F5]/80 backdrop-blur-xl border-t border-[#E5E5E5]/50">
+              <div className="bg-white/80 backdrop-blur-xl border-t border-[#E5E5E5]/50">
                 <div className="grid grid-cols-5 px-2 pt-2 pb-1">
                   {primaryTabs.map(tab => {
                     const isActive = activeTab === tab.value;
@@ -2371,7 +2371,7 @@ const AdminDashboard = () => {
                 <div className="fixed inset-0 z-[70]" onClick={() => setMoreSheetOpen(false)}>
                   <div className="absolute inset-0 bg-black/25 backdrop-blur-[2px] transition-opacity" />
                   <div
-                    className="absolute bottom-0 left-0 right-0 bg-[#F5F5F5] rounded-t-2xl shadow-2xl animate-[sheetUp_0.25s_ease-out]"
+                    className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl animate-[sheetUp_0.25s_ease-out]"
                     onClick={e => e.stopPropagation()}
                   >
                     {/* Handle bar */}
