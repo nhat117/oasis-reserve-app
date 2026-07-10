@@ -199,7 +199,7 @@ const AdminDashboard = () => {
   const [therapistDialog, setTherapistDialog] = useState(false);
   const [therapistInfoDialog, setTherapistInfoDialog] = useState(false);
   const [viewingTherapist, setViewingTherapist] = useState<any>(null);
-  const [unavailMonthFilter, setUnavailMonthFilter] = useState(format(new Date(), 'yyyy-MM'));
+  const [viewingUnavailDate, setViewingUnavailDate] = useState<Date | undefined>();
   const [editingTherapist, setEditingTherapist] = useState<any>(null);
   const [therapistName, setTherapistName] = useState('');
   const [therapistPhone, setTherapistPhone] = useState('');
@@ -4061,7 +4061,7 @@ const AdminDashboard = () => {
                               return count > 0 ? (
                                 <button
                                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50/80 text-amber-700/80 text-[10px] font-medium border border-amber-200/40 hover:bg-amber-100/60 transition-colors"
-                                  onClick={() => { setViewingTherapist(th); setUnavailMonthFilter(format(new Date(), 'yyyy-MM')); setTherapistInfoDialog(true); }}
+                                  onClick={() => { setViewingTherapist(th); setTherapistInfoDialog(true); }}
                                 >
                                   <CalendarOff className="h-3 w-3" /> {count}
                                 </button>
@@ -4151,7 +4151,7 @@ const AdminDashboard = () => {
           </TabsContent>
 
           {/* Therapist Info Dialog */}
-          <Dialog open={therapistInfoDialog} onOpenChange={setTherapistInfoDialog}>
+          <Dialog open={therapistInfoDialog} onOpenChange={(open) => { setTherapistInfoDialog(open); if (!open) setViewingUnavailDate(undefined); }}>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>{viewingTherapist?.name}</DialogTitle>
@@ -4180,32 +4180,96 @@ const AdminDashboard = () => {
                     </div>
                   </div>
                   <div className="border-t pt-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-medium">{t('Ngày nghỉ')}</p>
-                      <Input
-                        type="month"
-                        value={unavailMonthFilter}
-                        onChange={e => setUnavailMonthFilter(e.target.value)}
-                        className="w-[160px] h-8 text-xs"
+                    <p className="text-sm font-medium mb-2">{t('Ngày nghỉ')}</p>
+                    <div className="fc-custom fc-mini shrink-0">
+                      <FullCalendar
+                        plugins={[dayGridPlugin, interactionPlugin]}
+                        initialView="dayGridMonth"
+                        headerToolbar={{ left: 'prev,next today', center: 'title', right: '' }}
+                        locale={lang === 'vi' ? 'vi' : 'en-au'}
+                        height="auto"
+                        dayMaxEvents={1}
+                        selectable={false}
+                        dateClick={(info: DateClickArg) => setViewingUnavailDate(info.date)}
+                        eventClick={(info: EventClickArg) => setViewingUnavailDate(info.event.start || undefined)}
+                        dayCellClassNames={(arg) => {
+                          const ds = format(arg.date, 'yyyy-MM-dd');
+                          if (viewingUnavailDate && format(viewingUnavailDate, 'yyyy-MM-dd') === ds) return ['fc-day-selected'];
+                          return [];
+                        }}
+                        events={(unavailabilities || [])
+                          .filter((u: any) => u.therapist_id === viewingTherapist.id)
+                          .map((u: any) => ({
+                            start: u.unavailable_date,
+                            allDay: true,
+                            display: 'list-item',
+                            title: u.reason || t('Ngày nghỉ'),
+                            color: '#ef4444',
+                          }))}
+                        buttonText={{ today: t('Hôm nay') }}
                       />
                     </div>
+
+                    {/* Selected day detail / interaction panel */}
+                    <div className="border-t border-[#E5E5E5]/30 pt-4 mt-4">
+                      {!viewingUnavailDate ? (
+                        <p className="text-sm text-muted-foreground">{t('Chọn ngày trên lịch để thêm ngày nghỉ cho nhân viên')}</p>
+                      ) : (() => {
+                        const ds = format(viewingUnavailDate, 'yyyy-MM-dd');
+                        const existing = (unavailabilities || []).find((u: any) => u.therapist_id === viewingTherapist.id && u.unavailable_date === ds);
+                        return (
+                          <div className="flex flex-col gap-3">
+                            <p className="text-sm font-medium text-[#1B1B1B]">{format(viewingUnavailDate, 'dd/MM/yyyy')}</p>
+                            {existing ? (
+                              <div className="flex items-center justify-between py-2.5 px-4 bg-red-50/60 rounded-full text-sm border border-red-100/50">
+                                <span className="text-[13px] text-muted-foreground">{existing.reason || t('Ngày nghỉ')}</span>
+                                {isAdmin && (
+                                  <AdminOnlyButton variant="ghost" size="icon" className="h-7 w-7 rounded-full text-muted-foreground/40 hover:text-destructive" onClick={() => openConfirm(t('Xoá ngày nghỉ'), t('Xoá ngày nghỉ này?'), () => { removeUnavailability.mutate(existing.id); setViewingUnavailDate(undefined); })}>
+                                    <X className="h-3.5 w-3.5" />
+                                  </AdminOnlyButton>
+                                )}
+                              </div>
+                            ) : (
+                              <Button size="sm" className="h-9 w-fit rounded-full" disabled={addUnavailability.isPending}
+                                onClick={() => {
+                                  addUnavailability.mutate({ therapistId: viewingTherapist.id, date: ds });
+                                  setViewingUnavailDate(undefined);
+                                }}>
+                                <Plus className="h-3.5 w-3.5 mr-1" /> {t('Thêm ngày nghỉ')}
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    {/* Upcoming days off — scrollable list so staff with many entries can be reviewed/removed without flipping through months */}
                     {(() => {
-                      const filtered = unavailabilities?.filter(
-                        (u: any) => u.therapist_id === viewingTherapist.id && u.unavailable_date.startsWith(unavailMonthFilter)
-                      ) || [];
-                      if (!filtered.length) return <p className="text-sm text-muted-foreground italic">{t('Không có ngày nghỉ trong tháng này')}</p>;
+                      const todayStr = format(new Date(), 'yyyy-MM-dd');
+                      const upcoming = (unavailabilities || [])
+                        .filter((u: any) => u.therapist_id === viewingTherapist.id && u.unavailable_date >= todayStr)
+                        .sort((a: any, b: any) => a.unavailable_date.localeCompare(b.unavailable_date));
+                      if (!upcoming.length) return null;
                       return (
-                        <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
-                          {filtered.map((u: any) => (
-                            <div key={u.id} className="flex items-center justify-between py-1.5 px-3 bg-muted/50 rounded text-sm">
-                              <span>{u.unavailable_date}{u.reason ? ` — ${u.reason}` : ''}</span>
-                              {isAdmin && (
-                                <button className="text-destructive hover:text-destructive/80 ml-2 shrink-0" onClick={() => openConfirm(t('Xoá ngày nghỉ'), t('Xoá ngày nghỉ này?'), () => removeUnavailability.mutate(u.id))}>
-                                  <X className="h-3.5 w-3.5" />
-                                </button>
-                              )}
-                            </div>
-                          ))}
+                        <div className="border-t border-[#E5E5E5]/30 pt-4 mt-4">
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                            {t('Ngày nghỉ')} ({upcoming.length})
+                          </p>
+                          <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-1">
+                            {upcoming.map((u: any) => (
+                              <div key={u.id} className="flex items-center justify-between py-2 px-4 bg-red-50/60 rounded-full text-sm border border-red-100/50">
+                                <span className="text-[13px]">
+                                  <span className="font-medium text-[#1B1B1B]">{format(new Date(`${u.unavailable_date}T00:00:00`), 'dd/MM/yyyy')}</span>
+                                  {u.reason && <span className="text-muted-foreground ml-2">{u.reason}</span>}
+                                </span>
+                                {isAdmin && (
+                                  <AdminOnlyButton variant="ghost" size="icon" className="h-7 w-7 rounded-full text-muted-foreground/40 hover:text-destructive" onClick={() => openConfirm(t('Xoá ngày nghỉ'), t('Xoá ngày nghỉ này?'), () => { removeUnavailability.mutate(u.id); if (viewingUnavailDate && format(viewingUnavailDate, 'yyyy-MM-dd') === u.unavailable_date) setViewingUnavailDate(undefined); })}>
+                                    <X className="h-3.5 w-3.5" />
+                                  </AdminOnlyButton>
+                                )}
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       );
                     })()}
