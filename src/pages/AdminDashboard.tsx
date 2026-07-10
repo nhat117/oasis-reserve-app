@@ -35,6 +35,7 @@ import {
   saleSchema, serviceSchema, therapistSchema, adminBookingSchema,
   membershipTierSchema, discountCodeSchema, holidaySchema, unavailabilitySchema, appSettingSchema,
 } from '@/lib/validation';
+import { computeSaleTotals, computeDiscountedSubtotal, computeTipAmount, TipMethod } from '@/lib/checkoutMath';
 import { useToast } from '@/hooks/use-toast';
 import { Navigate, Link } from 'react-router-dom';
 import { useI18n, LanguageSwitcher } from '@/hooks/useI18n';
@@ -248,6 +249,10 @@ const AdminDashboard = () => {
   const [saleAddOnSearch, setSaleAddOnSearch] = useState('');
   const [saleBookingSearch, setSaleBookingSearch] = useState('');
   const [visibleServiceCount, setVisibleServiceCount] = useState(24);
+  const [saleTherapistId, setSaleTherapistId] = useState('');
+  const [tipMethod, setTipMethod] = useState<TipMethod | null>(null);
+  const [tipPercent, setTipPercent] = useState(15);
+  const [tipCustomAmount, setTipCustomAmount] = useState('');
 
   // Create admin state
   const [newAdminEmail, setNewAdminEmail] = useState('');
@@ -463,7 +468,7 @@ const AdminDashboard = () => {
     queryKey: ['admin-sales'],
     queryFn: async () => {
       const { data, error } = await supabase.from('sales')
-        .select('*, bookings(customer_name, customer_phone, booking_date, start_time, services(name)), is_refunded, sale_items(service_name, price, is_addon)')
+        .select('*, bookings(customer_name, customer_phone, booking_date, start_time, services(name)), is_refunded, sale_items(service_name, price, is_addon), therapists(name)')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data as any[];
@@ -492,15 +497,24 @@ const AdminDashboard = () => {
         const svc = services?.find(s => s.id === id);
         return sum + (svc?.price || 0);
       }, 0);
-      let baseAmount = parseFloat(saleAmount) + addOnTotal;
-      // Apply coupon discount
-      if (saleCouponDiscount) {
-        if (saleCouponDiscount.percent > 0) baseAmount -= baseAmount * (saleCouponDiscount.percent / 100);
-        if (saleCouponDiscount.amount > 0) baseAmount -= saleCouponDiscount.amount;
-        baseAmount = Math.max(0, baseAmount);
-      }
-      const surcharge = salePaymentMethod === 'card' ? baseAmount * (parseFloat(cardSurchargeSetting || '0') / 100) : 0;
-      const totalAmount = baseAmount + surcharge;
+      const baseAmount = parseFloat(saleAmount) + addOnTotal;
+      const selectedBooking = saleType === 'booking' && saleBookingId && saleBookingId !== 'none'
+        ? bookings?.find(b => b.id === saleBookingId)
+        : undefined;
+      const therapistId = selectedBooking?.therapist_id || saleTherapistId || null;
+      const therapistName = selectedBooking
+        ? (selectedBooking as any).therapists?.name || null
+        : therapists?.find(th => th.id === saleTherapistId)?.name || null;
+      const { afterDiscount } = computeDiscountedSubtotal(baseAmount, saleCouponDiscount);
+      const tipAmt = tipMethod ? computeTipAmount(tipMethod, tipMethod === 'percent' ? tipPercent : parseFloat(tipCustomAmount || '0'), afterDiscount) : 0;
+      const totals = computeSaleTotals({
+        baseAmount,
+        coupon: saleCouponDiscount,
+        surchargeRatePercent: parseFloat(cardSurchargeSetting || '0'),
+        applySurcharge: salePaymentMethod === 'card',
+        tipAmount: tipAmt,
+      });
+      const totalAmount = totals.grandTotal;
 
       const vErr = validateForm(saleSchema, {
         amount: totalAmount,
@@ -508,11 +522,16 @@ const AdminDashboard = () => {
         customerPhone: saleCustomerPhone || '',
         notes: saleNotes || '',
         paymentMethod: salePaymentMethod === 'square' ? 'card' : salePaymentMethod,
+        tipAmount: totals.tipAmt,
       });
       if (vErr) throw new Error(vErr);
 
       const payload: any = {
         amount: totalAmount,
+        tip_amount: totals.tipAmt,
+        tip_method: tipMethod || null,
+        therapist_id: therapistId,
+        therapist_name: therapistName,
         payment_method: salePaymentMethod === 'square' ? 'card' : salePaymentMethod,
         notes: saleNotes || null,
         sale_date: format(new Date(), 'yyyy-MM-dd'),
@@ -566,26 +585,39 @@ const AdminDashboard = () => {
           toast({ title: t('Đã gửi đến Square Terminal'), description: t('Khách hàng có thể thanh toán trên máy POS') });
         }
       }
+
+      // Return exactly what was charged/stored so onSuccess prints a receipt that
+      // matches the DB row, even if the cashier changes tip/coupon/add-on state
+      // while this mutation's network calls are still in flight.
+      return {
+        mainServiceName: mainService?.name || '',
+        mainServiceAmount: mainService?.price || 0,
+        addOnDetails: lineItems.filter(i => i.is_addon).map(i => ({ name: i.service_name, price: i.price })),
+        discountAmt: totals.discountAmt,
+        surchargeAmt: totals.surchargeAmt,
+        tipAmt: totals.tipAmt,
+        customerName: saleCustomerName,
+        customerPhone: saleCustomerPhone,
+        paymentMethod: salePaymentMethod,
+        couponCode: saleCouponCode || undefined,
+      };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       logActivity('create_sale', `Amount: ${saleAmount}, Method: ${salePaymentMethod}, Customer: ${saleCustomerName || saleCustomerPhone || 'N/A'}`);
-      // Print receipt if enabled
-      if (printReceiptEnabled) {
-        const svc = services?.find(s => s.id === saleServiceId);
-        const addOnDetails = saleAddOns.map(id => {
-          const a = services?.find(s => s.id === id);
-          return a ? { name: a.name, price: a.price } : { name: '', price: 0 };
-        }).filter(a => a.name);
+      // Print receipt if enabled — uses what mutationFn actually charged/stored,
+      // not live component state (which may have changed while the mutation awaited).
+      if (printReceiptEnabled && result) {
         printReceipt({
-          amount: parseFloat(saleAmount) || 0,
-          customerName: saleCustomerName,
-          customerPhone: saleCustomerPhone,
-          serviceName: svc?.name || '',
-          addOns: addOnDetails,
-          paymentMethod: salePaymentMethod,
-          discount: saleCouponDiscount ? (saleCouponDiscount.discount_amount || 0) : 0,
-          surcharge: 0,
-          coupon: saleCouponCode || undefined,
+          amount: result.mainServiceAmount,
+          customerName: result.customerName,
+          customerPhone: result.customerPhone,
+          serviceName: result.mainServiceName,
+          addOns: result.addOnDetails,
+          paymentMethod: result.paymentMethod,
+          discount: result.discountAmt,
+          surcharge: result.surchargeAmt,
+          tip: result.tipAmt,
+          coupon: result.couponCode,
           date: format(new Date(), 'dd/MM/yyyy HH:mm'),
         });
       }
@@ -605,6 +637,10 @@ const AdminDashboard = () => {
       setSaleCouponDiscount(null);
       setSaleCouponError('');
       setShowSquareCardForm(false);
+      setSaleTherapistId('');
+      setTipMethod(null);
+      setTipPercent(15);
+      setTipCustomAmount('');
       queryClient.invalidateQueries({ queryKey: ['discount-codes'] });
       toast({ title: t('Đã ghi nhận thanh toán') });
     },
@@ -1395,7 +1431,7 @@ const AdminDashboard = () => {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['print-receipt-enabled'] }); toast({ title: t('Đã cập nhật') }); },
   });
 
-  const printReceipt = (sale: { amount: number; customerName: string; customerPhone: string; serviceName: string; addOns: { name: string; price: number }[]; paymentMethod: string; discount?: number; surcharge?: number; coupon?: string; date: string }) => {
+  const printReceipt = (sale: { amount: number; customerName: string; customerPhone: string; serviceName: string; addOns: { name: string; price: number }[]; paymentMethod: string; discount?: number; surcharge?: number; tip?: number; coupon?: string; date: string }) => {
     const win = window.open('about:blank', '_blank');
     if (!win) {
       toast({
@@ -1407,7 +1443,7 @@ const AdminDashboard = () => {
     }
     const esc = escapeHtml;
     const addOnLines = sale.addOns.map(a => `<tr><td style="padding:2px 0">&nbsp;&nbsp;${esc(a.name)}</td><td style="text-align:right;padding:2px 0">A$ ${a.price.toLocaleString()}</td></tr>`).join('');
-    const subtotal = sale.amount + (sale.discount || 0) - (sale.surcharge || 0);
+    const subtotal = sale.amount + (sale.discount || 0) - (sale.surcharge || 0) - (sale.tip || 0);
     win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt</title><style>
       body{font-family:'Courier New',monospace;font-size:12px;width:280px;margin:0 auto;padding:16px;color:#000}
       h2{text-align:center;font-size:14px;margin:0 0 4px}
@@ -1432,6 +1468,7 @@ const AdminDashboard = () => {
         ${addOnLines}
         ${(sale.discount || 0) > 0 ? `<tr><td>${sale.coupon ? `Discount (${esc(sale.coupon)})` : 'Discount'}</td><td class="right" style="color:#16a34a">-A$ ${(sale.discount || 0).toLocaleString()}</td></tr>` : ''}
         ${(sale.surcharge || 0) > 0 ? `<tr><td>Card surcharge</td><td class="right">A$ ${(sale.surcharge || 0).toLocaleString()}</td></tr>` : ''}
+        ${(sale.tip || 0) > 0 ? `<tr><td>Tip</td><td class="right">A$ ${(sale.tip || 0).toLocaleString()}</td></tr>` : ''}
       </table>
       <div class="line"></div>
       <table><tr><td class="total">TOTAL</td><td class="total right">A$ ${sale.amount.toLocaleString()}</td></tr></table>
@@ -2068,6 +2105,24 @@ const AdminDashboard = () => {
   };
 
   const availableSlots = getAvailableTimeSlots();
+
+  // Single source of truth for the checkout panel's tip/discount/surcharge math —
+  // computed once per render and shared by the tip picker, price breakdown, and
+  // charge button so they can never disagree with each other or with createSale.
+  const checkoutTotals = useMemo(() => {
+    const addOnTotal = saleAddOns.reduce((sum, id) => sum + (services?.find(s => s.id === id)?.price || 0), 0);
+    const base = parseFloat(saleAmount || '0') + addOnTotal;
+    const { afterDiscount } = computeDiscountedSubtotal(base, saleCouponDiscount);
+    const tipAmt = tipMethod ? computeTipAmount(tipMethod, tipMethod === 'percent' ? tipPercent : parseFloat(tipCustomAmount || '0'), afterDiscount) : 0;
+    const totals = computeSaleTotals({
+      baseAmount: base,
+      coupon: saleCouponDiscount,
+      surchargeRatePercent: parseFloat(cardSurchargeSetting || '0'),
+      applySurcharge: salePaymentMethod === 'card',
+      tipAmount: tipAmt,
+    });
+    return { addOnTotal, base, tipAmt, ...totals };
+  }, [saleAddOns, services, saleAmount, saleCouponDiscount, tipMethod, tipPercent, tipCustomAmount, cardSurchargeSetting, salePaymentMethod]);
 
   if (loading) return (
     <div className="min-h-screen bg-white flex items-center justify-center">
@@ -2928,6 +2983,20 @@ const AdminDashboard = () => {
                     </div>
                   )}
 
+                  {/* Staff who performed the service — needed for tip/commission attribution on walk-in sales */}
+                  {saleType === 'walkin' && saleServiceId && (
+                    <div className="px-5 py-3 border-b border-[#E5E5E5]/20">
+                      <Select value={saleTherapistId} onValueChange={setSaleTherapistId}>
+                        <SelectTrigger className="h-9 text-sm bg-[#F5F5F5] border-0"><SelectValue placeholder={t('Chọn thợ (tuỳ chọn)')} /></SelectTrigger>
+                        <SelectContent>
+                          {therapists?.filter(th => th.is_active).map(th => (
+                            <SelectItem key={th.id} value={th.id}>{th.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
                   {/* Line items */}
                   <div className="flex-1 px-5 py-4 overflow-y-auto">
                     {saleServiceId ? (
@@ -3014,11 +3083,11 @@ const AdminDashboard = () => {
                         <button type="button" className={cn('flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-medium transition-all', salePaymentMethod === 'card' ? 'bg-[#006AFF] text-white' : 'bg-muted text-muted-foreground hover:bg-muted/80')} onClick={() => setSalePaymentMethod('card')}>
                           <CreditCard className="h-3.5 w-3.5" /> {t('Thẻ')}
                         </button>
-                        {(squareTerminalEnabled || squareOnlineEnabled) && squareSettings?.square_access_token && (
-                          <button type="button" className={cn('flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-medium transition-all', salePaymentMethod === 'square' ? 'bg-[#006AFF] text-white' : 'bg-muted text-muted-foreground hover:bg-muted/80')} onClick={() => { setSalePaymentMethod('square'); setShowSquareCardForm(false); }}>
-                            <Square className="h-3.5 w-3.5" /> Square
-                          </button>
-                        )}
+                        {/* Square checkout is temporarily disabled at the POS — the in-browser
+                            card form charges the pre-tip/pre-discount base amount while the
+                            sale record now includes tips, and the Terminal's own tip prompt can
+                            double-charge on top of a tip already collected here. Re-enable once
+                            both integrations send/reconcile the real totals.amount. */}
                       </div>
 
                       {/* Square sub-options */}
@@ -3062,54 +3131,51 @@ const AdminDashboard = () => {
                         />
                       )}
 
-                      {/* Price breakdown */}
-                      {(() => {
-                        const addOnTotal = saleAddOns.reduce((sum, id) => sum + (services?.find(s => s.id === id)?.price || 0), 0);
-                        let base = parseFloat(saleAmount || '0') + addOnTotal;
-                        let discountAmt = 0;
-                        if (saleCouponDiscount) {
-                          if (saleCouponDiscount.percent > 0) discountAmt += base * (saleCouponDiscount.percent / 100);
-                          if (saleCouponDiscount.amount > 0) discountAmt += saleCouponDiscount.amount;
-                          discountAmt = Math.min(discountAmt, base);
-                        }
-                        const afterDiscount = Math.max(0, base - discountAmt);
-                        const surchargeRate = parseFloat(cardSurchargeSetting || '0');
-                        const surchargeAmt = afterDiscount * surchargeRate / 100;
-                        const grandTotal = afterDiscount + (salePaymentMethod === 'card' ? surchargeAmt : 0);
-                        return base > 0 ? (
-                          <div className="text-sm space-y-1">
-                            {addOnTotal > 0 && <div className="flex justify-between text-muted-foreground"><span>{t('Dịch vụ chính')}</span><span>{formatPrice(parseFloat(saleAmount || '0'))}</span></div>}
-                            {addOnTotal > 0 && <div className="flex justify-between text-muted-foreground"><span>{t('Dịch vụ thêm')}</span><span>+{formatPrice(addOnTotal)}</span></div>}
-                            {discountAmt > 0 && <div className="flex justify-between text-green-700"><span>{t('Giảm giá')}</span><span>-{formatPrice(discountAmt)}</span></div>}
-                            {salePaymentMethod === 'card' && surchargeRate > 0 && <div className="flex justify-between text-muted-foreground"><span>{t('Phụ phí thẻ')} ({surchargeRate}%)</span><span>{formatPrice(surchargeAmt)}</span></div>}
+                      {/* Tip picker */}
+                      {checkoutTotals.base > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Tiền tip')}</p>
+                          <div className="flex gap-1.5">
+                            <button type="button" className={cn('flex-1 py-2 rounded-lg text-xs font-medium transition-all', tipMethod === null ? 'bg-[#006AFF] text-white' : 'bg-muted text-muted-foreground hover:bg-muted/80')} onClick={() => { setTipMethod(null); }}>
+                              {t('Không tip')}
+                            </button>
+                            {[10, 15, 20].map(pct => (
+                              <button key={pct} type="button" className={cn('flex-1 py-2 rounded-lg text-xs font-medium transition-all', tipMethod === 'percent' && tipPercent === pct ? 'bg-[#006AFF] text-white' : 'bg-muted text-muted-foreground hover:bg-muted/80')} onClick={() => { setTipMethod('percent'); setTipPercent(pct); }}>
+                                {pct}%
+                              </button>
+                            ))}
+                            <button type="button" className={cn('flex-1 py-2 rounded-lg text-xs font-medium transition-all', tipMethod === 'custom' ? 'bg-[#006AFF] text-white' : 'bg-muted text-muted-foreground hover:bg-muted/80')} onClick={() => setTipMethod('custom')}>
+                              {t('Khác')}
+                            </button>
                           </div>
-                        ) : null;
-                      })()}
+                          {tipMethod === 'percent' && (
+                            <p className="text-xs text-muted-foreground">{tipPercent}% = {formatPrice(computeTipAmount('percent', tipPercent, checkoutTotals.afterDiscount))}</p>
+                          )}
+                          {tipMethod === 'custom' && (
+                            <Input type="number" min="0" step="0.5" value={tipCustomAmount} onChange={e => setTipCustomAmount(e.target.value)} className="h-9 text-sm bg-[#F5F5F5] border-0" placeholder={t('Số tiền tip')} />
+                          )}
+                        </div>
+                      )}
+
+                      {/* Price breakdown */}
+                      {checkoutTotals.base > 0 && (
+                        <div className="text-sm space-y-1">
+                          {checkoutTotals.addOnTotal > 0 && <div className="flex justify-between text-muted-foreground"><span>{t('Dịch vụ chính')}</span><span>{formatPrice(parseFloat(saleAmount || '0'))}</span></div>}
+                          {checkoutTotals.addOnTotal > 0 && <div className="flex justify-between text-muted-foreground"><span>{t('Dịch vụ thêm')}</span><span>+{formatPrice(checkoutTotals.addOnTotal)}</span></div>}
+                          {checkoutTotals.discountAmt > 0 && <div className="flex justify-between text-green-700"><span>{t('Giảm giá')}</span><span>-{formatPrice(checkoutTotals.discountAmt)}</span></div>}
+                          {checkoutTotals.surchargeAmt > 0 && <div className="flex justify-between text-muted-foreground"><span>{t('Phụ phí thẻ')} ({cardSurchargeSetting}%)</span><span>{formatPrice(checkoutTotals.surchargeAmt)}</span></div>}
+                          {checkoutTotals.tipAmt > 0 && <div className="flex justify-between text-muted-foreground"><span>{t('Tiền tip')}</span><span>+{formatPrice(checkoutTotals.tipAmt)}</span></div>}
+                        </div>
+                      )}
 
                       {/* Charge button */}
-                      {(() => {
-                        const addOnTotal = saleAddOns.reduce((sum, id) => sum + (services?.find(s => s.id === id)?.price || 0), 0);
-                        let base = parseFloat(saleAmount || '0') + addOnTotal;
-                        let discountAmt = 0;
-                        if (saleCouponDiscount) {
-                          if (saleCouponDiscount.percent > 0) discountAmt += base * (saleCouponDiscount.percent / 100);
-                          if (saleCouponDiscount.amount > 0) discountAmt += saleCouponDiscount.amount;
-                          discountAmt = Math.min(discountAmt, base);
-                        }
-                        const afterDiscount = Math.max(0, base - discountAmt);
-                        const surchargeRate = parseFloat(cardSurchargeSetting || '0');
-                        const surchargeAmt = afterDiscount * surchargeRate / 100;
-                        const grandTotal = afterDiscount + (salePaymentMethod === 'card' ? surchargeAmt : 0);
-                        return (
-                          <Button
-                            className="w-full h-14 text-lg font-semibold bg-[#006AFF] hover:bg-[#0055CC] rounded-xl"
-                            onClick={() => createSale.mutate()}
-                            disabled={!saleAmount || parseFloat(saleAmount) <= 0 || createSale.isPending || (salePaymentMethod === 'square' && showSquareCardForm)}
-                          >
-                            {createSale.isPending ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" />{t('Đang xử lý...')}</> : <>{t('Thanh toán')} {grandTotal > 0 ? formatPrice(grandTotal) : ''}</>}
-                          </Button>
-                        );
-                      })()}
+                      <Button
+                        className="w-full h-14 text-lg font-semibold bg-[#006AFF] hover:bg-[#0055CC] rounded-xl"
+                        onClick={() => createSale.mutate()}
+                        disabled={!saleAmount || parseFloat(saleAmount) <= 0 || createSale.isPending || (salePaymentMethod === 'square' && showSquareCardForm)}
+                      >
+                        {createSale.isPending ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" />{t('Đang xử lý...')}</> : <>{t('Thanh toán')} {checkoutTotals.grandTotal > 0 ? formatPrice(checkoutTotals.grandTotal) : ''}</>}
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -3209,6 +3275,7 @@ const AdminDashboard = () => {
                                       paymentMethod: s.payment_method,
                                       discount: 0,
                                       surcharge: 0,
+                                      tip: Number(s.tip_amount || 0),
                                       coupon: undefined,
                                       date: s.sale_date,
                                     })}>
@@ -3309,6 +3376,7 @@ const AdminDashboard = () => {
                                         paymentMethod: s.payment_method,
                                         discount: 0,
                                         surcharge: 0,
+                                        tip: Number(s.tip_amount || 0),
                                         coupon: undefined,
                                         date: s.sale_date,
                                       })}>
@@ -3381,6 +3449,13 @@ const AdminDashboard = () => {
                         </Table>
                       </div>
 
+                      {Number(s.tip_amount || 0) > 0 && (
+                        <div className="flex items-center justify-between text-sm px-1">
+                          <span className="text-muted-foreground">{t('Tiền tip')}</span>
+                          <span className="font-medium">{formatPrice(Number(s.tip_amount))}</span>
+                        </div>
+                      )}
+
                       <div className="grid grid-cols-3 gap-3 text-sm">
                         <div>
                           <p className="text-xs text-muted-foreground">{t('Ngày')}</p>
@@ -3395,6 +3470,12 @@ const AdminDashboard = () => {
                           <p className="font-medium mt-0.5">{s.is_refunded ? t('Đã hoàn tiền') : t('Đã thanh toán')}</p>
                         </div>
                       </div>
+                      {(s.therapists?.name || s.therapist_name) && (
+                        <div>
+                          <p className="text-xs text-muted-foreground">{t('Thợ')}</p>
+                          <p className="text-sm font-medium mt-0.5">{s.therapists?.name || s.therapist_name}</p>
+                        </div>
+                      )}
                       {s.notes && (
                         <div>
                           <p className="text-xs text-muted-foreground">{t('Ghi chú')}</p>
@@ -3416,6 +3497,7 @@ const AdminDashboard = () => {
                               paymentMethod: s.payment_method,
                               discount: 0,
                               surcharge: 0,
+                              tip: Number(s.tip_amount || 0),
                               coupon: undefined,
                               date: s.sale_date,
                             })}

@@ -175,7 +175,7 @@ export type Database = {
           key_version: number
           previous_value: string | null
           rotated_at: string | null
-          tenant_id: string | null
+          tenant_id: string
           updated_at: string
           value: string
         }
@@ -185,7 +185,7 @@ export type Database = {
           key_version?: number
           previous_value?: string | null
           rotated_at?: string | null
-          tenant_id?: string | null
+          tenant_id: string
           updated_at?: string
           value: string
         }
@@ -195,7 +195,7 @@ export type Database = {
           key_version?: number
           previous_value?: string | null
           rotated_at?: string | null
-          tenant_id?: string | null
+          tenant_id?: string
           updated_at?: string
           value?: string
         }
@@ -1279,6 +1279,61 @@ export type Database = {
         }
         Relationships: []
       }
+      sale_items: {
+        Row: {
+          created_at: string
+          id: string
+          is_addon: boolean
+          price: number
+          sale_id: string
+          service_id: string | null
+          service_name: string
+          tenant_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_addon?: boolean
+          price?: number
+          sale_id: string
+          service_id?: string | null
+          service_name: string
+          tenant_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_addon?: boolean
+          price?: number
+          sale_id?: string
+          service_id?: string | null
+          service_name?: string
+          tenant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sale_items_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_items_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_items_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sales: {
         Row: {
           amount: number
@@ -1294,6 +1349,10 @@ export type Database = {
           payment_provider: string | null
           sale_date: string
           tenant_id: string | null
+          therapist_id: string | null
+          therapist_name: string | null
+          tip_amount: number
+          tip_method: string | null
           updated_at: string
         }
         Insert: {
@@ -1310,6 +1369,10 @@ export type Database = {
           payment_provider?: string | null
           sale_date?: string
           tenant_id?: string | null
+          therapist_id?: string | null
+          therapist_name?: string | null
+          tip_amount?: number
+          tip_method?: string | null
           updated_at?: string
         }
         Update: {
@@ -1326,6 +1389,10 @@ export type Database = {
           payment_provider?: string | null
           sale_date?: string
           tenant_id?: string | null
+          therapist_id?: string | null
+          therapist_name?: string | null
+          tip_amount?: number
+          tip_method?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1343,42 +1410,61 @@ export type Database = {
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "sales_therapist_id_fkey"
+            columns: ["therapist_id"]
+            isOneToOne: false
+            referencedRelation: "therapists"
+            referencedColumns: ["id"]
+          },
         ]
       }
       services: {
         Row: {
+          category: string | null
           created_at: string
           description: string | null
+          disclaimer: string | null
           duration_minutes: number
           id: string
           image_path: string | null
           is_active: boolean
           name: string
           price: number
+          price_label: string | null
+          sort_order: number
           tenant_id: string | null
           updated_at: string
         }
         Insert: {
+          category?: string | null
           created_at?: string
           description?: string | null
+          disclaimer?: string | null
           duration_minutes?: number
           id?: string
           image_path?: string | null
           is_active?: boolean
           name: string
           price?: number
+          price_label?: string | null
+          sort_order?: number
           tenant_id?: string | null
           updated_at?: string
         }
         Update: {
+          category?: string | null
           created_at?: string
           description?: string | null
+          disclaimer?: string | null
           duration_minutes?: number
           id?: string
           image_path?: string | null
           is_active?: boolean
           name?: string
           price?: number
+          price_label?: string | null
+          sort_order?: number
           tenant_id?: string | null
           updated_at?: string
         }

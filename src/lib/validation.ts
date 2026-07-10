@@ -91,6 +91,7 @@ export const saleSchema = z.object({
   customerPhone: optionalPhone,
   notes: optionalSafeText('Notes', 500),
   paymentMethod: z.enum(['cash', 'card', 'stripe', 'square']),
+  tipAmount: z.number().min(0, 'Tip cannot be negative').max(10000, 'Tip too high').optional(),
 });
 
 export const membershipTierSchema = z.object({

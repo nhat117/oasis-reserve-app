@@ -5,6 +5,8 @@ type Sale = {
   id: string;
   booking_id: string | null;
   amount: number;
+  tip_amount?: number | null;
+  therapist_name?: string | null;
   payment_method: string;
   payment_provider: string | null;
   external_payment_id: string | null;
@@ -21,6 +23,7 @@ type Sale = {
     start_time: string | null;
     services?: { name: string | null } | null;
   } | null;
+  therapists?: { name: string | null } | null;
 };
 
 type Booking = {
@@ -101,7 +104,9 @@ function buildSalesSheet(workbook: ExcelJS.Workbook, sales: Sale[]) {
     { key: 'customer_name', width: 24 },
     { key: 'customer_phone', width: 16 },
     { key: 'service', width: 28 },
+    { key: 'staff', width: 20 },
     { key: 'amount', width: 14 },
+    { key: 'tip_amount', width: 12 },
     { key: 'payment_method', width: 16 },
     { key: 'payment_provider', width: 16 },
     { key: 'external_payment_id', width: 22 },
@@ -115,7 +120,9 @@ function buildSalesSheet(workbook: ExcelJS.Workbook, sales: Sale[]) {
     customer_name: 'Customer Name',
     customer_phone: 'Customer Phone',
     service: 'Service',
+    staff: 'Staff',
     amount: 'Amount',
+    tip_amount: 'Tip',
     payment_method: 'Payment Method',
     payment_provider: 'Payment Provider',
     external_payment_id: 'Payment Reference',
@@ -125,6 +132,7 @@ function buildSalesSheet(workbook: ExcelJS.Workbook, sales: Sale[]) {
   });
 
   let totalAmount = 0;
+  let totalTips = 0;
   let totalRefunded = 0;
 
   for (const s of sales) {
@@ -132,7 +140,9 @@ function buildSalesSheet(workbook: ExcelJS.Workbook, sales: Sale[]) {
     const customerPhone = s.customer_phone || s.bookings?.customer_phone || '';
     const serviceName = s.bookings?.services?.name || '';
     const amount = Number(s.amount) || 0;
+    const tipAmount = Number(s.tip_amount) || 0;
     totalAmount += amount;
+    totalTips += tipAmount;
     if (s.is_refunded) totalRefunded += amount;
 
     const row = sheet.addRow({
@@ -140,7 +150,9 @@ function buildSalesSheet(workbook: ExcelJS.Workbook, sales: Sale[]) {
       customer_name: customerName,
       customer_phone: customerPhone,
       service: serviceName,
+      staff: s.therapists?.name || s.therapist_name || '',
       amount,
+      tip_amount: tipAmount,
       payment_method: s.payment_method,
       payment_provider: s.payment_provider || '',
       external_payment_id: s.external_payment_id || '',
@@ -151,6 +163,7 @@ function buildSalesSheet(workbook: ExcelJS.Workbook, sales: Sale[]) {
 
     row.getCell('sale_date').numFmt = DATE_FORMAT;
     row.getCell('amount').numFmt = CURRENCY_FORMAT;
+    row.getCell('tip_amount').numFmt = CURRENCY_FORMAT;
     row.getCell('created_at').numFmt = 'dd/mm/yyyy hh:mm';
     if (s.is_refunded) {
       row.getCell('is_refunded').font = { color: { argb: 'FFB91C1C' }, bold: true };
@@ -163,7 +176,9 @@ function buildSalesSheet(workbook: ExcelJS.Workbook, sales: Sale[]) {
     customer_name: '',
     customer_phone: '',
     service: 'TOTAL',
+    staff: '',
     amount: totalAmount,
+    tip_amount: totalTips,
     payment_method: '',
     payment_provider: '',
     external_payment_id: '',
@@ -174,10 +189,12 @@ function buildSalesSheet(workbook: ExcelJS.Workbook, sales: Sale[]) {
   totalRow.font = { bold: true };
   totalRow.getCell('amount').numFmt = CURRENCY_FORMAT;
   totalRow.getCell('amount').border = { top: { style: 'thin' } };
+  totalRow.getCell('tip_amount').numFmt = CURRENCY_FORMAT;
+  totalRow.getCell('tip_amount').border = { top: { style: 'thin' } };
   totalRow.getCell('service').border = { top: { style: 'thin' } };
 
   styleHeaderRow(sheet);
-  sheet.autoFilter = { from: 'A1', to: `K${sales.length + 1}` };
+  sheet.autoFilter = { from: 'A1', to: `M${sales.length + 1}` };
 }
 
 function buildBookingsSheet(workbook: ExcelJS.Workbook, bookings: Booking[]) {
@@ -332,6 +349,7 @@ function buildSummarySheet(
   subtitle.font = { italic: true, color: { argb: 'FF666666' } };
 
   const totalRevenue = sales.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+  const totalTips = sales.reduce((sum, s) => sum + (Number(s.tip_amount) || 0), 0);
   const totalRefunded = sales.filter((s) => s.is_refunded).reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
   const netRevenue = totalRevenue - totalRefunded;
   const completedBookings = bookings.filter((b) => b.status === 'completed').length;
@@ -348,6 +366,7 @@ function buildSummarySheet(
     ['', ''],
     ['Total Sales Transactions', sales.length],
     ['Gross Revenue', totalRevenue],
+    ['Total Tips', totalTips],
     ['Refunded Amount', totalRefunded],
     ['Net Revenue', netRevenue],
     ['', ''],
@@ -364,7 +383,7 @@ function buildSummarySheet(
     labelCell.value = label;
     valueCell.value = value;
     if (label) labelCell.font = { bold: true };
-    if (typeof value === 'number' && (label.includes('Revenue') || label.includes('Refunded'))) {
+    if (typeof value === 'number' && (label.includes('Revenue') || label.includes('Refunded') || label.includes('Tips'))) {
       valueCell.numFmt = CURRENCY_FORMAT;
     }
     r++;

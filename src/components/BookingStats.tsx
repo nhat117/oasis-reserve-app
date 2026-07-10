@@ -60,7 +60,7 @@ export function BookingStats({ className }: StatsProps) {
     queryKey: ['stats-sales'],
     queryFn: async () => {
       const { data, error } = await supabase.from('sales')
-        .select('*')
+        .select('*, therapists(name)')
         .order('sale_date', { ascending: false });
       if (error) throw error;
       return data;
@@ -83,6 +83,7 @@ export function BookingStats({ className }: StatsProps) {
 
     const rangeSales = (sales || []).filter(s => s.sale_date >= fromStr && s.sale_date <= toStr);
     const rangeRevenue = rangeSales.reduce((s, sale) => s + Number(sale.amount), 0);
+    const rangeTips = rangeSales.reduce((s, sale) => s + Number((sale as any).tip_amount || 0), 0);
     const rangeBookingValue = rangeBookings.reduce((s, b) => s + ((b as any).services?.price || 0), 0);
 
     // Previous period for comparison
@@ -176,6 +177,19 @@ export function BookingStats({ className }: StatsProps) {
     });
     const topTeam = Object.values(therapistRevenue).sort((a, b) => b.revenue - a.revenue);
 
+    // Tips by therapist for the selected range — sales.therapist_id direct link,
+    // so this includes walk-in POS sales too (unlike topTeam, which is booking-only).
+    const tipsByTherapist: Record<string, { name: string; tips: number }> = {};
+    rangeSales.forEach(s => {
+      const tip = Number((s as any).tip_amount || 0);
+      if (tip <= 0 || !(s as any).therapist_id) return;
+      const id = (s as any).therapist_id;
+      const name = (s as any).therapists?.name || (s as any).therapist_name || 'Unknown';
+      if (!tipsByTherapist[id]) tipsByTherapist[id] = { name, tips: 0 };
+      tipsByTherapist[id].tips += tip;
+    });
+    const topTips = Object.values(tipsByTherapist).sort((a, b) => b.tips - a.tips);
+
     // Attendance / Show rate stats
     const rangeCompleted = completed.filter(b => b.booking_date >= fromStr && b.booking_date <= toStr);
     const rangeNoShow = noShow.filter(b => b.booking_date >= fromStr && b.booking_date <= toStr);
@@ -191,6 +205,7 @@ export function BookingStats({ className }: StatsProps) {
 
     return {
       rangeRevenue,
+      rangeTips,
       rangeCount: rangeBookings.length,
       rangeValue: rangeBookingValue,
       revenueTrend,
@@ -204,6 +219,7 @@ export function BookingStats({ className }: StatsProps) {
       todayRevenue,
       topServices,
       topTeam,
+      topTips,
       showRate,
       noShowRate,
       showRateTrend,
@@ -328,7 +344,7 @@ export function BookingStats({ className }: StatsProps) {
             label: t('Doanh thu'),
             value: formatPrice(stats.rangeRevenue),
             trend: stats.revenueTrend,
-            sub: t(rangeLabel),
+            sub: stats.rangeTips > 0 ? `${t(rangeLabel)} · ${t('Tiền tip')}: ${formatPrice(stats.rangeTips)}` : t(rangeLabel),
           },
           {
             icon: CalendarCheck,
@@ -681,6 +697,29 @@ export function BookingStats({ className }: StatsProps) {
               )}
             </CardContent>
           </Card>
+
+          {/* Tips by staff — sourced from sales.tip_amount/therapist_id, so walk-in
+              POS sales count too (topTeam above only covers booking-linked revenue) */}
+          {stats.topTips.length > 0 && (
+            <Card className="card-hover border-border/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-medium flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-primary/60" />
+                  {t('Tiền tip theo thợ')}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2.5">
+                  {stats.topTips.map((tm, i) => (
+                    <div key={i} className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-foreground">{tm.name}</p>
+                      <span className="text-sm font-semibold tabular-nums text-foreground">{formatPrice(tm.tips)}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>
