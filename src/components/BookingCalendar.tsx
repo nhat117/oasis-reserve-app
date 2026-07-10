@@ -30,8 +30,15 @@ export interface Booking {
   total_amount?: number | null;
 }
 
+export interface ShopHoliday {
+  holiday_date: string;
+  early_close_hour?: number | null;
+  reason?: string | null;
+}
+
 interface BookingCalendarProps {
   bookings: Booking[];
+  holidays?: ShopHoliday[];
   onCancel: (id: string) => void;
   onDelete?: (id: string) => void;
   onRefund?: (id: string) => void;
@@ -46,7 +53,7 @@ const THERAPIST_COLORS = [
   '#8b5cf6', '#06b6d4', '#ec4899', '#f97316',
 ];
 
-export function BookingCalendar({ bookings, onCancel, onDelete, onRefund, onMarkCompleted, onMarkNoShow, onReschedule, onDateSelect }: BookingCalendarProps) {
+export function BookingCalendar({ bookings, holidays = [], onCancel, onDelete, onRefund, onMarkCompleted, onMarkNoShow, onReschedule, onDateSelect }: BookingCalendarProps) {
   const { t, lang } = useI18n();
   const calendarRef = useRef<FullCalendar>(null);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
@@ -66,7 +73,7 @@ export function BookingCalendar({ bookings, onCancel, onDelete, onRefund, onMark
   }, [bookings]);
 
   // Convert bookings to FullCalendar events
-  const events = useMemo(() => {
+  const bookingEvents = useMemo(() => {
     return bookings.map(b => {
       const color = therapistColorMap[b.therapist_id] || THERAPIST_COLORS[0];
       const isCancelled = b.status === 'cancelled';
@@ -84,6 +91,25 @@ export function BookingCalendar({ bookings, onCancel, onDelete, onRefund, onMark
       };
     });
   }, [bookings, therapistColorMap]);
+
+  // Shop closed / early-close days shown as all-day markers
+  const holidayEvents = useMemo(() => {
+    return holidays.map(h => {
+      const isFullDayOff = !h.early_close_hour;
+      return {
+        id: `holiday-${h.holiday_date}`,
+        title: isFullDayOff ? t('Nghỉ cả ngày') : `${t('Đóng cửa lúc')} ${h.early_close_hour}:00`,
+        start: h.holiday_date,
+        allDay: true,
+        display: 'list-item',
+        editable: false,
+        color: isFullDayOff ? '#ef4444' : '#f59e0b',
+        extendedProps: { isHoliday: true },
+      };
+    });
+  }, [holidays, t]);
+
+  const events = useMemo(() => [...holidayEvents, ...bookingEvents], [holidayEvents, bookingEvents]);
 
   // Handle event drop (drag and drop reschedule)
   const handleEventDrop = (info: EventDropArg) => {
@@ -105,6 +131,7 @@ export function BookingCalendar({ bookings, onCancel, onDelete, onRefund, onMark
 
   // Handle event click
   const handleEventClick = (info: EventClickArg) => {
+    if (info.event.extendedProps.isHoliday) return;
     const booking = info.event.extendedProps.booking as Booking;
     setSelectedBooking(booking);
     setDialogOpen(true);

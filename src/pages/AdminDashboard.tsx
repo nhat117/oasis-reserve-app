@@ -2697,6 +2697,7 @@ const AdminDashboard = () => {
               <div className="rounded-xl border border-[#E5E5E5]/40 bg-white overflow-hidden">
                 <BookingCalendar
                   bookings={(bookings as any) || []}
+                  holidays={(shopHolidays as any) || []}
                   onCancel={(id) => cancelBooking.mutate(id)}
                   onDelete={isAdmin ? (id) => openConfirm(t('Xoá lịch hẹn'), t('Bạn có chắc muốn xoá lịch hẹn này? Dữ liệu thanh toán liên quan cũng sẽ bị xoá.'), () => deleteBooking.mutate(id)) : undefined}
                   onMarkCompleted={(id) => updateBookingStatus.mutate({ id, status: 'completed' })}
