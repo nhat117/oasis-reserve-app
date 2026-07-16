@@ -3,11 +3,15 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { EventClickArg, EventDropArg, DateSelectArg } from '@fullcalendar/core';
+import { EventClickArg, EventDropArg, DateSelectArg, MoreLinkArg } from '@fullcalendar/core';
 import { format } from 'date-fns';
+import { vi as viLocale, enAU as enLocale } from 'date-fns/locale';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/hooks/useI18n';
 
@@ -58,11 +62,16 @@ export function BookingCalendar({ bookings, holidays = [], onCancel, onDelete, o
   const calendarRef = useRef<FullCalendar>(null);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [dayDrawerDate, setDayDrawerDate] = useState<Date | null>(null);
+  const [dayDrawerOpen, setDayDrawerOpen] = useState(false);
 
   const statusLabel = (status: string) => {
     const map: Record<string, string> = { confirmed: t('Đã xác nhận'), cancelled: t('Đã huỷ'), completed: t('Hoàn thành'), no_show: t('Không đến') };
     return map[status] || status;
   };
+
+  const statusVariant = (status: string): 'default' | 'destructive' | 'outline' | 'secondary' =>
+    status === 'confirmed' ? 'default' : status === 'cancelled' ? 'destructive' : status === 'no_show' ? 'outline' : 'secondary';
 
   // Build therapist color map
   const therapistColorMap = useMemo(() => {
@@ -152,6 +161,38 @@ export function BookingCalendar({ bookings, holidays = [], onCancel, onDelete, o
     calApi?.unselect();
   };
 
+  // Bookings for the day drawer, sorted by start time
+  const dayDrawerBookings = useMemo(() => {
+    if (!dayDrawerDate) return [];
+    const dateStr = format(dayDrawerDate, 'yyyy-MM-dd');
+    return bookings
+      .filter(b => b.booking_date === dateStr)
+      .sort((a, b) => a.start_time.localeCompare(b.start_time));
+  }, [bookings, dayDrawerDate]);
+
+  const openDayDrawer = (date: Date) => {
+    setDayDrawerDate(date);
+    setDayDrawerOpen(true);
+  };
+
+  // "+N more" link click — open the day drawer instead of FullCalendar's built-in popover
+  const handleMoreLinkClick = (info: MoreLinkArg) => {
+    openDayDrawer(info.date);
+    return 'popover-disabled';
+  };
+
+  const handleDayDrawerBookingClick = (booking: Booking) => {
+    setDayDrawerOpen(false);
+    setSelectedBooking(booking);
+    setDialogOpen(true);
+  };
+
+  const handleDayDrawerNewBooking = () => {
+    if (!dayDrawerDate || !onDateSelect) return;
+    setDayDrawerOpen(false);
+    onDateSelect(format(dayDrawerDate, 'yyyy-MM-dd'));
+  };
+
   // Legend
   const uniqueTherapists = useMemo(() => {
     return [...new Map(
@@ -202,6 +243,7 @@ export function BookingCalendar({ bookings, holidays = [], onCancel, onDelete, o
           slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
           height="calc(100vh - 280px)"
           dayMaxEvents={3}
+          moreLinkClick={handleMoreLinkClick}
           nowIndicator={true}
           eventResizableFromStart={false}
           buttonText={{
@@ -301,6 +343,58 @@ export function BookingCalendar({ bookings, holidays = [], onCancel, onDelete, o
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Day Drawer — full appointment list for a day, replaces FullCalendar's built-in "+N more" popover */}
+      <Sheet open={dayDrawerOpen} onOpenChange={setDayDrawerOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-[400px] p-0 flex flex-col">
+          <SheetHeader className="p-6 pb-4 border-b">
+            <SheetTitle>
+              {dayDrawerDate && format(dayDrawerDate, 'EEEE, d MMMM yyyy', { locale: lang === 'vi' ? viLocale : enLocale })}
+            </SheetTitle>
+            <p className="text-sm text-muted-foreground">
+              {dayDrawerBookings.length} {t('lịch hẹn')}
+            </p>
+          </SheetHeader>
+
+          <ScrollArea className="flex-1">
+            <div className="p-4 space-y-2">
+              {dayDrawerBookings.length === 0 && (
+                <p className="text-sm text-muted-foreground py-8 text-center">{t('Không có lịch hẹn')}</p>
+              )}
+              {dayDrawerBookings.map(b => (
+                <button
+                  key={b.id}
+                  type="button"
+                  onClick={() => handleDayDrawerBookingClick(b)}
+                  className={cn(
+                    'w-full flex items-start gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-muted/60',
+                    b.status === 'cancelled' && 'opacity-60',
+                  )}
+                >
+                  <span className="w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0" style={{ backgroundColor: therapistColorMap[b.therapist_id] }} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold">{b.start_time?.slice(0, 5)} – {b.end_time?.slice(0, 5)}</span>
+                      <Badge variant={statusVariant(b.status)} className="text-[10px]">{statusLabel(b.status)}</Badge>
+                    </div>
+                    <p className={cn('text-sm font-medium truncate', b.status === 'cancelled' && 'line-through')}>{b.customer_name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{b.services?.name} · {b.therapists?.name}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </ScrollArea>
+
+          {onDateSelect && (
+            <div className="p-4 border-t">
+              <Button className="w-full" onClick={handleDayDrawerNewBooking}>
+                <Plus className="h-4 w-4 mr-1.5" />
+                {t('Tạo lịch hẹn mới')}
+              </Button>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
