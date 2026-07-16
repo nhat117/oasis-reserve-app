@@ -9,11 +9,16 @@ export interface CouponDiscount {
 
 export type TipMethod = 'percent' | 'fixed' | 'custom';
 
+export interface CartLine {
+  price: number;
+}
+
 export interface SaleTotalsInput {
   baseAmount: number; // main service + add-ons, before discount
   coupon?: CouponDiscount | null;
   surchargeRatePercent: number;
   applySurcharge: boolean;
+  taxRatePercent?: number;
   tipAmount?: number;
 }
 
@@ -22,8 +27,16 @@ export interface SaleTotals {
   discountAmt: number;
   afterDiscount: number;
   surchargeAmt: number;
+  taxAmt: number;
   tipAmt: number;
   grandTotal: number;
+}
+
+// Sums cart line prices (main service + add-on services + products) into a single
+// baseAmount, so the checkout UI and createSale can't independently reduce the cart
+// and drift apart on what's actually being charged.
+export function computeBaseAmount(lines: CartLine[]): number {
+  return lines.reduce((sum, l) => sum + (l.price || 0), 0);
 }
 
 export function computeDiscountedSubtotal(base: number, coupon?: CouponDiscount | null): { discountAmt: number; afterDiscount: number } {
@@ -36,13 +49,14 @@ export function computeDiscountedSubtotal(base: number, coupon?: CouponDiscount 
   return { discountAmt, afterDiscount: Math.max(0, base - discountAmt) };
 }
 
-export function computeSaleTotals({ baseAmount, coupon, surchargeRatePercent, applySurcharge, tipAmount }: SaleTotalsInput): SaleTotals {
+export function computeSaleTotals({ baseAmount, coupon, surchargeRatePercent, applySurcharge, taxRatePercent, tipAmount }: SaleTotalsInput): SaleTotals {
   const base = baseAmount;
   const { discountAmt, afterDiscount } = computeDiscountedSubtotal(base, coupon);
   const surchargeAmt = applySurcharge ? afterDiscount * (surchargeRatePercent / 100) : 0;
+  const taxAmt = afterDiscount * ((taxRatePercent || 0) / 100);
   const tipAmt = Math.max(0, tipAmount || 0);
-  const grandTotal = afterDiscount + surchargeAmt + tipAmt;
-  return { base, discountAmt, afterDiscount, surchargeAmt, tipAmt, grandTotal };
+  const grandTotal = afterDiscount + surchargeAmt + taxAmt + tipAmt;
+  return { base, discountAmt, afterDiscount, surchargeAmt, taxAmt, tipAmt, grandTotal };
 }
 
 // Tip amount for a given method — percent tips are computed off the

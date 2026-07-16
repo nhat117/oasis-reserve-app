@@ -1255,6 +1255,50 @@ export type Database = {
           },
         ]
       }
+      products: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          image_path: string | null
+          is_active: boolean
+          name: string
+          price: number
+          tenant_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_path?: string | null
+          is_active?: boolean
+          name: string
+          price?: number
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_path?: string | null
+          is_active?: boolean
+          name?: string
+          price?: number
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rate_limits: {
         Row: {
           created_at: string
@@ -1284,7 +1328,9 @@ export type Database = {
           created_at: string
           id: string
           is_addon: boolean
+          item_type: string
           price: number
+          product_id: string | null
           sale_id: string
           service_id: string | null
           service_name: string
@@ -1294,7 +1340,9 @@ export type Database = {
           created_at?: string
           id?: string
           is_addon?: boolean
+          item_type?: string
           price?: number
+          product_id?: string | null
           sale_id: string
           service_id?: string | null
           service_name: string
@@ -1304,7 +1352,9 @@ export type Database = {
           created_at?: string
           id?: string
           is_addon?: boolean
+          item_type?: string
           price?: number
+          product_id?: string | null
           sale_id?: string
           service_id?: string | null
           service_name?: string
@@ -1316,6 +1366,13 @@ export type Database = {
             columns: ["sale_id"]
             isOneToOne: false
             referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
           {
@@ -1348,6 +1405,9 @@ export type Database = {
           payment_method: string
           payment_provider: string | null
           sale_date: string
+          tax_amount: number
+          tax_label: string
+          tax_rate_percent: number
           tenant_id: string | null
           therapist_id: string | null
           therapist_name: string | null
@@ -1368,6 +1428,9 @@ export type Database = {
           payment_method?: string
           payment_provider?: string | null
           sale_date?: string
+          tax_amount?: number
+          tax_label?: string
+          tax_rate_percent?: number
           tenant_id?: string | null
           therapist_id?: string | null
           therapist_name?: string | null
@@ -1388,6 +1451,9 @@ export type Database = {
           payment_method?: string
           payment_provider?: string | null
           sale_date?: string
+          tax_amount?: number
+          tax_label?: string
+          tax_rate_percent?: number
           tenant_id?: string | null
           therapist_id?: string | null
           therapist_name?: string | null

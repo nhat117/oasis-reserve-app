@@ -57,6 +57,7 @@ function buildReport(overrides: Partial<Parameters<typeof exportBusinessReport>[
     sales: [],
     bookings: [],
     services: [],
+    products: [],
     therapists: [],
     range: RANGE,
     ...overrides,

@@ -18,7 +18,7 @@ import { LogoUpload as LogoUploadComponent } from '@/components/LogoUpload';
 import { Textarea } from '@/components/ui/textarea';
 import { TipTapEditor } from '@/components/TipTapEditor';
 import { BookingStats } from '@/components/BookingStats';
-import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone, CreditCard, Square, RotateCcw, BookOpen, ScrollText, Eye, Clock, Check, Bot, FileSpreadsheet, Printer, History } from 'lucide-react';
+import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone, CreditCard, Square, RotateCcw, BookOpen, ScrollText, Eye, Clock, Check, Bot, FileSpreadsheet, Printer, History, Bug, ShoppingBag } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ALL_I18N_KEYS } from '@/lib/i18n-keys';
 import { Switch } from '@/components/ui/switch';
@@ -32,10 +32,11 @@ import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear } f
 import { cn } from '@/lib/utils';
 import {
   escapeHtml, validateForm,
-  saleSchema, serviceSchema, therapistSchema, adminBookingSchema,
+  saleSchema, serviceSchema, productSchema, therapistSchema, adminBookingSchema,
   membershipTierSchema, discountCodeSchema, holidaySchema, unavailabilitySchema, appSettingSchema,
 } from '@/lib/validation';
-import { computeSaleTotals, computeDiscountedSubtotal, computeTipAmount, TipMethod } from '@/lib/checkoutMath';
+import { computeSaleTotals, computeDiscountedSubtotal, computeTipAmount, computeBaseAmount, TipMethod } from '@/lib/checkoutMath';
+import { EMPLOYEE_TABS, EmployeeTab, filterVisibleTabs, resolveActiveTab } from '@/lib/employeeTabs';
 import { useToast } from '@/hooks/use-toast';
 import { Navigate, Link } from 'react-router-dom';
 import { useI18n, LanguageSwitcher } from '@/hooks/useI18n';
@@ -93,6 +94,10 @@ const AdminDashboard = () => {
   // helper so writes never collide with another tenant's row for the same key.
   const upsertSetting = (key: string, value: string) =>
     supabase.from('app_settings').upsert({ key, value, tenant_id: TENANT_ID }, { onConflict: 'tenant_id,key' });
+
+  // Resolves the configured tax type into its display label — "Custom" falls back
+  // to the free-text label the tenant typed, or the literal word "Custom" if blank.
+  const resolveTaxLabel = (type: string, customLabel: string) => type === 'Custom' ? (customLabel.trim() || 'Custom') : type;
 
   // Onboarding: show only once for new admin accounts
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -231,7 +236,8 @@ const AdminDashboard = () => {
   // Sales form state
   const [saleDialog, setSaleDialog] = useState(false);
   const [saleType, setSaleType] = useState<'booking' | 'walkin'>('booking');
-  const [posTab, setPosTab] = useState<'appointments' | 'library'>('appointments');
+  const [posTab, setPosTab] = useState<'appointments' | 'library' | 'products'>('appointments');
+  const [saleProductSearch, setSaleProductSearch] = useState('');
   const [saleBookingId, setSaleBookingId] = useState('');
   const [saleServiceId, setSaleServiceId] = useState('');
   const [saleCustomerName, setSaleCustomerName] = useState('');
@@ -312,9 +318,25 @@ const AdminDashboard = () => {
   // Card surcharge state
   const [cardSurchargePercent, setCardSurchargePercent] = useState('0');
 
+  // Tax rate state
+  const [taxRatePercent, setTaxRatePercent] = useState('0');
+  const [taxType, setTaxType] = useState('GST');
+  const [taxTypeCustomLabel, setTaxTypeCustomLabel] = useState('');
+
+  // Products admin CRUD state — mirrors service* state below
+  const [productDialog, setProductDialog] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [productName, setProductName] = useState('');
+  const [productDesc, setProductDesc] = useState('');
+  const [productPrice, setProductPrice] = useState('0');
+  const [productImageFile, setProductImageFile] = useState<File | null>(null);
+  const [productImagePreview, setProductImagePreview] = useState<string | null>(null);
+  const productImageRef = useRef<HTMLInputElement>(null);
+
+  // Checkout product picker — products have no "primary" slot, always additive
+  const [saleProductIds, setSaleProductIds] = useState<string[]>([]);
+
   // Employee visible tabs — default all visible
-  const EMPLOYEE_TABS = ['stats', 'bookings', 'customers', 'sales', 'payment_history', 'services', 'therapists', 'inbox'] as const;
-  type EmployeeTab = typeof EMPLOYEE_TABS[number];
   const [employeeVisibleTabs, setEmployeeVisibleTabs] = useState<EmployeeTab[]>([...EMPLOYEE_TABS]);
 
   // Sales filter state
@@ -454,6 +476,15 @@ const AdminDashboard = () => {
     },
   });
 
+  const { data: products } = useQuery({
+    queryKey: ['admin-products'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('products').select('*').order('created_at');
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const { data: therapists } = useQuery({
     queryKey: ['admin-therapists'],
     queryFn: async () => {
@@ -468,7 +499,7 @@ const AdminDashboard = () => {
     queryKey: ['admin-sales'],
     queryFn: async () => {
       const { data, error } = await supabase.from('sales')
-        .select('*, bookings(customer_name, customer_phone, booking_date, start_time, services(name)), is_refunded, sale_items(service_name, price, is_addon), therapists(name)')
+        .select('*, bookings(customer_name, customer_phone, booking_date, start_time, services(name)), is_refunded, sale_items(service_name, price, is_addon, item_type), therapists(name)')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data as any[];
@@ -493,11 +524,15 @@ const AdminDashboard = () => {
 
   const createSale = useMutation({
     mutationFn: async () => {
-      const addOnTotal = saleAddOns.reduce((sum, id) => {
-        const svc = services?.find(s => s.id === id);
-        return sum + (svc?.price || 0);
-      }, 0);
-      const baseAmount = parseFloat(saleAmount) + addOnTotal;
+      const mainService = services?.find(sv => sv.id === saleServiceId);
+      const addOnServices = saleAddOns.map(id => services?.find(sv => sv.id === id)).filter((s): s is NonNullable<typeof s> => !!s);
+      const saleProducts = saleProductIds.map(id => products?.find(pr => pr.id === id)).filter((p): p is NonNullable<typeof p> => !!p);
+      const addOnTotal = addOnServices.reduce((sum, s) => sum + s.price, 0);
+      const baseAmount = computeBaseAmount([
+        ...(mainService ? [{ price: mainService.price }] : []),
+        ...addOnServices.map(s => ({ price: s.price })),
+        ...saleProducts.map(p => ({ price: p.price })),
+      ]);
       const selectedBooking = saleType === 'booking' && saleBookingId && saleBookingId !== 'none'
         ? bookings?.find(b => b.id === saleBookingId)
         : undefined;
@@ -507,11 +542,14 @@ const AdminDashboard = () => {
         : therapists?.find(th => th.id === saleTherapistId)?.name || null;
       const { afterDiscount } = computeDiscountedSubtotal(baseAmount, saleCouponDiscount);
       const tipAmt = tipMethod ? computeTipAmount(tipMethod, tipMethod === 'percent' ? tipPercent : parseFloat(tipCustomAmount || '0'), afterDiscount) : 0;
+      const taxRate = parseFloat(taxRateSetting || '0');
+      const taxLabel = resolveTaxLabel(taxType, taxTypeCustomLabel);
       const totals = computeSaleTotals({
         baseAmount,
         coupon: saleCouponDiscount,
         surchargeRatePercent: parseFloat(cardSurchargeSetting || '0'),
         applySurcharge: salePaymentMethod === 'card',
+        taxRatePercent: taxRate,
         tipAmount: tipAmt,
       });
       const totalAmount = totals.grandTotal;
@@ -530,6 +568,9 @@ const AdminDashboard = () => {
         amount: totalAmount,
         tip_amount: totals.tipAmt,
         tip_method: tipMethod || null,
+        tax_amount: totals.taxAmt,
+        tax_rate_percent: taxRate,
+        tax_label: taxLabel,
         therapist_id: therapistId,
         therapist_name: therapistName,
         payment_method: salePaymentMethod === 'square' ? 'card' : salePaymentMethod,
@@ -544,14 +585,11 @@ const AdminDashboard = () => {
       const { data: saleData, error } = await supabase.from('sales').insert(payload).select('id').single();
       if (error) throw error;
 
-      // Record each service/add-on as its own line item for a real itemized breakdown
-      const mainService = services?.find(sv => sv.id === saleServiceId);
+      // Record each service/add-on/product as its own line item for a real itemized breakdown
       const lineItems = [
-        ...(mainService ? [{ service_id: mainService.id, service_name: mainService.name, price: mainService.price, is_addon: false }] : []),
-        ...saleAddOns.map(id => {
-          const a = services?.find(sv => sv.id === id);
-          return a ? { service_id: a.id, service_name: a.name, price: a.price, is_addon: true } : null;
-        }).filter((item): item is { service_id: string; service_name: string; price: number; is_addon: boolean } => item !== null),
+        ...(mainService ? [{ service_id: mainService.id, product_id: null, service_name: mainService.name, price: mainService.price, is_addon: false, item_type: 'service' as const }] : []),
+        ...addOnServices.map(s => ({ service_id: s.id, product_id: null, service_name: s.name, price: s.price, is_addon: true, item_type: 'service' as const })),
+        ...saleProducts.map(p => ({ service_id: null, product_id: p.id, service_name: p.name, price: p.price, is_addon: true, item_type: 'product' as const })),
       ];
       if (lineItems.length > 0 && saleData?.id) {
         const { error: itemsError } = await supabase.from('sale_items').insert(
@@ -592,9 +630,13 @@ const AdminDashboard = () => {
       return {
         mainServiceName: mainService?.name || '',
         mainServiceAmount: mainService?.price || 0,
-        addOnDetails: lineItems.filter(i => i.is_addon).map(i => ({ name: i.service_name, price: i.price })),
+        addOnDetails: lineItems.filter(i => i.is_addon && i.item_type === 'service').map(i => ({ name: i.service_name, price: i.price })),
+        productDetails: lineItems.filter(i => i.item_type === 'product').map(i => ({ name: i.service_name, price: i.price })),
         discountAmt: totals.discountAmt,
         surchargeAmt: totals.surchargeAmt,
+        taxAmt: totals.taxAmt,
+        taxRatePercent: taxRate,
+        taxLabel,
         tipAmt: totals.tipAmt,
         customerName: saleCustomerName,
         customerPhone: saleCustomerPhone,
@@ -613,9 +655,13 @@ const AdminDashboard = () => {
           customerPhone: result.customerPhone,
           serviceName: result.mainServiceName,
           addOns: result.addOnDetails,
+          products: result.productDetails,
           paymentMethod: result.paymentMethod,
           discount: result.discountAmt,
           surcharge: result.surchargeAmt,
+          tax: result.taxAmt,
+          taxRatePercent: result.taxRatePercent,
+          taxLabel: result.taxLabel,
           tip: result.tipAmt,
           coupon: result.couponCode,
           date: format(new Date(), 'dd/MM/yyyy HH:mm'),
@@ -633,6 +679,7 @@ const AdminDashboard = () => {
       setSalePaymentMethod('cash');
       setSaleNotes('');
       setSaleAddOns([]);
+      setSaleProductIds([]);
       setSaleCouponCode('');
       setSaleCouponDiscount(null);
       setSaleCouponError('');
@@ -686,6 +733,11 @@ const AdminDashboard = () => {
   useEffect(() => {
     if (employeeTabsSetting) setEmployeeVisibleTabs(employeeTabsSetting);
   }, [employeeTabsSetting]);
+
+  useEffect(() => {
+    const resolved = resolveActiveTab(activeTab, isAdmin, employeeVisibleTabs);
+    if (resolved !== activeTab) setActiveTab(resolved);
+  }, [isAdmin, employeeVisibleTabs, activeTab]);
 
   const saveEmployeeTabs = useMutation({
     mutationFn: async (tabs: EmployeeTab[]) => {
@@ -1031,6 +1083,58 @@ const AdminDashboard = () => {
       if (error) throw error;
     },
     onSuccess: () => { logActivity('update_card_surcharge', `Surcharge: ${cardSurchargePercent}%`); queryClient.invalidateQueries({ queryKey: ['card-surcharge-setting'] }); toast({ title: t('Đã lưu phụ phí thẻ') }); },
+  });
+
+  // Tax rate setting
+  const { data: taxRateSetting } = useQuery({
+    queryKey: ['tax-rate-setting'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'tax_rate_percent').single();
+      if (error) return '0';
+      return data.value;
+    },
+  });
+
+  useEffect(() => {
+    if (taxRateSetting) setTaxRatePercent(taxRateSetting);
+  }, [taxRateSetting]);
+
+  // Tax type — the tenant's chosen tax name (GST/VAT/Sales Tax/Custom), snapshotted
+  // per sale as tax_label so historical receipts keep showing what was actually
+  // charged even if this setting changes later.
+  const { data: taxTypeSetting } = useQuery({
+    queryKey: ['tax-type-setting'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('app_settings').select('key, value')
+        .in('key', ['tax_type', 'tax_type_custom_label']);
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      data?.forEach(r => { map[r.key] = r.value; });
+      return map;
+    },
+  });
+
+  useEffect(() => {
+    if (taxTypeSetting?.tax_type) setTaxType(taxTypeSetting.tax_type);
+    if (taxTypeSetting?.tax_type_custom_label) setTaxTypeCustomLabel(taxTypeSetting.tax_type_custom_label);
+  }, [taxTypeSetting]);
+
+  const saveTaxSettings = useMutation({
+    mutationFn: async () => {
+      requireAdmin();
+      const { error: e1 } = await upsertSetting('tax_rate_percent', taxRatePercent);
+      if (e1) throw e1;
+      const { error: e2 } = await upsertSetting('tax_type', taxType);
+      if (e2) throw e2;
+      const { error: e3 } = await upsertSetting('tax_type_custom_label', taxTypeCustomLabel);
+      if (e3) throw e3;
+    },
+    onSuccess: () => {
+      logActivity('update_tax_rate', `Tax: ${resolveTaxLabel(taxType, taxTypeCustomLabel)} ${taxRatePercent}%`);
+      queryClient.invalidateQueries({ queryKey: ['tax-rate-setting'] });
+      queryClient.invalidateQueries({ queryKey: ['tax-type-setting'] });
+      toast({ title: t('Đã lưu thuế') });
+    },
   });
 
   // OpenAI settings
@@ -1431,7 +1535,7 @@ const AdminDashboard = () => {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['print-receipt-enabled'] }); toast({ title: t('Đã cập nhật') }); },
   });
 
-  const printReceipt = (sale: { amount: number; customerName: string; customerPhone: string; serviceName: string; addOns: { name: string; price: number }[]; paymentMethod: string; discount?: number; surcharge?: number; tip?: number; coupon?: string; date: string }) => {
+  const printReceipt = (sale: { amount: number; customerName: string; customerPhone: string; serviceName: string; addOns: { name: string; price: number }[]; products?: { name: string; price: number }[]; paymentMethod: string; discount?: number; surcharge?: number; tax?: number; taxRatePercent?: number; taxLabel?: string; tip?: number; coupon?: string; date: string }) => {
     const win = window.open('about:blank', '_blank');
     if (!win) {
       toast({
@@ -1443,7 +1547,8 @@ const AdminDashboard = () => {
     }
     const esc = escapeHtml;
     const addOnLines = sale.addOns.map(a => `<tr><td style="padding:2px 0">&nbsp;&nbsp;${esc(a.name)}</td><td style="text-align:right;padding:2px 0">A$ ${a.price.toLocaleString()}</td></tr>`).join('');
-    const subtotal = sale.amount + (sale.discount || 0) - (sale.surcharge || 0) - (sale.tip || 0);
+    const productLines = (sale.products || []).map(p => `<tr><td style="padding:2px 0">&nbsp;&nbsp;${esc(p.name)}</td><td style="text-align:right;padding:2px 0">A$ ${p.price.toLocaleString()}</td></tr>`).join('');
+    const subtotal = sale.amount + (sale.discount || 0) - (sale.surcharge || 0) - (sale.tax || 0) - (sale.tip || 0);
     win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt</title><style>
       body{font-family:'Courier New',monospace;font-size:12px;width:280px;margin:0 auto;padding:16px;color:#000}
       h2{text-align:center;font-size:14px;margin:0 0 4px}
@@ -1466,14 +1571,15 @@ const AdminDashboard = () => {
       <table>
         <tr><td class="bold">${esc(sale.serviceName)}</td><td class="right">A$ ${subtotal.toLocaleString()}</td></tr>
         ${addOnLines}
+        ${productLines}
         ${(sale.discount || 0) > 0 ? `<tr><td>${sale.coupon ? `Discount (${esc(sale.coupon)})` : 'Discount'}</td><td class="right" style="color:#16a34a">-A$ ${(sale.discount || 0).toLocaleString()}</td></tr>` : ''}
         ${(sale.surcharge || 0) > 0 ? `<tr><td>Card surcharge</td><td class="right">A$ ${(sale.surcharge || 0).toLocaleString()}</td></tr>` : ''}
+        ${(sale.tax || 0) > 0 ? `<tr><td>${esc(sale.taxLabel || 'Tax')}${sale.taxRatePercent ? ` (${sale.taxRatePercent}%)` : ''}</td><td class="right">A$ ${(sale.tax || 0).toLocaleString()}</td></tr>` : ''}
         ${(sale.tip || 0) > 0 ? `<tr><td>Tip</td><td class="right">A$ ${(sale.tip || 0).toLocaleString()}</td></tr>` : ''}
       </table>
       <div class="line"></div>
       <table><tr><td class="total">TOTAL</td><td class="total right">A$ ${sale.amount.toLocaleString()}</td></tr></table>
       <p style="margin-top:4px;font-size:10px;color:#666">Paid by: ${sale.paymentMethod === 'card' ? 'Card' : sale.paymentMethod === 'square' ? 'Square' : 'Cash'}</p>
-      <p style="font-size:10px;color:#666">GST included</p>
       <div class="line"></div>
       <p class="center" style="font-size:10px;color:#666">Thank you for visiting!</p>
       <script>window.onload=function(){window.print();}</script>
@@ -1922,6 +2028,57 @@ const AdminDashboard = () => {
     onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
 
+  const saveProduct = useMutation({
+    mutationFn: async () => {
+      if (editingProduct) requireAdmin();
+      let imagePath = editingProduct?.image_path || null;
+
+      if (productImageFile) {
+        const ext = productImageFile.name.split('.').pop();
+        const path = `product-${Date.now()}.${ext}`;
+        if (imagePath) {
+          await supabase.storage.from('product-images').remove([imagePath]);
+        }
+        const { error: uploadErr } = await supabase.storage.from('product-images').upload(path, productImageFile, { upsert: true });
+        if (uploadErr) throw uploadErr;
+        imagePath = path;
+      }
+
+      const payload = { name: productName, description: productDesc || null, price: parseFloat(productPrice), image_path: imagePath };
+      const vErr = validateForm(productSchema, { name: payload.name, description: payload.description || '', price: payload.price });
+      if (vErr) throw new Error(vErr);
+      if (editingProduct) {
+        const { error } = await supabase.from('products').update(payload).eq('id', editingProduct.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('products').insert({ ...payload, tenant_id: TENANT_ID });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      logActivity(editingProduct ? 'update_product' : 'create_product', `Product: ${productName}`);
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      setProductDialog(false);
+      setProductImageFile(null);
+      setProductImagePreview(null);
+      toast({ title: editingProduct ? t('Đã cập nhật sản phẩm') : t('Đã thêm sản phẩm') });
+    },
+  });
+
+  const deleteProduct = useMutation({
+    mutationFn: async (id: string) => {
+      if (!isAdmin) throw new Error('Admin only');
+      const { error } = await supabase.from('products').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, id) => {
+      logActivity('delete_product', `Product ID: ${id}`);
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      toast({ title: t('Đã xoá sản phẩm') });
+    },
+    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+  });
+
   const saveTherapist = useMutation({
     mutationFn: async () => {
       if (editingTherapist) requireAdmin();
@@ -1989,6 +2146,21 @@ const AdminDashboard = () => {
       setServiceImagePreview(null);
     }
     setServiceDialog(true);
+  };
+
+  const openProductEdit = (product?: any) => {
+    setEditingProduct(product || null);
+    setProductName(product?.name || '');
+    setProductDesc(product?.description || '');
+    setProductPrice(String(product?.price || 0));
+    setProductImageFile(null);
+    if (product?.image_path) {
+      const { data } = supabase.storage.from('product-images').getPublicUrl(product.image_path);
+      setProductImagePreview(data.publicUrl);
+    } else {
+      setProductImagePreview(null);
+    }
+    setProductDialog(true);
   };
 
   const openTherapistEdit = (therapist?: any) => {
@@ -2111,7 +2283,8 @@ const AdminDashboard = () => {
   // charge button so they can never disagree with each other or with createSale.
   const checkoutTotals = useMemo(() => {
     const addOnTotal = saleAddOns.reduce((sum, id) => sum + (services?.find(s => s.id === id)?.price || 0), 0);
-    const base = parseFloat(saleAmount || '0') + addOnTotal;
+    const productTotal = saleProductIds.reduce((sum, id) => sum + (products?.find(p => p.id === id)?.price || 0), 0);
+    const base = computeBaseAmount([{ price: parseFloat(saleAmount || '0') }, { price: addOnTotal }, { price: productTotal }]);
     const { afterDiscount } = computeDiscountedSubtotal(base, saleCouponDiscount);
     const tipAmt = tipMethod ? computeTipAmount(tipMethod, tipMethod === 'percent' ? tipPercent : parseFloat(tipCustomAmount || '0'), afterDiscount) : 0;
     const totals = computeSaleTotals({
@@ -2119,10 +2292,11 @@ const AdminDashboard = () => {
       coupon: saleCouponDiscount,
       surchargeRatePercent: parseFloat(cardSurchargeSetting || '0'),
       applySurcharge: salePaymentMethod === 'card',
+      taxRatePercent: parseFloat(taxRateSetting || '0'),
       tipAmount: tipAmt,
     });
-    return { addOnTotal, base, tipAmt, ...totals };
-  }, [saleAddOns, services, saleAmount, saleCouponDiscount, tipMethod, tipPercent, tipCustomAmount, cardSurchargeSetting, salePaymentMethod]);
+    return { addOnTotal, productTotal, base, tipAmt, ...totals };
+  }, [saleAddOns, services, saleAmount, saleProductIds, products, saleCouponDiscount, tipMethod, tipPercent, tipCustomAmount, cardSurchargeSetting, taxRateSetting, salePaymentMethod]);
 
   if (loading) return (
     <div className="min-h-screen bg-white flex items-center justify-center">
@@ -2151,6 +2325,7 @@ const AdminDashboard = () => {
     { value: 'sales', icon: DollarSign, label: t('Thanh toán') },
     { value: 'payment_history', icon: History, label: t('Lịch sử thanh toán') },
     { value: 'services', icon: Scissors, label: t('Dịch vụ') },
+    { value: 'products', icon: ShoppingBag, label: t('Sản phẩm') },
     { value: 'therapists', icon: Users, label: t('Thợ') },
     ...(isAiLicensed && inboxEnabled ? [{ value: 'inbox', icon: MessageSquare, label: t('Hộp thư') }] : []),
   ];
@@ -2163,7 +2338,7 @@ const AdminDashboard = () => {
     : [];
 
   const sidebarNavItems = [
-    ...allNavItems.filter(item => isAdmin || employeeVisibleTabs.includes(item.value as EmployeeTab)),
+    ...filterVisibleTabs(allNavItems, isAdmin, employeeVisibleTabs),
     ...adminContentNavItems,
     ...(canAccessSettings ? [{ value: 'settings', icon: Settings, label: t('Cài đặt') }] : []),
   ];
@@ -2193,7 +2368,7 @@ const AdminDashboard = () => {
               <div className="h-8 w-8 shrink-0 rounded-lg bg-gradient-to-br from-amber-700 to-yellow-800 flex items-center justify-center">
                 <Leaf className="h-4 w-4 text-white" />
               </div>
-              {sidebarOpen && <span className="font-semibold text-[15px] text-[#1B1B1B] tracking-tight whitespace-nowrap truncate">{spaName}</span>}
+              {sidebarOpen && <span className="font-semibold text-[15px] text-[#1B1B1B] tracking-tight whitespace-nowrap truncate uppercase">{spaName}</span>}
             </Link>
           </div>
 
@@ -2265,16 +2440,37 @@ const AdminDashboard = () => {
               )}
             </div>
             {sidebarOpen ? (
-              <div className="mt-3 flex items-center gap-2">
-                <LanguageSwitcher />
-                <Button variant="ghost" size="sm" className="text-gray-400 hover:text-gray-600 text-[11px] gap-1 h-7 px-2" onClick={signOut}>
-                  <LogOut className="h-3 w-3" /> {t('Đăng xuất')}
-                </Button>
-              </div>
+              <>
+                <div className="mt-3 flex items-center gap-2">
+                  <LanguageSwitcher />
+                  <Button variant="ghost" size="sm" className="text-gray-400 hover:text-gray-600 text-[11px] gap-1 h-7 px-2" onClick={signOut}>
+                    <LogOut className="h-3 w-3" /> {t('Đăng xuất')}
+                  </Button>
+                </div>
+                <a
+                  href="https://forms.gle/YdkQ6yPZDGvuV9E58"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 flex items-center gap-1 text-gray-400 hover:text-gray-600 text-[11px] px-2"
+                >
+                  <Bug className="h-3 w-3" /> {t('Báo lỗi')}
+                </a>
+              </>
             ) : (
-              <Button variant="ghost" size="icon" className="mt-2 h-7 w-7 text-gray-400 hover:text-gray-600" onClick={signOut}>
-                <LogOut className="h-3.5 w-3.5" />
-              </Button>
+              <>
+                <Button variant="ghost" size="icon" className="mt-2 h-7 w-7 text-gray-400 hover:text-gray-600" onClick={signOut}>
+                  <LogOut className="h-3.5 w-3.5" />
+                </Button>
+                <a
+                  href="https://forms.gle/YdkQ6yPZDGvuV9E58"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 flex items-center justify-center h-7 w-7 text-gray-400 hover:text-gray-600"
+                  title={t('Báo lỗi')}
+                >
+                  <Bug className="h-3.5 w-3.5" />
+                </a>
+              </>
             )}
           </div>
         </aside>
@@ -2338,6 +2534,16 @@ const AdminDashboard = () => {
 
               {/* Menu actions */}
               <div className="px-2 py-2">
+                <a
+                  href="https://forms.gle/YdkQ6yPZDGvuV9E58"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-gray-500 hover:bg-[#F5F5F5] hover:text-[#1B1B1B] transition-colors"
+                >
+                  <Bug className="h-4 w-4" />
+                  {t('Báo lỗi')}
+                </a>
                 <button
                   onClick={() => { signOut(); setMobileMenuOpen(false); }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-gray-500 hover:bg-[#F5F5F5] hover:text-[#1B1B1B] transition-colors"
@@ -2352,18 +2558,18 @@ const AdminDashboard = () => {
 
         {/* Mobile bottom nav — Apple-style, 5 items max */}
         {(() => {
-          const primaryTabs = [
+          const primaryTabs = filterVisibleTabs([
             { value: 'stats', icon: BarChart3, label: t('Thống kê') },
             { value: 'bookings', icon: CalendarDays, label: t('Lịch hẹn') },
             { value: 'customers', icon: UserCheck, label: t('Khách') },
             { value: 'services', icon: Scissors, label: t('Dịch vụ') },
-          ];
-          const moreTabs = [
+          ], isAdmin, employeeVisibleTabs);
+          const moreTabs = filterVisibleTabs([
             { value: 'sales', icon: DollarSign, label: t('Thanh toán') },
             { value: 'payment_history', icon: History, label: t('Lịch sử thanh toán') },
             { value: 'therapists', icon: Users, label: t('Thợ') },
             ...(canAccessSettings ? [{ value: 'settings', icon: Settings, label: t('Cài đặt') }] : []),
-          ];
+          ], isAdmin, employeeVisibleTabs, ['settings']);
           const isMoreActive = moreTabs.some(t => t.value === activeTab);
 
           return (
@@ -2782,6 +2988,7 @@ const AdminDashboard = () => {
                   <div className="flex items-center border-b border-[#E5E5E5]/40 px-1">
                     <button type="button" onClick={() => setPosTab('appointments')} className={cn('px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors', posTab === 'appointments' ? 'border-[#006AFF] text-[#006AFF]' : 'border-transparent text-muted-foreground hover:text-foreground')}>{t('Lịch hẹn')}</button>
                     <button type="button" onClick={() => setPosTab('library')} className={cn('px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors', posTab === 'library' ? 'border-[#006AFF] text-[#006AFF]' : 'border-transparent text-muted-foreground hover:text-foreground')}>{t('Dịch vụ')}</button>
+                    <button type="button" onClick={() => setPosTab('products')} className={cn('px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors', posTab === 'products' ? 'border-[#006AFF] text-[#006AFF]' : 'border-transparent text-muted-foreground hover:text-foreground')}>{t('Sản phẩm')}</button>
                     <div className="ml-auto pr-3">
                       <button
                         type="button"
@@ -2792,6 +2999,7 @@ const AdminDashboard = () => {
                           setSaleCustomerPhone('');
                           setSaleAmount('');
                           setSaleAddOns([]);
+                          setSaleProductIds([]);
                           setSaleCouponCode('');
                           setSaleCouponDiscount(null);
                           setSaleCouponError('');
@@ -2812,10 +3020,10 @@ const AdminDashboard = () => {
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/40" />
                       <Input
-                        value={posTab === 'appointments' ? saleBookingSearch : saleServiceSearch}
-                        onChange={e => posTab === 'appointments' ? setSaleBookingSearch(e.target.value) : setSaleServiceSearch(e.target.value)}
+                        value={posTab === 'appointments' ? saleBookingSearch : posTab === 'products' ? saleProductSearch : saleServiceSearch}
+                        onChange={e => posTab === 'appointments' ? setSaleBookingSearch(e.target.value) : posTab === 'products' ? setSaleProductSearch(e.target.value) : setSaleServiceSearch(e.target.value)}
                         className="pl-10 h-10 bg-[#F5F5F5] border-0 focus-visible:ring-1"
-                        placeholder={posTab === 'appointments' ? t('Tìm theo tên, dịch vụ...') : t('Tìm dịch vụ...')}
+                        placeholder={posTab === 'appointments' ? t('Tìm theo tên, dịch vụ...') : posTab === 'products' ? t('Tìm sản phẩm...') : t('Tìm dịch vụ...')}
                       />
                     </div>
                   </div>
@@ -2900,6 +3108,41 @@ const AdminDashboard = () => {
                           );
                         })()}
                       </div>
+                    ) : posTab === 'products' ? (
+                      /* Product library — always additive, no "primary" slot like services */
+                      <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {(products || []).filter(p => p.is_active).filter(p => !saleProductSearch.trim() || p.name.toLowerCase().includes(saleProductSearch.toLowerCase())).map(p => {
+                          const isSelected = saleProductIds.includes(p.id);
+                          const imgUrl = p.image_path ? supabase.storage.from('product-images').getPublicUrl(p.image_path).data.publicUrl : null;
+                          return (
+                            <button type="button" key={p.id} className={cn('flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all active:scale-[0.98]', isSelected ? 'border-[#006AFF] bg-[#006AFF]/5' : 'border-border/50 hover:border-border hover:bg-muted/30')} onClick={() => {
+                              if (!saleServiceId) setSaleType('walkin');
+                              setSaleProductIds(prev => prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]);
+                            }}>
+                              {imgUrl ? (
+                                <div className="relative h-11 w-11 rounded-lg overflow-hidden shrink-0">
+                                  <img src={imgUrl} alt={p.name} className="h-full w-full object-cover" />
+                                  {isSelected && <div className="absolute inset-0 bg-[#006AFF]/30 flex items-center justify-center"><Check className="h-4 w-4 text-white" /></div>}
+                                </div>
+                              ) : (
+                                <div className={cn('flex items-center justify-center h-11 w-11 rounded-lg shrink-0', isSelected ? 'bg-[#006AFF]/10' : 'bg-muted')}>
+                                  {isSelected ? <Check className="h-4 w-4 text-[#006AFF]" /> : <ShoppingBag className="h-3.5 w-3.5 text-muted-foreground" />}
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{p.name}</p>
+                              </div>
+                              <span className="text-sm font-semibold tabular-nums shrink-0">{formatPrice(p.price)}</span>
+                            </button>
+                          );
+                        })}
+                        {!products?.some(p => p.is_active) && (
+                          <div className="col-span-full text-center py-16 text-muted-foreground/40">
+                            <ShoppingBag className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                            <p className="text-sm">{t('Chưa có sản phẩm')}</p>
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       /* Service library */
                       <div>
@@ -2951,9 +3194,9 @@ const AdminDashboard = () => {
                 <div className="flex flex-col bg-white">
                   {/* Cart header */}
                   <div className="px-5 py-3.5 border-b border-[#E5E5E5]/40 flex items-center justify-between">
-                    <h3 className="text-base font-semibold">{t('Thanh toán hiện tại')} {(saleServiceId || saleAddOns.length > 0) ? <span className="text-muted-foreground font-normal">({1 + saleAddOns.length})</span> : ''}</h3>
-                    {(saleServiceId || saleBookingId) && (
-                      <button type="button" className="text-xs text-destructive hover:text-destructive/80 font-medium transition-colors" onClick={() => { setSaleBookingId(''); setSaleServiceId(''); setSaleCustomerName(''); setSaleCustomerPhone(''); setSaleAmount(''); setSaleAddOns([]); setSaleCouponCode(''); setSaleCouponDiscount(null); setSaleCouponError(''); setSaleNotes(''); }}>
+                    <h3 className="text-base font-semibold">{t('Thanh toán hiện tại')} {(saleServiceId || saleAddOns.length > 0 || saleProductIds.length > 0) ? <span className="text-muted-foreground font-normal">({(saleServiceId ? 1 : 0) + saleAddOns.length + saleProductIds.length})</span> : ''}</h3>
+                    {(saleServiceId || saleBookingId || saleProductIds.length > 0) && (
+                      <button type="button" className="text-xs text-destructive hover:text-destructive/80 font-medium transition-colors" onClick={() => { setSaleBookingId(''); setSaleServiceId(''); setSaleCustomerName(''); setSaleCustomerPhone(''); setSaleAmount(''); setSaleAddOns([]); setSaleProductIds([]); setSaleCouponCode(''); setSaleCouponDiscount(null); setSaleCouponError(''); setSaleNotes(''); }}>
                         {t('Xoá')}
                       </button>
                     )}
@@ -2976,7 +3219,7 @@ const AdminDashboard = () => {
                   )}
 
                   {/* Walk-in customer inputs (no booking selected) */}
-                  {saleType === 'walkin' && saleServiceId && !saleCustomerName && (
+                  {saleType === 'walkin' && (saleServiceId || saleProductIds.length > 0) && !saleCustomerName && (
                     <div className="px-5 py-3 border-b border-[#E5E5E5]/20 space-y-2">
                       <Input value={saleCustomerName} onChange={e => setSaleCustomerName(e.target.value)} className="h-9 text-sm" placeholder={t('Tên khách (tuỳ chọn)')} />
                       <Input value={saleCustomerPhone} onChange={e => setSaleCustomerPhone(e.target.value)} className="h-9 text-sm" placeholder="04xxxxxxxx" />
@@ -2984,7 +3227,7 @@ const AdminDashboard = () => {
                   )}
 
                   {/* Staff who performed the service — needed for tip/commission attribution on walk-in sales */}
-                  {saleType === 'walkin' && saleServiceId && (
+                  {saleType === 'walkin' && (saleServiceId || saleProductIds.length > 0) && (
                     <div className="px-5 py-3 border-b border-[#E5E5E5]/20">
                       <Select value={saleTherapistId} onValueChange={setSaleTherapistId}>
                         <SelectTrigger className="h-9 text-sm bg-[#F5F5F5] border-0"><SelectValue placeholder={t('Chọn thợ (tuỳ chọn)')} /></SelectTrigger>
@@ -2999,7 +3242,7 @@ const AdminDashboard = () => {
 
                   {/* Line items */}
                   <div className="flex-1 px-5 py-4 overflow-y-auto">
-                    {saleServiceId ? (
+                    {(saleServiceId || saleProductIds.length > 0) ? (
                       <div className="space-y-3">
                         {(() => {
                           const svc = services?.find(s => s.id === saleServiceId);
@@ -3027,9 +3270,18 @@ const AdminDashboard = () => {
                           ) : null;
                         })}
 
-                        <div className="pt-2 border-t border-[#E5E5E5]/30">
-                          <p className="text-sm text-muted-foreground">GST ({t('Đã bao gồm')})</p>
-                        </div>
+                        {saleProductIds.map(id => {
+                          const p = products?.find(pr => pr.id === id);
+                          return p ? (
+                            <div key={id} className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm">{p.name}</p>
+                                <button type="button" className="text-muted-foreground/40 hover:text-destructive" onClick={() => setSaleProductIds(prev => prev.filter(a => a !== id))}><X className="h-3 w-3" /></button>
+                              </div>
+                              <span className="text-sm tabular-nums">{formatPrice(p.price)}</span>
+                            </div>
+                          ) : null;
+                        })}
 
                         {/* Discount */}
                         {discountCodesEnabled && !saleCouponDiscount && (
@@ -3070,7 +3322,7 @@ const AdminDashboard = () => {
                   </div>
 
                   {/* Footer — Payment method + Charge */}
-                  {saleServiceId && (
+                  {(saleServiceId || saleProductIds.length > 0) && (
                     <div className="border-t border-[#E5E5E5]/40 px-5 py-4 space-y-3">
                       {/* Notes */}
                       <Input value={saleNotes} onChange={e => setSaleNotes(e.target.value)} className="h-9 text-sm bg-[#F5F5F5] border-0" placeholder={t('Ghi chú...')} />
@@ -3126,7 +3378,7 @@ const AdminDashboard = () => {
                             }
                           }}
                           onCancel={() => setShowSquareCardForm(false)}
-                          disabled={!saleAmount || parseFloat(saleAmount) <= 0}
+                          disabled={checkoutTotals.base <= 0}
                           labels={{ pay: t('Thanh toán'), cancel: t('Hủy'), loading: t('Đang tải form thanh toán...'), processing: t('Đang xử lý...'), enterCard: t('Nhập thông tin thẻ'), tapToPay: t('Thẻ, Apple Pay & Google Pay') }}
                         />
                       )}
@@ -3162,8 +3414,10 @@ const AdminDashboard = () => {
                         <div className="text-sm space-y-1">
                           {checkoutTotals.addOnTotal > 0 && <div className="flex justify-between text-muted-foreground"><span>{t('Dịch vụ chính')}</span><span>{formatPrice(parseFloat(saleAmount || '0'))}</span></div>}
                           {checkoutTotals.addOnTotal > 0 && <div className="flex justify-between text-muted-foreground"><span>{t('Dịch vụ thêm')}</span><span>+{formatPrice(checkoutTotals.addOnTotal)}</span></div>}
+                          {checkoutTotals.productTotal > 0 && <div className="flex justify-between text-muted-foreground"><span>{t('Sản phẩm')}</span><span>+{formatPrice(checkoutTotals.productTotal)}</span></div>}
                           {checkoutTotals.discountAmt > 0 && <div className="flex justify-between text-green-700"><span>{t('Giảm giá')}</span><span>-{formatPrice(checkoutTotals.discountAmt)}</span></div>}
                           {checkoutTotals.surchargeAmt > 0 && <div className="flex justify-between text-muted-foreground"><span>{t('Phụ phí thẻ')} ({cardSurchargeSetting}%)</span><span>{formatPrice(checkoutTotals.surchargeAmt)}</span></div>}
+                          {checkoutTotals.taxAmt > 0 && <div className="flex justify-between text-muted-foreground"><span>{resolveTaxLabel(taxType, taxTypeCustomLabel)} ({taxRateSetting}%)</span><span>{formatPrice(checkoutTotals.taxAmt)}</span></div>}
                           {checkoutTotals.tipAmt > 0 && <div className="flex justify-between text-muted-foreground"><span>{t('Tiền tip')}</span><span>+{formatPrice(checkoutTotals.tipAmt)}</span></div>}
                         </div>
                       )}
@@ -3172,7 +3426,7 @@ const AdminDashboard = () => {
                       <Button
                         className="w-full h-14 text-lg font-semibold bg-[#006AFF] hover:bg-[#0055CC] rounded-xl"
                         onClick={() => createSale.mutate()}
-                        disabled={!saleAmount || parseFloat(saleAmount) <= 0 || createSale.isPending || (salePaymentMethod === 'square' && showSquareCardForm)}
+                        disabled={checkoutTotals.base <= 0 || createSale.isPending || (salePaymentMethod === 'square' && showSquareCardForm)}
                       >
                         {createSale.isPending ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" />{t('Đang xử lý...')}</> : <>{t('Thanh toán')} {checkoutTotals.grandTotal > 0 ? formatPrice(checkoutTotals.grandTotal) : ''}</>}
                       </Button>
@@ -3272,9 +3526,13 @@ const AdminDashboard = () => {
                                       customerPhone: s.customer_phone || s.bookings?.customer_phone || '',
                                       serviceName: s.bookings?.services?.name || '',
                                       addOns: [],
+                                      products: (s.sale_items || []).filter((i: any) => i.item_type === 'product').map((i: any) => ({ name: i.service_name, price: Number(i.price) })),
                                       paymentMethod: s.payment_method,
                                       discount: 0,
                                       surcharge: 0,
+                                      tax: Number(s.tax_amount || 0),
+                                      taxRatePercent: Number(s.tax_rate_percent || 0),
+                                      taxLabel: s.tax_label,
                                       tip: Number(s.tip_amount || 0),
                                       coupon: undefined,
                                       date: s.sale_date,
@@ -3373,9 +3631,13 @@ const AdminDashboard = () => {
                                         customerPhone: s.customer_phone || s.bookings?.customer_phone || '',
                                         serviceName: s.bookings?.services?.name || '',
                                         addOns: [],
+                                        products: (s.sale_items || []).filter((i: any) => i.item_type === 'product').map((i: any) => ({ name: i.service_name, price: Number(i.price) })),
                                         paymentMethod: s.payment_method,
                                         discount: 0,
                                         surcharge: 0,
+                                        tax: Number(s.tax_amount || 0),
+                                        taxRatePercent: Number(s.tax_rate_percent || 0),
+                                        taxLabel: s.tax_label,
                                         tip: Number(s.tip_amount || 0),
                                         coupon: undefined,
                                         date: s.sale_date,
@@ -3449,6 +3711,12 @@ const AdminDashboard = () => {
                         </Table>
                       </div>
 
+                      {Number(s.tax_amount || 0) > 0 && (
+                        <div className="flex items-center justify-between text-sm px-1">
+                          <span className="text-muted-foreground">{s.tax_label || 'GST'} ({Number(s.tax_rate_percent || 0)}%)</span>
+                          <span className="font-medium">{formatPrice(Number(s.tax_amount))}</span>
+                        </div>
+                      )}
                       {Number(s.tip_amount || 0) > 0 && (
                         <div className="flex items-center justify-between text-sm px-1">
                           <span className="text-muted-foreground">{t('Tiền tip')}</span>
@@ -3494,9 +3762,13 @@ const AdminDashboard = () => {
                               customerPhone: s.customer_phone || s.bookings?.customer_phone || '',
                               serviceName: s.bookings?.services?.name || '',
                               addOns: [],
+                              products: (s.sale_items || []).filter((i: any) => i.item_type === 'product').map((i: any) => ({ name: i.service_name, price: Number(i.price) })),
                               paymentMethod: s.payment_method,
                               discount: 0,
                               surcharge: 0,
+                              tax: Number(s.tax_amount || 0),
+                              taxRatePercent: Number(s.tax_rate_percent || 0),
+                              taxLabel: s.tax_label,
                               tip: Number(s.tip_amount || 0),
                               coupon: undefined,
                               date: s.sale_date,
@@ -3657,6 +3929,137 @@ const AdminDashboard = () => {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-36">
                               <DropdownMenuItem className="text-destructive text-xs" onClick={() => openConfirm(t('Xoá dịch vụ'), t('Xoá dịch vụ này?'), () => deleteService.mutate(s.id))}>
+                                <Trash2 className="h-3.5 w-3.5 mr-2" /> {t('Xóa')}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* Products Tab */}
+          <TabsContent value="products">
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-[#1B1B1B] tracking-tight">{t('Quản lý sản phẩm')}</h2>
+                  <p className="text-sm text-muted-foreground/70 mt-0.5">{products?.length || 0} {t('sản phẩm')}</p>
+                </div>
+                <Dialog open={productDialog} onOpenChange={setProductDialog}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="w-full sm:w-auto h-9 px-4" onClick={() => openProductEdit()}><Plus className="h-4 w-4 mr-1.5" /> {t('Thêm sản phẩm')}</Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[440px]">
+                    <DialogHeader>
+                      <DialogTitle className="text-[#1B1B1B]">{editingProduct ? t('Sửa sản phẩm') : t('Thêm sản phẩm')}</DialogTitle>
+                      <DialogDescription className="text-muted-foreground/60">{editingProduct ? t('Chỉnh sửa thông tin sản phẩm') : t('Thêm sản phẩm mới vào hệ thống')}</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-5 pt-1">
+                      <div className="space-y-4">
+                        <div>
+                          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Tên')}</Label>
+                          <Input value={productName} onChange={e => setProductName(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" placeholder={t('Tên sản phẩm')} />
+                        </div>
+                        <div>
+                          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Mô tả')}</Label>
+                          <Textarea value={productDesc} onChange={e => setProductDesc(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20 min-h-[80px]" placeholder={t('Mô tả ngắn về sản phẩm...')} />
+                        </div>
+                      </div>
+                      <div className="border-t border-[#E5E5E5]/30 pt-4">
+                        <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Giá (AUD)')}</Label>
+                        <Input type="number" value={productPrice} onChange={e => setProductPrice(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" />
+                      </div>
+                      <div className="border-t border-[#E5E5E5]/30 pt-4">
+                        <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Hình ảnh')}</Label>
+                        <div className="mt-2 space-y-2">
+                          {productImagePreview && (
+                            <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden border border-[#E5E5E5]/60 shadow-sm">
+                              <img src={productImagePreview} alt="Preview" className="w-full h-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => { setProductImageFile(null); setProductImagePreview(null); }}
+                                className="absolute top-2 right-2 h-7 w-7 rounded-full bg-black/40 backdrop-blur-sm text-white flex items-center justify-center text-xs hover:bg-black/60 transition-colors"
+                              >×</button>
+                            </div>
+                          )}
+                          <input
+                            ref={productImageRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async e => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const resized = await resizeImage(file);
+                                setProductImageFile(resized);
+                                setProductImagePreview(URL.createObjectURL(resized));
+                              }
+                            }}
+                          />
+                          <Button type="button" variant="outline" size="sm" className="border-[#E5E5E5]/60 hover:bg-[#F5F5F5]" onClick={() => productImageRef.current?.click()}>
+                            <Image className="h-3.5 w-3.5 mr-1.5" />
+                            {productImagePreview ? t('Đổi ảnh') : t('Chọn ảnh')}
+                          </Button>
+                        </div>
+                      </div>
+                      <Button className="w-full h-10 bg-[#006AFF] hover:bg-[#1B1B1B] text-white" onClick={() => saveProduct.mutate()} disabled={!productName.trim() || saveProduct.isPending}>
+                        {saveProduct.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : (editingProduct ? t('Cập nhật') : t('Thêm mới'))}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+
+              {/* Product list */}
+              {!products?.length ? (
+                <div className="text-center py-20 text-muted-foreground">
+                  <ShoppingBag className="h-10 w-10 mx-auto mb-3 opacity-15" />
+                  <p className="text-sm font-medium">{t('Chưa có sản phẩm')}</p>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-[#E5E5E5]/50 bg-white overflow-hidden divide-y divide-[#E5E5E5]/20">
+                  {products.map(p => (
+                    <div
+                      key={p.id}
+                      className="group flex items-center justify-between px-5 py-4 transition-colors hover:bg-[#F5F5F5]/40"
+                    >
+                      {/* Left: name + details */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2.5">
+                          <p className="text-[14px] font-medium text-[#1B1B1B] truncate">{p.name}</p>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                            p.is_active
+                              ? 'bg-emerald-50 text-emerald-600'
+                              : 'bg-gray-100 text-gray-400'
+                          }`}>
+                            {p.is_active ? t('Hoạt động') : t('Tắt')}
+                          </span>
+                        </div>
+                        <p className="text-[12px] text-muted-foreground/60 mt-0.5">
+                          {formatPrice(p.price)}
+                        </p>
+                      </div>
+
+                      {/* Right: actions */}
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/50 hover:text-[#1B1B1B]" onClick={() => openProductEdit(p)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        {isAdmin && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/40 hover:text-muted-foreground">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-36">
+                              <DropdownMenuItem className="text-destructive text-xs" onClick={() => openConfirm(t('Xoá sản phẩm'), t('Xoá sản phẩm này?'), () => deleteProduct.mutate(p.id))}>
                                 <Trash2 className="h-3.5 w-3.5 mr-2" /> {t('Xóa')}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
@@ -4871,6 +5274,7 @@ const AdminDashboard = () => {
                     { value: 'sales' as EmployeeTab, icon: DollarSign, label: t('Thanh toán') },
                     { value: 'payment_history' as EmployeeTab, icon: History, label: t('Lịch sử thanh toán') },
                     { value: 'services' as EmployeeTab, icon: Scissors, label: t('Dịch vụ') },
+                    { value: 'products' as EmployeeTab, icon: ShoppingBag, label: t('Sản phẩm') },
                     { value: 'therapists' as EmployeeTab, icon: Users, label: t('Thợ') },
                     { value: 'inbox' as EmployeeTab, icon: MessageSquare, label: t('Hộp thư') },
                   ]).map(tab => {
@@ -5413,6 +5817,7 @@ const AdminDashboard = () => {
                           sales: sales || [],
                           bookings: (bookings || []) as any,
                           services: services || [],
+                          products: products || [],
                           therapists: therapists || [],
                           range: { from, to, label },
                         });
@@ -5951,6 +6356,53 @@ const AdminDashboard = () => {
                       </div>
                       <Button size="sm" onClick={() => saveCardSurcharge.mutate()} disabled={saveCardSurcharge.isPending}>
                         {saveCardSurcharge.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : t('Lưu')}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* ── Tax Rate ── */}
+                  <div className="border-t border-border/40 pt-4">
+                    <div className="space-y-3">
+                      <p className="font-medium text-sm">{t('Thuế')}</p>
+                      <div>
+                        <Label>{t('Loại thuế')}</Label>
+                        <Select value={taxType} onValueChange={setTaxType}>
+                          <SelectTrigger className="mt-1 w-[160px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="GST">GST</SelectItem>
+                            <SelectItem value="VAT">VAT</SelectItem>
+                            <SelectItem value="Sales Tax">Sales Tax</SelectItem>
+                            <SelectItem value="Custom">{t('Tuỳ chỉnh')}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {taxType === 'Custom' && (
+                        <div>
+                          <Label>{t('Tên thuế tuỳ chỉnh')}</Label>
+                          <Input
+                            value={taxTypeCustomLabel}
+                            onChange={e => setTaxTypeCustomLabel(e.target.value)}
+                            className="mt-1 w-[200px]"
+                            placeholder="e.g. HST"
+                          />
+                        </div>
+                      )}
+                      <div>
+                        <Label>{t('Phần trăm thuế (%)')}</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="30"
+                          step="0.1"
+                          value={taxRatePercent}
+                          onChange={e => setTaxRatePercent(e.target.value)}
+                          className="mt-1 w-[120px]"
+                          placeholder="0"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">{t('Thuế sẽ được tự động cộng thêm vào mọi giao dịch thanh toán')}</p>
+                      </div>
+                      <Button size="sm" onClick={() => saveTaxSettings.mutate()} disabled={saveTaxSettings.isPending}>
+                        {saveTaxSettings.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : t('Lưu')}
                       </Button>
                     </div>
                   </div>

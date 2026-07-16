@@ -6,6 +6,8 @@ type Sale = {
   booking_id: string | null;
   amount: number;
   tip_amount?: number | null;
+  tax_amount?: number | null;
+  tax_label?: string | null;
   therapist_name?: string | null;
   payment_method: string;
   payment_provider: string | null;
@@ -24,6 +26,7 @@ type Sale = {
     services?: { name: string | null } | null;
   } | null;
   therapists?: { name: string | null } | null;
+  sale_items?: { price: number; item_type?: string | null }[] | null;
 };
 
 type Booking = {
@@ -58,6 +61,14 @@ type Therapist = {
   name: string;
   phone: string | null;
   email: string | null;
+  is_active: boolean;
+};
+
+type Product = {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
   is_active: boolean;
 };
 
@@ -107,6 +118,8 @@ function buildSalesSheet(workbook: ExcelJS.Workbook, sales: Sale[]) {
     { key: 'staff', width: 20 },
     { key: 'amount', width: 14 },
     { key: 'tip_amount', width: 12 },
+    { key: 'tax_amount', width: 12 },
+    { key: 'product_revenue', width: 14 },
     { key: 'payment_method', width: 16 },
     { key: 'payment_provider', width: 16 },
     { key: 'external_payment_id', width: 22 },
@@ -123,6 +136,8 @@ function buildSalesSheet(workbook: ExcelJS.Workbook, sales: Sale[]) {
     staff: 'Staff',
     amount: 'Amount',
     tip_amount: 'Tip',
+    tax_amount: 'Tax',
+    product_revenue: 'Product Revenue',
     payment_method: 'Payment Method',
     payment_provider: 'Payment Provider',
     external_payment_id: 'Payment Reference',
@@ -133,6 +148,8 @@ function buildSalesSheet(workbook: ExcelJS.Workbook, sales: Sale[]) {
 
   let totalAmount = 0;
   let totalTips = 0;
+  let totalTax = 0;
+  let totalProductRevenue = 0;
   let totalRefunded = 0;
 
   for (const s of sales) {
@@ -141,8 +158,12 @@ function buildSalesSheet(workbook: ExcelJS.Workbook, sales: Sale[]) {
     const serviceName = s.bookings?.services?.name || '';
     const amount = Number(s.amount) || 0;
     const tipAmount = Number(s.tip_amount) || 0;
+    const taxAmount = Number(s.tax_amount) || 0;
+    const productRevenue = (s.sale_items || []).filter((i) => i.item_type === 'product').reduce((sum, i) => sum + (Number(i.price) || 0), 0);
     totalAmount += amount;
     totalTips += tipAmount;
+    totalTax += taxAmount;
+    totalProductRevenue += productRevenue;
     if (s.is_refunded) totalRefunded += amount;
 
     const row = sheet.addRow({
@@ -153,6 +174,8 @@ function buildSalesSheet(workbook: ExcelJS.Workbook, sales: Sale[]) {
       staff: s.therapists?.name || s.therapist_name || '',
       amount,
       tip_amount: tipAmount,
+      tax_amount: taxAmount,
+      product_revenue: productRevenue,
       payment_method: s.payment_method,
       payment_provider: s.payment_provider || '',
       external_payment_id: s.external_payment_id || '',
@@ -164,6 +187,8 @@ function buildSalesSheet(workbook: ExcelJS.Workbook, sales: Sale[]) {
     row.getCell('sale_date').numFmt = DATE_FORMAT;
     row.getCell('amount').numFmt = CURRENCY_FORMAT;
     row.getCell('tip_amount').numFmt = CURRENCY_FORMAT;
+    row.getCell('tax_amount').numFmt = CURRENCY_FORMAT;
+    row.getCell('product_revenue').numFmt = CURRENCY_FORMAT;
     row.getCell('created_at').numFmt = 'dd/mm/yyyy hh:mm';
     if (s.is_refunded) {
       row.getCell('is_refunded').font = { color: { argb: 'FFB91C1C' }, bold: true };
@@ -179,6 +204,8 @@ function buildSalesSheet(workbook: ExcelJS.Workbook, sales: Sale[]) {
     staff: '',
     amount: totalAmount,
     tip_amount: totalTips,
+    tax_amount: totalTax,
+    product_revenue: totalProductRevenue,
     payment_method: '',
     payment_provider: '',
     external_payment_id: '',
@@ -191,10 +218,14 @@ function buildSalesSheet(workbook: ExcelJS.Workbook, sales: Sale[]) {
   totalRow.getCell('amount').border = { top: { style: 'thin' } };
   totalRow.getCell('tip_amount').numFmt = CURRENCY_FORMAT;
   totalRow.getCell('tip_amount').border = { top: { style: 'thin' } };
+  totalRow.getCell('tax_amount').numFmt = CURRENCY_FORMAT;
+  totalRow.getCell('tax_amount').border = { top: { style: 'thin' } };
+  totalRow.getCell('product_revenue').numFmt = CURRENCY_FORMAT;
+  totalRow.getCell('product_revenue').border = { top: { style: 'thin' } };
   totalRow.getCell('service').border = { top: { style: 'thin' } };
 
   styleHeaderRow(sheet);
-  sheet.autoFilter = { from: 'A1', to: `M${sales.length + 1}` };
+  sheet.autoFilter = { from: 'A1', to: `N${sales.length + 1}` };
 }
 
 function buildBookingsSheet(workbook: ExcelJS.Workbook, bookings: Booking[]) {
@@ -292,6 +323,36 @@ function buildServicesSheet(workbook: ExcelJS.Workbook, services: Service[]) {
   sheet.autoFilter = { from: 'A1', to: `F${services.length + 1}` };
 }
 
+function buildProductsSheet(workbook: ExcelJS.Workbook, products: Product[]) {
+  const sheet = workbook.addWorksheet('Products');
+  autoFitColumns(sheet, [
+    { key: 'name', width: 28 },
+    { key: 'description', width: 40 },
+    { key: 'price', width: 14 },
+    { key: 'is_active', width: 12 },
+  ]);
+
+  sheet.addRow({
+    name: 'Product Name',
+    description: 'Description',
+    price: 'Price',
+    is_active: 'Active',
+  });
+
+  for (const p of products) {
+    const row = sheet.addRow({
+      name: p.name,
+      description: p.description || '',
+      price: Number(p.price) || 0,
+      is_active: p.is_active ? 'Yes' : 'No',
+    });
+    row.getCell('price').numFmt = CURRENCY_FORMAT;
+  }
+
+  styleHeaderRow(sheet);
+  sheet.autoFilter = { from: 'A1', to: `D${products.length + 1}` };
+}
+
 function buildStaffSheet(workbook: ExcelJS.Workbook, therapists: Therapist[], sales: Sale[], bookings: Booking[]) {
   const sheet = workbook.addWorksheet('Staff');
   autoFitColumns(sheet, [
@@ -350,6 +411,10 @@ function buildSummarySheet(
 
   const totalRevenue = sales.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
   const totalTips = sales.reduce((sum, s) => sum + (Number(s.tip_amount) || 0), 0);
+  const totalTax = sales.reduce((sum, s) => sum + (Number(s.tax_amount) || 0), 0);
+  const totalProductRevenue = sales.reduce((sum, s) => sum + (s.sale_items || []).filter((i) => i.item_type === 'product').reduce((s2, i) => s2 + (Number(i.price) || 0), 0), 0);
+  const taxLabels = new Set(sales.map((s) => s.tax_label).filter(Boolean));
+  const taxRowLabel = taxLabels.size === 1 ? `Total ${[...taxLabels][0]}` : 'Total Tax';
   const totalRefunded = sales.filter((s) => s.is_refunded).reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
   const netRevenue = totalRevenue - totalRefunded;
   const completedBookings = bookings.filter((b) => b.status === 'completed').length;
@@ -367,6 +432,8 @@ function buildSummarySheet(
     ['Total Sales Transactions', sales.length],
     ['Gross Revenue', totalRevenue],
     ['Total Tips', totalTips],
+    [taxRowLabel, totalTax],
+    ['Total Product Revenue', totalProductRevenue],
     ['Refunded Amount', totalRefunded],
     ['Net Revenue', netRevenue],
     ['', ''],
@@ -383,7 +450,7 @@ function buildSummarySheet(
     labelCell.value = label;
     valueCell.value = value;
     if (label) labelCell.font = { bold: true };
-    if (typeof value === 'number' && (label.includes('Revenue') || label.includes('Refunded') || label.includes('Tips'))) {
+    if (typeof value === 'number' && (label.includes('Revenue') || label.includes('Refunded') || label.includes('Tips') || label.includes('Tax'))) {
       valueCell.numFmt = CURRENCY_FORMAT;
     }
     r++;
@@ -409,10 +476,11 @@ export function exportBusinessReport(params: {
   sales: Sale[];
   bookings: Booking[];
   services: Service[];
+  products: Product[];
   therapists: Therapist[];
   range: ExportRange;
 }) {
-  const { spaName, sales, bookings, services, therapists, range } = params;
+  const { spaName, sales, bookings, services, products, therapists, range } = params;
 
   const inRange = (dateStr: string | null | undefined) => {
     const d = toDate(dateStr || null);
@@ -431,6 +499,7 @@ export function exportBusinessReport(params: {
   buildSalesSheet(workbook, rangedSales);
   buildBookingsSheet(workbook, rangedBookings);
   buildServicesSheet(workbook, services);
+  buildProductsSheet(workbook, products);
   buildStaffSheet(workbook, therapists, rangedSales, rangedBookings);
 
   return workbook;

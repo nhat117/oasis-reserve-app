@@ -68,6 +68,12 @@ export const serviceSchema = z.object({
   price: z.number().min(0, 'Price cannot be negative').max(100000, 'Price too high'),
 });
 
+export const productSchema = z.object({
+  name: safeName('Product name'),
+  description: optionalSafeText('Description', 1000),
+  price: z.number().min(0, 'Price cannot be negative').max(100000, 'Price too high'),
+});
+
 export const therapistSchema = z.object({
   name: safeName('Therapist name'),
   phone: optionalPhone,
@@ -184,6 +190,7 @@ export const edgeFnCreateAdminSchema = z.object({
 export type BookingCustomerForm = z.infer<typeof bookingCustomerSchema>;
 export type LoginForm = z.infer<typeof loginSchema>;
 export type ServiceForm = z.infer<typeof serviceSchema>;
+export type ProductForm = z.infer<typeof productSchema>;
 export type TherapistForm = z.infer<typeof therapistSchema>;
 export type AdminBookingForm = z.infer<typeof adminBookingSchema>;
 export type SaleForm = z.infer<typeof saleSchema>;

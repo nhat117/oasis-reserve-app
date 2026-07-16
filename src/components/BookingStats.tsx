@@ -60,7 +60,7 @@ export function BookingStats({ className }: StatsProps) {
     queryKey: ['stats-sales'],
     queryFn: async () => {
       const { data, error } = await supabase.from('sales')
-        .select('*, therapists(name)')
+        .select('*, therapists(name), sale_items(price, item_type)')
         .order('sale_date', { ascending: false });
       if (error) throw error;
       return data;
@@ -84,6 +84,8 @@ export function BookingStats({ className }: StatsProps) {
     const rangeSales = (sales || []).filter(s => s.sale_date >= fromStr && s.sale_date <= toStr);
     const rangeRevenue = rangeSales.reduce((s, sale) => s + Number(sale.amount), 0);
     const rangeTips = rangeSales.reduce((s, sale) => s + Number((sale as any).tip_amount || 0), 0);
+    const rangeTax = rangeSales.reduce((s, sale) => s + Number((sale as any).tax_amount || 0), 0);
+    const rangeProductRevenue = rangeSales.reduce((s, sale) => s + ((sale as any).sale_items || []).filter((i: any) => i.item_type === 'product').reduce((s2: number, i: any) => s2 + Number(i.price || 0), 0), 0);
     const rangeBookingValue = rangeBookings.reduce((s, b) => s + ((b as any).services?.price || 0), 0);
 
     // Previous period for comparison
@@ -206,6 +208,8 @@ export function BookingStats({ className }: StatsProps) {
     return {
       rangeRevenue,
       rangeTips,
+      rangeTax,
+      rangeProductRevenue,
       rangeCount: rangeBookings.length,
       rangeValue: rangeBookingValue,
       revenueTrend,
@@ -344,7 +348,7 @@ export function BookingStats({ className }: StatsProps) {
             label: t('Doanh thu'),
             value: formatPrice(stats.rangeRevenue),
             trend: stats.revenueTrend,
-            sub: stats.rangeTips > 0 ? `${t(rangeLabel)} · ${t('Tiền tip')}: ${formatPrice(stats.rangeTips)}` : t(rangeLabel),
+            sub: [t(rangeLabel), stats.rangeTips > 0 ? `${t('Tiền tip')}: ${formatPrice(stats.rangeTips)}` : null, stats.rangeTax > 0 ? `${t('Thuế')}: ${formatPrice(stats.rangeTax)}` : null, stats.rangeProductRevenue > 0 ? `${t('Sản phẩm')}: ${formatPrice(stats.rangeProductRevenue)}` : null].filter(Boolean).join(' · '),
           },
           {
             icon: CalendarCheck,
