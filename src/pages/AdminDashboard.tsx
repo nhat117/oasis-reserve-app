@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { BookingCalendar } from '@/components/BookingCalendar';
+import { NotificationBell } from '@/components/NotificationBell';
 import { LogoUpload as LogoUploadComponent } from '@/components/LogoUpload';
 import { Textarea } from '@/components/ui/textarea';
 import { TipTapEditor } from '@/components/TipTapEditor';
@@ -137,6 +138,7 @@ const AdminDashboard = () => {
         });
         queryClient.invalidateQueries({ queryKey: ['admin-bookings'] });
         queryClient.invalidateQueries({ queryKey: ['stats-bookings'] });
+        queryClient.invalidateQueries({ queryKey: ['notifications'] });
 
         // Trigger SMS notification to shop owner
         try {
@@ -224,7 +226,8 @@ const AdminDashboard = () => {
 
   // Create booking form state
   const [bookingDialog, setBookingDialog] = useState(false);
-  const [bookingServiceId, setBookingServiceId] = useState('');
+  const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
+  const [bookingServiceIds, setBookingServiceIds] = useState<string[]>([]);
   const [bookingTherapistId, setBookingTherapistId] = useState('');
   const [bookingDate, setBookingDate] = useState<Date | undefined>();
   const [bookingTime, setBookingTime] = useState('');
@@ -458,7 +461,7 @@ const AdminDashboard = () => {
   const { data: bookings } = useQuery({
     queryKey: ['admin-bookings', filterTherapist],
     queryFn: async () => {
-      let query = supabase.from('bookings').select('*, services(name, duration_minutes, price), therapists(name)')
+      let query = supabase.from('bookings').select('*, services(name, duration_minutes, price), therapists(name), booking_services(service_id, service_name, duration_minutes, price)')
         .order('booking_date', { ascending: true }).order('start_time', { ascending: true });
       if (filterTherapist !== 'all') query = query.eq('therapist_id', filterTherapist);
       const { data, error } = await query;
@@ -1884,9 +1887,12 @@ const AdminDashboard = () => {
   // Create booking from admin
   const createBooking = useMutation({
     mutationFn: async () => {
-      const service = services?.find(s => s.id === bookingServiceId);
-      if (!service || !bookingDate || !bookingTime) throw new Error('Missing fields');
-      
+      const selectedServices = bookingServiceIds
+        .map(id => services?.find(s => s.id === id))
+        .filter((s): s is NonNullable<typeof s> => !!s);
+      if (selectedServices.length === 0 || !bookingDate || !bookingTime) throw new Error('Missing fields');
+      const totalDuration = selectedServices.reduce((sum, s) => sum + s.duration_minutes, 0);
+
       // Resolve therapist: if still "random", find from available slots
       let therapistId = bookingTherapistId;
       if (therapistId === 'random') {
@@ -1895,7 +1901,7 @@ const AdminDashboard = () => {
         therapistId = slot.therapistId;
       }
       if (!therapistId) throw new Error('Missing therapist');
-      
+
       const vErr = validateForm(adminBookingSchema, {
         customerName: bookingCustomerName,
         customerPhone: bookingCustomerPhone,
@@ -1905,10 +1911,12 @@ const AdminDashboard = () => {
       if (vErr) throw new Error(vErr);
 
       const [h, m] = bookingTime.split(':').map(Number);
-      const endMin = h * 60 + m + service.duration_minutes;
+      const endMin = h * 60 + m + totalDuration;
       const endTime = `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
+      const bookingId = crypto.randomUUID();
       const { error } = await supabase.from('bookings').insert({
-        service_id: bookingServiceId,
+        id: bookingId,
+        service_id: selectedServices[0].id,
         therapist_id: therapistId,
         booking_date: format(bookingDate, 'yyyy-MM-dd'),
         start_time: bookingTime,
@@ -1921,13 +1929,29 @@ const AdminDashboard = () => {
         tenant_id: TENANT_ID,
       });
       if (error) throw error;
+
+      const { error: bsError } = await supabase.from('booking_services').insert(
+        selectedServices.map((s, i) => ({
+          booking_id: bookingId,
+          service_id: s.id,
+          service_name: s.name,
+          duration_minutes: s.duration_minutes,
+          price: s.price,
+          is_primary: i === 0,
+          tenant_id: TENANT_ID,
+        })),
+      );
+      if (bsError) throw bsError;
     },
     onSuccess: () => {
       logActivity('create_booking', `Customer: ${bookingCustomerName}, Phone: ${bookingCustomerPhone}`);
       queryClient.invalidateQueries({ queryKey: ['admin-bookings'] });
       // Send confirmation email if customer email provided
       if (bookingCustomerEmail?.trim()) {
-        const service = services?.find(s => s.id === bookingServiceId);
+        const selectedServices = bookingServiceIds
+          .map(id => services?.find(s => s.id === id))
+          .filter((s): s is NonNullable<typeof s> => !!s);
+        const serviceLabel = selectedServices.map(s => s.name).join(' + ');
         const therapist = therapists?.find(t => t.id === bookingTherapistId);
         const esc = escapeHtml;
         const emailHtml = `
@@ -1939,7 +1963,7 @@ const AdminDashboard = () => {
               <p style="font-size: 16px;">Hi <strong>${esc(bookingCustomerName)}</strong>,</p>
               <p style="font-size: 14px; color: #666;">Your booking has been confirmed.</p>
               <div style="background: hsl(35, 30%, 95%); border-radius: 8px; padding: 16px; margin: 16px 0;">
-                <p style="margin: 4px 0;">📋 <strong>Service:</strong> ${esc(service?.name || '')}</p>
+                <p style="margin: 4px 0;">📋 <strong>Service:</strong> ${esc(serviceLabel)}</p>
                 <p style="margin: 4px 0;">👤 <strong>Staff:</strong> ${esc(therapist?.name || '')}</p>
                 <p style="margin: 4px 0;">📅 <strong>Date:</strong> ${bookingDate ? format(bookingDate, 'dd/MM/yyyy') : ''}</p>
                 <p style="margin: 4px 0;">🕐 <strong>Time:</strong> ${esc(bookingTime || '')}</p>
@@ -1951,7 +1975,7 @@ const AdminDashboard = () => {
         supabase.functions.invoke('send-email-resend', {
           body: {
             to: bookingCustomerEmail.trim(),
-            subject: `Booking Confirmed - ${service?.name || 'Oasis Reserve'}`,
+            subject: `Booking Confirmed - ${serviceLabel || 'Oasis Reserve'}`,
             html: emailHtml,
           },
         }).catch(err => console.error('Failed to send confirmation email:', err));
@@ -1963,8 +1987,78 @@ const AdminDashboard = () => {
     onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
 
+  // Update an existing booking's services/date/time/therapist (edit flow)
+  const updateBooking = useMutation({
+    mutationFn: async () => {
+      if (!editingBookingId) throw new Error('Missing booking id');
+      const selectedServices = bookingServiceIds
+        .map(id => services?.find(s => s.id === id))
+        .filter((s): s is NonNullable<typeof s> => !!s);
+      if (selectedServices.length === 0 || !bookingDate || !bookingTime) throw new Error('Missing fields');
+      const totalDuration = selectedServices.reduce((sum, s) => sum + s.duration_minutes, 0);
+
+      let therapistId = bookingTherapistId;
+      if (therapistId === 'random') {
+        const slot = availableSlots.find(s => s.time === bookingTime && s.available);
+        if (!slot?.therapistId) throw new Error('No available therapist');
+        therapistId = slot.therapistId;
+      }
+      if (!therapistId) throw new Error('Missing therapist');
+
+      const vErr = validateForm(adminBookingSchema, {
+        customerName: bookingCustomerName,
+        customerPhone: bookingCustomerPhone,
+        customerEmail: bookingCustomerEmail || '',
+        notes: bookingNotes || '',
+      });
+      if (vErr) throw new Error(vErr);
+
+      const [h, m] = bookingTime.split(':').map(Number);
+      const endMin = h * 60 + m + totalDuration;
+      const endTime = `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
+
+      const { error } = await supabase.from('bookings').update({
+        service_id: selectedServices[0].id,
+        therapist_id: therapistId,
+        booking_date: format(bookingDate, 'yyyy-MM-dd'),
+        start_time: bookingTime,
+        end_time: endTime,
+        customer_name: bookingCustomerName,
+        customer_phone: bookingCustomerPhone,
+        customer_email: bookingCustomerEmail || null,
+        notes: bookingNotes || null,
+      }).eq('id', editingBookingId);
+      if (error) throw error;
+
+      const { error: delError } = await supabase.from('booking_services').delete().eq('booking_id', editingBookingId);
+      if (delError) throw delError;
+
+      const { error: bsError } = await supabase.from('booking_services').insert(
+        selectedServices.map((s, i) => ({
+          booking_id: editingBookingId,
+          service_id: s.id,
+          service_name: s.name,
+          duration_minutes: s.duration_minutes,
+          price: s.price,
+          is_primary: i === 0,
+          tenant_id: TENANT_ID,
+        })),
+      );
+      if (bsError) throw bsError;
+    },
+    onSuccess: () => {
+      logActivity('update_booking', `Updated booking ${editingBookingId}`);
+      queryClient.invalidateQueries({ queryKey: ['admin-bookings'] });
+      setBookingDialog(false);
+      resetBookingForm();
+      toast({ title: t('Đã lưu lịch hẹn') });
+    },
+    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+  });
+
   const resetBookingForm = () => {
-    setBookingServiceId('');
+    setEditingBookingId(null);
+    setBookingServiceIds([]);
     setBookingTherapistId('');
     setBookingDate(undefined);
     setBookingTime('');
@@ -2185,11 +2279,13 @@ const AdminDashboard = () => {
 
   // Generate available time slots for admin booking
   const getAvailableTimeSlots = () => {
-    if (!bookingDate || !bookingServiceId) return [];
-    const service = services?.find(s => s.id === bookingServiceId);
-    if (!service) return [];
+    if (!bookingDate || bookingServiceIds.length === 0) return [];
+    const selectedServices = bookingServiceIds
+      .map(id => services?.find(s => s.id === id))
+      .filter((s): s is NonNullable<typeof s> => !!s);
+    if (selectedServices.length === 0) return [];
     const dateStr = format(bookingDate, 'yyyy-MM-dd');
-    const duration = service.duration_minutes;
+    const duration = selectedServices.reduce((sum, s) => sum + s.duration_minutes, 0);
     const BUFFER = 15;
 
     // Get candidate therapists
@@ -2211,7 +2307,7 @@ const AdminDashboard = () => {
     const holiday = (shopHolidays || []).find(h => h.holiday_date === dateStr);
     if (holiday && !holiday.early_close_hour) return []; // full day off
 
-    const dayBookings = (bookings || []).filter(b => b.booking_date === dateStr && b.status === 'confirmed');
+    const dayBookings = (bookings || []).filter(b => b.booking_date === dateStr && b.status === 'confirmed' && b.id !== editingBookingId);
 
     const allSlots: string[] = [];
     for (let h = 9; h < 18; h++) {
@@ -2363,13 +2459,14 @@ const AdminDashboard = () => {
           </button>
 
           {/* Sidebar header / brand */}
-          <div className={cn("border-b border-[#E5E5E5]", sidebarOpen ? "px-3 py-4" : "px-2 py-4 flex flex-col items-center")}>
+          <div className={cn("border-b border-[#E5E5E5]", sidebarOpen ? "px-3 py-4 flex items-center justify-between" : "px-2 py-4 flex flex-col items-center gap-2")}>
             <Link to="/" className={cn("flex items-center overflow-hidden", sidebarOpen ? "gap-2.5" : "justify-center")}>
               <div className="h-8 w-8 shrink-0 rounded-lg bg-gradient-to-br from-amber-700 to-yellow-800 flex items-center justify-center">
                 <Leaf className="h-4 w-4 text-white" />
               </div>
               {sidebarOpen && <span className="font-semibold text-[15px] text-[#1B1B1B] tracking-tight whitespace-nowrap truncate uppercase">{spaName}</span>}
             </Link>
+            {isStaff && <NotificationBell />}
           </div>
 
           {/* Sidebar nav */}
@@ -2484,13 +2581,16 @@ const AdminDashboard = () => {
               </div>
               <span className="font-semibold text-[13px] text-[#1B1B1B] tracking-tight">{spaName}</span>
             </Link>
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="h-8 w-8 rounded-lg flex items-center justify-center text-[#737373] hover:bg-[#F0F0F0] transition-colors"
-              aria-label="Menu"
-            >
-              {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-            </button>
+            <div className="flex items-center gap-1">
+              {isStaff && <NotificationBell />}
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="h-8 w-8 rounded-lg flex items-center justify-center text-[#737373] hover:bg-[#F0F0F0] transition-colors"
+                aria-label="Menu"
+              >
+                {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
         </header>
 
@@ -2842,22 +2942,43 @@ const AdminDashboard = () => {
                     </DialogTrigger>
                     <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[460px] max-h-[90vh] overflow-y-auto">
                       <DialogHeader>
-                        <DialogTitle className="text-[#1B1B1B]">{t('Tạo lịch hẹn mới')}</DialogTitle>
+                        <DialogTitle className="text-[#1B1B1B]">{editingBookingId ? t('Sửa lịch hẹn') : t('Tạo lịch hẹn mới')}</DialogTitle>
                         <DialogDescription className="text-muted-foreground/60">{t('Điền thông tin để tạo lịch hẹn cho khách hàng')}</DialogDescription>
                       </DialogHeader>
                       <div className="space-y-5 max-h-[70vh] overflow-y-auto pr-1 pt-1">
                         {/* Service & Therapist */}
                         <div className="space-y-4">
                           <div>
-                            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Dịch vụ')}</Label>
-                            <Select value={bookingServiceId} onValueChange={setBookingServiceId}>
-                              <SelectTrigger className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60"><SelectValue placeholder={t('Chọn dịch vụ')} /></SelectTrigger>
-                              <SelectContent>
-                                {services?.filter(s => s.is_active).map(s => (
-                                  <SelectItem key={s.id} value={s.id}>{s.name} ({s.duration_minutes} {t('phút')} — {formatPrice(s.price)})</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              {t('Dịch vụ')} {bookingServiceIds.length > 0 && <span className="text-muted-foreground/60">({bookingServiceIds.length})</span>}
+                            </Label>
+                            <div className="mt-1.5 max-h-[220px] overflow-y-auto rounded-md border border-[#E5E5E5]/60 bg-[#F5F5F5] divide-y divide-[#E5E5E5]/40">
+                              {services?.filter(s => s.is_active).map(s => {
+                                const isSelected = bookingServiceIds.includes(s.id);
+                                return (
+                                  <button
+                                    key={s.id}
+                                    type="button"
+                                    onClick={() => setBookingServiceIds(prev =>
+                                      isSelected ? prev.filter(id => id !== s.id) : [...prev, s.id]
+                                    )}
+                                    className={cn(
+                                      "w-full flex items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors",
+                                      isSelected ? "bg-[#006AFF]/10" : "hover:bg-white/60"
+                                    )}
+                                  >
+                                    <div className={cn(
+                                      "w-4 h-4 rounded border flex items-center justify-center shrink-0",
+                                      isSelected ? "border-[#006AFF] bg-[#006AFF]" : "border-[#D4D4D4]"
+                                    )}>
+                                      {isSelected && <Check className="h-2.5 w-2.5 text-white" />}
+                                    </div>
+                                    <span className="flex-1 truncate">{s.name}</span>
+                                    <span className="text-xs text-muted-foreground shrink-0">{s.duration_minutes} {t('phút')} — {formatPrice(s.price)}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
                           <div>
                             <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Thợ')}</Label>
@@ -2890,7 +3011,7 @@ const AdminDashboard = () => {
                           </div>
                           <div>
                             <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Giờ')}</Label>
-                            {!bookingServiceId || !bookingDate ? (
+                            {bookingServiceIds.length === 0 || !bookingDate ? (
                               <p className="text-sm text-muted-foreground/50 mt-1.5 italic">{t('Chọn dịch vụ và ngày trước')}</p>
                             ) : availableSlots.length === 0 && bookingTherapistId && bookingTherapistId !== 'random' && (unavailabilities || []).some(u => u.therapist_id === bookingTherapistId && u.unavailable_date === format(bookingDate, 'yyyy-MM-dd')) ? (
                               <p className="text-sm text-destructive mt-1.5">{t('Thợ nghỉ ngày này')} - {(unavailabilities || []).find(u => u.therapist_id === bookingTherapistId && u.unavailable_date === format(bookingDate, 'yyyy-MM-dd'))?.reason || t('Không có lý do')}</p>
@@ -2945,9 +3066,9 @@ const AdminDashboard = () => {
                           </div>
                         </div>
 
-                        <Button className="w-full h-10 bg-[#006AFF] hover:bg-[#1B1B1B] text-white" onClick={() => createBooking.mutate()}
-                          disabled={!bookingServiceId || !bookingTherapistId || !bookingDate || !bookingTime || !bookingCustomerName.trim() || !bookingCustomerPhone.trim() || createBooking.isPending}>
-                          {createBooking.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang tạo...')}</> : t('Tạo lịch hẹn')}
+                        <Button className="w-full h-10 bg-[#006AFF] hover:bg-[#1B1B1B] text-white" onClick={() => editingBookingId ? updateBooking.mutate() : createBooking.mutate()}
+                          disabled={bookingServiceIds.length === 0 || !bookingTherapistId || !bookingDate || !bookingTime || !bookingCustomerName.trim() || !bookingCustomerPhone.trim() || createBooking.isPending || updateBooking.isPending}>
+                          {createBooking.isPending || updateBooking.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : editingBookingId ? t('Lưu thay đổi') : t('Tạo lịch hẹn')}
                         </Button>
                       </div>
                     </DialogContent>
@@ -2970,6 +3091,21 @@ const AdminDashboard = () => {
                   onDateSelect={(date, startTime) => {
                     setBookingDate(new Date(date + 'T00:00:00'));
                     if (startTime) setBookingTime(startTime);
+                    setBookingDialog(true);
+                  }}
+                  onEdit={(booking: any) => {
+                    setEditingBookingId(booking.id);
+                    const svcIds: string[] = booking.booking_services?.length
+                      ? booking.booking_services.map((bs: any) => bs.service_id).filter((id: string | null): id is string => !!id)
+                      : [];
+                    setBookingServiceIds(svcIds.length > 0 ? svcIds : [booking.service_id]);
+                    setBookingTherapistId(booking.therapist_id);
+                    setBookingDate(new Date(booking.booking_date + 'T00:00:00'));
+                    setBookingTime(booking.start_time.slice(0, 5));
+                    setBookingCustomerName(booking.customer_name);
+                    setBookingCustomerPhone(booking.customer_phone);
+                    setBookingCustomerEmail(booking.customer_email || '');
+                    setBookingNotes(booking.notes || '');
                     setBookingDialog(true);
                   }}
                 />

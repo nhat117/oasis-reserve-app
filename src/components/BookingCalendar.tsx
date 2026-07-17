@@ -11,7 +11,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus } from 'lucide-react';
+import { Plus, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/hooks/useI18n';
 
@@ -27,11 +27,19 @@ export interface Booking {
   therapist_id: string;
   services?: { name: string } | null;
   therapists?: { name: string } | null;
+  booking_services?: Array<{ service_id: string | null; service_name: string; duration_minutes: number; price: number }> | null;
   // Payment fields (available after migration)
   payment_status?: string | null;
   payment_provider?: string | null;
   payment_intent_id?: string | null;
   total_amount?: number | null;
+}
+
+export function serviceLabel(b: Booking): string {
+  if (b.booking_services && b.booking_services.length > 0) {
+    return b.booking_services.map(s => s.service_name).join(' + ');
+  }
+  return b.services?.name || '';
 }
 
 export interface ShopHoliday {
@@ -50,6 +58,7 @@ interface BookingCalendarProps {
   onMarkNoShow?: (id: string) => void;
   onReschedule: (id: string, newDate: string, newStartTime: string, newEndTime: string) => void;
   onDateSelect?: (date: string, startTime?: string) => void;
+  onEdit?: (booking: Booking) => void;
 }
 
 const THERAPIST_COLORS = [
@@ -57,7 +66,7 @@ const THERAPIST_COLORS = [
   '#8b5cf6', '#06b6d4', '#ec4899', '#f97316',
 ];
 
-export function BookingCalendar({ bookings, holidays = [], onCancel, onDelete, onRefund, onMarkCompleted, onMarkNoShow, onReschedule, onDateSelect }: BookingCalendarProps) {
+export function BookingCalendar({ bookings, holidays = [], onCancel, onDelete, onRefund, onMarkCompleted, onMarkNoShow, onReschedule, onDateSelect, onEdit }: BookingCalendarProps) {
   const { t, lang } = useI18n();
   const calendarRef = useRef<FullCalendar>(null);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
@@ -88,7 +97,7 @@ export function BookingCalendar({ bookings, holidays = [], onCancel, onDelete, o
       const isCancelled = b.status === 'cancelled';
       return {
         id: b.id,
-        title: `${b.customer_name} · ${b.services?.name || ''}`,
+        title: `${b.customer_name} · ${serviceLabel(b)}`,
         start: `${b.booking_date}T${b.start_time}`,
         end: `${b.booking_date}T${b.end_time}`,
         backgroundColor: isCancelled ? '#9ca3af' : color,
@@ -275,7 +284,7 @@ export function BookingCalendar({ bookings, holidays = [], onCancel, onDelete, o
                 <p><span className="text-muted-foreground">{t('Ngày')}:</span> {selectedBooking.booking_date}</p>
                 <p><span className="text-muted-foreground">{t('Khách')}:</span> {selectedBooking.customer_name}</p>
                 <p><span className="text-muted-foreground">{t('SĐT')}:</span> {selectedBooking.customer_phone}</p>
-                <p><span className="text-muted-foreground">{t('Dịch vụ')}:</span> {selectedBooking.services?.name}</p>
+                <p><span className="text-muted-foreground">{t('Dịch vụ')}:</span> {serviceLabel(selectedBooking)}</p>
                 {selectedBooking.payment_status && selectedBooking.payment_status !== 'unpaid' && (
                   <p>
                     <span className="text-muted-foreground">{t('Thanh toán')}:</span>{' '}
@@ -298,6 +307,12 @@ export function BookingCalendar({ bookings, holidays = [], onCancel, onDelete, o
               </div>
               {selectedBooking.status === 'confirmed' && (
                 <div className="space-y-2">
+                  {onEdit && (
+                    <Button variant="outline" size="sm" className="w-full gap-1.5"
+                      onClick={() => { onEdit(selectedBooking); setDialogOpen(false); }}>
+                      <Pencil className="h-3.5 w-3.5" /> {t('Sửa lịch hẹn')}
+                    </Button>
+                  )}
                   <div className="flex gap-2">
                     {onMarkCompleted && (
                       <Button variant="default" size="sm" className="flex-1"
@@ -378,7 +393,7 @@ export function BookingCalendar({ bookings, holidays = [], onCancel, onDelete, o
                       <Badge variant={statusVariant(b.status)} className="text-[10px]">{statusLabel(b.status)}</Badge>
                     </div>
                     <p className={cn('text-sm font-medium truncate', b.status === 'cancelled' && 'line-through')}>{b.customer_name}</p>
-                    <p className="text-xs text-muted-foreground truncate">{b.services?.name} · {b.therapists?.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{serviceLabel(b)} · {b.therapists?.name}</p>
                   </div>
                 </button>
               ))}
