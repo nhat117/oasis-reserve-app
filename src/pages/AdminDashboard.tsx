@@ -2316,8 +2316,11 @@ const AdminDashboard = () => {
 
     const dayBookings = (bookings || []).filter(b => b.booking_date === dateStr && b.status === 'confirmed' && b.id !== editingBookingId);
 
+    const shopOpenHour = Number(openTime.split(':')[0]);
+    const shopCloseHour = Number(closeTime.split(':')[0]);
+
     const allSlots: string[] = [];
-    for (let h = 9; h < 18; h++) {
+    for (let h = shopOpenHour; h < shopCloseHour; h++) {
       allSlots.push(`${String(h).padStart(2, '0')}:00`);
       allSlots.push(`${String(h).padStart(2, '0')}:15`);
       allSlots.push(`${String(h).padStart(2, '0')}:30`);
@@ -2332,7 +2335,7 @@ const AdminDashboard = () => {
       const startMins = sh * 60 + sm;
       const endMins = startMins + duration;
 
-      if (endMins > (holiday?.early_close_hour || 18) * 60) {
+      if (endMins > (holiday?.early_close_hour || shopCloseHour) * 60) {
         result.push({ time: slot, available: false });
         continue;
       }
