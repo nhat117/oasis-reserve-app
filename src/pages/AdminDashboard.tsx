@@ -19,7 +19,7 @@ import { LogoUpload as LogoUploadComponent } from '@/components/LogoUpload';
 import { Textarea } from '@/components/ui/textarea';
 import { TipTapEditor } from '@/components/TipTapEditor';
 import { BookingStats } from '@/components/BookingStats';
-import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone, CreditCard, Square, RotateCcw, BookOpen, ScrollText, Eye, Clock, Check, Bot, FileSpreadsheet, Printer, History, Bug, ShoppingBag } from 'lucide-react';
+import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone, CreditCard, Square, RotateCcw, BookOpen, ScrollText, Eye, Clock, Check, Bot, FileSpreadsheet, Printer, History, Bug, ShoppingBag, DatabaseBackup, Upload } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ALL_I18N_KEYS } from '@/lib/i18n-keys';
 import { Switch } from '@/components/ui/switch';
@@ -191,6 +191,13 @@ const AdminDashboard = () => {
   const [exportCustomFrom, setExportCustomFrom] = useState<Date | undefined>(undefined);
   const [exportCustomTo, setExportCustomTo] = useState<Date | undefined>(undefined);
   const [isExporting, setIsExporting] = useState(false);
+
+  // Business config backup (export/import JSON) state
+  const [isBackupExporting, setIsBackupExporting] = useState(false);
+  const [isBackupImporting, setIsBackupImporting] = useState(false);
+  const [backupImportResult, setBackupImportResult] = useState<{ table: string; count: number }[] | null>(null);
+  const [backupImportFile, setBackupImportFile] = useState<File | null>(null);
+  const backupFileInputRef = useRef<HTMLInputElement>(null);
 
   // Service form state
   const [serviceDialog, setServiceDialog] = useState(false);
@@ -4935,6 +4942,7 @@ const AdminDashboard = () => {
               { key: 'terms', icon: ScrollText, label: t('Điều khoản'), desc: t('Chỉnh sửa nội dung trang Điều khoản') },
               ...(isAdmin ? [{ key: 'logs', icon: FileText, label: t('Nhật ký hoạt động'), desc: t('Tải xuống CSV') }] : []),
               ...(isAdmin ? [{ key: 'export_excel', icon: FileSpreadsheet, label: t('Xuất báo cáo Excel'), desc: t('Doanh thu, lịch hẹn, dịch vụ, nhân viên') }] : []),
+              ...(isAdmin ? [{ key: 'data_backup', icon: DatabaseBackup, label: t('Sao lưu & Khôi phục dữ liệu'), desc: t('Xuất/nhập dịch vụ, giá, nhân viên, sản phẩm dạng JSON') }] : []),
               { key: 'upgrade', icon: Crown, label: t('Nâng cấp hệ thống'), desc: t('Nhập mã nâng cấp để mở khoá tính năng') },
               { key: 'software', icon: Info, label: t('Thông tin phần mềm'), desc: 'v1.0.0 · Olive Marketing' },
               ...(isAdmin ? [{ key: 'danger', icon: AlertTriangle, label: t('Vùng nguy hiểm'), desc: t('Xoá tất cả dữ liệu') }] : []),
@@ -5970,6 +5978,107 @@ const AdminDashboard = () => {
                   >
                     {isExporting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang tạo file...')}</> : <><FileSpreadsheet className="h-4 w-4 mr-2" />{t('Tải xuống Excel')}</>}
                   </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* ── Data Backup (Export/Import Business Config) Modal ── */}
+            <Dialog open={settingsModal === 'data_backup'} onOpenChange={(open) => { if (!open) { setSettingsModal(null); setBackupImportResult(null); setBackupImportFile(null); } }}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>{t('Sao lưu & Khôi phục dữ liệu')}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-5 pt-2">
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">{t('Xuất dữ liệu')}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {t('Tải xuống dịch vụ, nhân viên, sản phẩm, giá, hạng thành viên, mã giảm giá và chi nhánh dạng file JSON.')}
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={isBackupExporting}
+                      onClick={async () => {
+                        setIsBackupExporting(true);
+                        try {
+                          const { exportBusinessConfig, downloadBackupJson } = await import('@/lib/dataBackup');
+                          const backup = await exportBusinessConfig();
+                          downloadBackupJson(backup, `${spaName.replace(/\s+/g, '-').toLowerCase()}-business-config`);
+                          toast({ title: t('Xuất file thành công') });
+                        } catch (err) {
+                          console.error('Business config export failed', err);
+                          toast({ title: t('Lỗi'), description: t('Không thể xuất dữ liệu. Vui lòng thử lại.'), variant: 'destructive' });
+                        } finally {
+                          setIsBackupExporting(false);
+                        }
+                      }}
+                    >
+                      {isBackupExporting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang xuất...')}</> : <><Download className="h-3.5 w-3.5 mr-1.5" />{t('Tải xuống JSON')}</>}
+                    </Button>
+                  </div>
+
+                  <div className="border-t border-border/40 pt-4 space-y-2">
+                    <p className="text-sm font-medium">{t('Nhập dữ liệu')}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {t('Chọn file JSON đã xuất trước đó. Dữ liệu trùng ID sẽ được ghi đè, dữ liệu mới sẽ được thêm vào.')}
+                    </p>
+                    <input
+                      ref={backupFileInputRef}
+                      type="file"
+                      accept="application/json,.json"
+                      className="hidden"
+                      onChange={(e) => {
+                        setBackupImportResult(null);
+                        setBackupImportFile(e.target.files?.[0] || null);
+                      }}
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={() => backupFileInputRef.current?.click()} disabled={isBackupImporting}>
+                        <Upload className="h-3.5 w-3.5 mr-1.5" />{t('Chọn file')}
+                      </Button>
+                      {backupImportFile && <span className="text-xs text-muted-foreground truncate">{backupImportFile.name}</span>}
+                    </div>
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      disabled={!backupImportFile || isBackupImporting}
+                      onClick={async () => {
+                        if (!backupImportFile) return;
+                        setIsBackupImporting(true);
+                        setBackupImportResult(null);
+                        try {
+                          const { parseBackupFile, importBusinessConfig } = await import('@/lib/dataBackup');
+                          const text = await backupImportFile.text();
+                          const backup = parseBackupFile(text);
+                          const result = await importBusinessConfig(backup);
+                          setBackupImportResult(result);
+                          logActivity('import_business_config', `Imported ${result.map(r => `${r.table}:${r.count}`).join(', ')}`);
+                          queryClient.invalidateQueries({ queryKey: ['admin-services'] });
+                          queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+                          queryClient.invalidateQueries({ queryKey: ['admin-therapists'] });
+                          queryClient.invalidateQueries({ queryKey: ['membership-tiers'] });
+                          queryClient.invalidateQueries({ queryKey: ['discount-codes'] });
+                          queryClient.invalidateQueries({ queryKey: ['shop-holidays'] });
+                          toast({ title: t('Nhập dữ liệu thành công') });
+                        } catch (err: any) {
+                          console.error('Business config import failed', err);
+                          toast({ title: t('Lỗi'), description: err?.message || t('Không thể nhập dữ liệu. Kiểm tra lại file.'), variant: 'destructive' });
+                        } finally {
+                          setIsBackupImporting(false);
+                        }
+                      }}
+                    >
+                      {isBackupImporting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang nhập...')}</> : t('Nhập dữ liệu')}
+                    </Button>
+                    {backupImportResult && (
+                      <div className="rounded-lg bg-muted/50 p-3 space-y-1">
+                        <p className="text-xs font-medium">{t('Đã nhập:')}</p>
+                        {backupImportResult.map(r => (
+                          <p key={r.table} className="text-xs text-muted-foreground">{r.table}: {r.count}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </DialogContent>
             </Dialog>
