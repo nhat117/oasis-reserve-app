@@ -214,6 +214,11 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Đã cập nhật thợ": "Staff updated",
   "Đã xoá thợ": "Staff deleted",
   "Xoá thợ này?": "Delete this staff member?",
+  "Xoá thợ này? Nếu nhân viên đã có lịch hẹn hoặc lịch sử bán hàng, hệ thống sẽ ẩn thay vì xoá hoàn toàn để giữ dữ liệu cũ.": "Delete this staff member? If they have booking or sales history, they'll be hidden instead of permanently deleted, to keep past records intact.",
+  "Đã ẩn nhân viên": "Staff hidden",
+  "Nhân viên này có lịch sử đặt lịch nên không thể xoá hoàn toàn. Đã chuyển sang trạng thái ẩn, dữ liệu cũ vẫn được giữ lại.": "This staff member has booking history, so they can't be permanently deleted. They've been hidden instead — past records are kept intact.",
+  "Kích hoạt lại": "Reactivate",
+  "Đã kích hoạt lại nhân viên": "Staff reactivated",
 
   // Availability
   "Ngày nghỉ / Không khả dụng": "Days Off / Unavailable",

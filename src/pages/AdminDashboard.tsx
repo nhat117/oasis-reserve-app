@@ -2222,14 +2222,39 @@ const AdminDashboard = () => {
     mutationFn: async (id: string) => {
       if (!isAdmin) throw new Error('Admin only');
       const { error } = await supabase.from('therapists').delete().eq('id', id);
+      if (error) {
+        // 23503 = foreign key violation — staff has bookings/sales history, can't hard-delete
+        if (error.code === '23503') {
+          const { error: deactivateError } = await supabase.from('therapists').update({ is_active: false }).eq('id', id);
+          if (deactivateError) throw deactivateError;
+          return { deactivated: true };
+        }
+        throw error;
+      }
+      return { deactivated: false };
+    },
+    onSuccess: (result, id) => {
+      logActivity(result?.deactivated ? 'deactivate_therapist' : 'delete_therapist', `Therapist ID: ${id}`);
+      queryClient.invalidateQueries({ queryKey: ['admin-therapists'] });
+      toast(result?.deactivated
+        ? { title: t('Đã ẩn nhân viên'), description: t('Nhân viên này có lịch sử đặt lịch nên không thể xoá hoàn toàn. Đã chuyển sang trạng thái ẩn, dữ liệu cũ vẫn được giữ lại.') }
+        : { title: t('Đã xoá thợ') });
+    },
+    onError: (e: any) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+  });
+
+  const reactivateTherapist = useMutation({
+    mutationFn: async (id: string) => {
+      if (!isAdmin) throw new Error('Admin only');
+      const { error } = await supabase.from('therapists').update({ is_active: true }).eq('id', id);
       if (error) throw error;
     },
     onSuccess: (_d, id) => {
-      logActivity('delete_therapist', `Therapist ID: ${id}`);
+      logActivity('reactivate_therapist', `Therapist ID: ${id}`);
       queryClient.invalidateQueries({ queryKey: ['admin-therapists'] });
-      toast({ title: t('Đã xoá thợ') });
+      toast({ title: t('Đã kích hoạt lại nhân viên') });
     },
-    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+    onError: (e: any) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
 
 
@@ -4717,9 +4742,15 @@ const AdminDashboard = () => {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-36">
-                                  <DropdownMenuItem className="text-destructive text-xs" onClick={() => openConfirm(t('Xoá thợ'), t('Xoá thợ này?'), () => deleteTherapist.mutate(th.id))}>
-                                    <Trash2 className="h-3.5 w-3.5 mr-2" /> {t('Xóa')}
-                                  </DropdownMenuItem>
+                                  {th.is_active ? (
+                                    <DropdownMenuItem className="text-destructive text-xs" onClick={() => openConfirm(t('Xoá thợ'), t('Xoá thợ này? Nếu nhân viên đã có lịch hẹn hoặc lịch sử bán hàng, hệ thống sẽ ẩn thay vì xoá hoàn toàn để giữ dữ liệu cũ.'), () => deleteTherapist.mutate(th.id))}>
+                                      <Trash2 className="h-3.5 w-3.5 mr-2" /> {t('Xóa')}
+                                    </DropdownMenuItem>
+                                  ) : (
+                                    <DropdownMenuItem className="text-xs" onClick={() => reactivateTherapist.mutate(th.id)}>
+                                      <Users className="h-3.5 w-3.5 mr-2" /> {t('Kích hoạt lại')}
+                                    </DropdownMenuItem>
+                                  )}
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             )}
@@ -4769,9 +4800,15 @@ const AdminDashboard = () => {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
-                                  <DropdownMenuItem className="text-destructive text-xs" onClick={() => openConfirm(t('Xoá thợ'), t('Xoá thợ này?'), () => deleteTherapist.mutate(th.id))}>
-                                    <Trash2 className="h-3.5 w-3.5 mr-2" /> {t('Xóa')}
-                                  </DropdownMenuItem>
+                                  {th.is_active ? (
+                                    <DropdownMenuItem className="text-destructive text-xs" onClick={() => openConfirm(t('Xoá thợ'), t('Xoá thợ này? Nếu nhân viên đã có lịch hẹn hoặc lịch sử bán hàng, hệ thống sẽ ẩn thay vì xoá hoàn toàn để giữ dữ liệu cũ.'), () => deleteTherapist.mutate(th.id))}>
+                                      <Trash2 className="h-3.5 w-3.5 mr-2" /> {t('Xóa')}
+                                    </DropdownMenuItem>
+                                  ) : (
+                                    <DropdownMenuItem className="text-xs" onClick={() => reactivateTherapist.mutate(th.id)}>
+                                      <Users className="h-3.5 w-3.5 mr-2" /> {t('Kích hoạt lại')}
+                                    </DropdownMenuItem>
+                                  )}
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             )}
