@@ -3014,6 +3014,12 @@ const AdminDashboard = () => {
                                 );
                               })}
                             </div>
+                            {bookingServiceIds.length > 0 && (
+                              <div className="flex items-center justify-between mt-1.5 px-1 text-xs">
+                                <span className="text-muted-foreground">{t('Tổng cộng')}</span>
+                                <span className="font-semibold text-[#1B1B1B]">{formatPrice(bookingServiceIds.reduce((sum, id) => sum + (services?.find(s => s.id === id)?.price || 0), 0))}</span>
+                              </div>
+                            )}
                           </div>
                           <div>
                             <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Thợ')}</Label>
@@ -3246,12 +3252,19 @@ const AdminDashboard = () => {
                                 const isSelected = saleBookingId === b.id;
                                 return (
                                   <button type="button" key={b.id} className={cn('w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors border-b border-[#E5E5E5]/20', isSelected ? 'bg-[#006AFF]/5' : 'hover:bg-muted/30')} onClick={() => {
+                                    // A booking may carry extra services added after creation (booking_services),
+                                    // not just the single primary service_id — charge for all of them at checkout.
+                                    const bs: any[] = (b as any).booking_services || [];
+                                    const primaryServiceId = (b as any).service_id || bs.find(s => s.service_id)?.service_id || '';
+                                    const addOnServiceIds = bs.map(s => s.service_id).filter((id: string | null) => !!id && id !== primaryServiceId);
+                                    const primaryPrice = services?.find(sv => sv.id === primaryServiceId)?.price ?? (b as any).services?.price ?? 0;
                                     setSaleType('booking');
                                     setSaleBookingId(b.id);
-                                    setSaleAmount(String((b as any).services?.price || 0));
+                                    setSaleAmount(String(primaryPrice));
+                                    setSaleAddOns(addOnServiceIds);
                                     setSaleCustomerPhone(b.customer_phone || '');
                                     setSaleCustomerName(b.customer_name || '');
-                                    setSaleServiceId((b as any).service_id || '');
+                                    setSaleServiceId(primaryServiceId);
                                   }}>
                                     <div className={cn('h-9 w-9 rounded-full flex items-center justify-center text-xs font-semibold shrink-0', isSelected ? 'bg-[#006AFF] text-white' : 'bg-muted text-muted-foreground')}>
                                       {isSelected ? <Check className="h-4 w-4" /> : (b.customer_name || 'W').slice(0, 2).toUpperCase()}
