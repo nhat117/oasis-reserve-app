@@ -51,6 +51,9 @@ export interface ShopHoliday {
 interface BookingCalendarProps {
   bookings: Booking[];
   holidays?: ShopHoliday[];
+  openTime?: string;
+  closeTime?: string;
+  openDays?: number[];
   onCancel: (id: string) => void;
   onDelete?: (id: string) => void;
   onRefund?: (id: string) => void;
@@ -66,7 +69,7 @@ const THERAPIST_COLORS = [
   '#8b5cf6', '#06b6d4', '#ec4899', '#f97316',
 ];
 
-export function BookingCalendar({ bookings, holidays = [], onCancel, onDelete, onRefund, onMarkCompleted, onMarkNoShow, onReschedule, onDateSelect, onEdit }: BookingCalendarProps) {
+export function BookingCalendar({ bookings, holidays = [], openTime = '09:00', closeTime = '19:00', openDays, onCancel, onDelete, onRefund, onMarkCompleted, onMarkNoShow, onReschedule, onDateSelect, onEdit }: BookingCalendarProps) {
   const { t, lang } = useI18n();
   const calendarRef = useRef<FullCalendar>(null);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
@@ -128,6 +131,13 @@ export function BookingCalendar({ bookings, holidays = [], onCancel, onDelete, o
   }, [holidays, t]);
 
   const events = useMemo(() => [...holidayEvents, ...bookingEvents], [holidayEvents, bookingEvents]);
+
+  // openDays uses Mon=1..Sun=7; FullCalendar's hiddenDays wants Sun=0..Sat=6
+  const hiddenDays = useMemo(() => {
+    if (!openDays) return [];
+    const closed = [1, 2, 3, 4, 5, 6, 7].filter(d => !openDays.includes(d));
+    return closed.map(d => (d === 7 ? 0 : d));
+  }, [openDays]);
 
   // Handle event drop (drag and drop reschedule)
   const handleEventDrop = (info: EventDropArg) => {
@@ -243,8 +253,9 @@ export function BookingCalendar({ bookings, holidays = [], onCancel, onDelete, o
           droppable={true}
           eventDrop={handleEventDrop}
           eventClick={handleEventClick}
-          slotMinTime="09:00:00"
-          slotMaxTime="19:00:00"
+          slotMinTime={`${openTime}:00`}
+          slotMaxTime={`${closeTime}:00`}
+          hiddenDays={hiddenDays}
           slotDuration="00:15:00"
           snapDuration="00:15:00"
           allDaySlot={false}
