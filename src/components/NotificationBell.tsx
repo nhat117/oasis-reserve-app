@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { vi as viLocale, enAU as enLocale } from 'date-fns/locale';
-import { Bell } from 'lucide-react';
+import { Bell, X } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -56,6 +56,11 @@ export function NotificationBell() {
     queryClient.invalidateQueries({ queryKey: ['notifications'] });
   };
 
+  const deleteOne = async (id: string) => {
+    await supabase.from('notifications').delete().eq('id', id);
+    queryClient.invalidateQueries({ queryKey: ['notifications'] });
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -91,16 +96,24 @@ export function NotificationBell() {
               {notifications.map((n) => (
                 <div
                   key={n.id}
-                  className={cn('px-3 py-2.5 text-sm', !n.is_read && 'bg-[#006AFF]/5')}
+                  className={cn('group relative px-3 py-2.5 text-sm', !n.is_read && 'bg-[#006AFF]/5')}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <span className={cn('font-medium', !n.is_read && 'text-[#006AFF]')}>{n.title}</span>
+                  <div className="flex items-start justify-between gap-2 pr-5">
+                    <span className={cn('font-medium', !n.is_read && 'text-[#006AFF]')}>{t(n.title)}</span>
                     {!n.is_read && <Badge className="h-1.5 w-1.5 rounded-full p-0 bg-[#006AFF] shrink-0 mt-1" />}
                   </div>
-                  {n.body && <p className="text-xs text-muted-foreground mt-0.5">{n.body}</p>}
+                  {n.body && <p className="text-xs text-muted-foreground mt-0.5 pr-5">{n.body}</p>}
                   <p className="text-[10px] text-muted-foreground/60 mt-1">
                     {formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: lang === 'vi' ? viLocale : enLocale })}
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => deleteOne(n.id)}
+                    className="absolute top-2.5 right-3 text-muted-foreground/40 hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
+                    aria-label={t('Xoá')}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               ))}
             </div>

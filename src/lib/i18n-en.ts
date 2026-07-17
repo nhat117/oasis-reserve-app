@@ -326,6 +326,8 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Admin luôn có quyền truy cập tất cả": "Admins always have full access",
 
   // Notifications
+  "Thông báo": "Notifications",
+  "Không có thông báo": "No notifications",
   "Thông báo & Nhắc lịch": "Notifications & Reminders",
   "SMS, WhatsApp, email nhắc lịch": "SMS, WhatsApp, email reminders",
   "Nhắc lịch tự động": "Auto Reminders",
