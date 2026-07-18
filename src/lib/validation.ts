@@ -118,6 +118,27 @@ export const discountCodeSchema = z.object({
   max_uses: z.number().int().min(0).nullable(),
 });
 
+// Gift cards are stored-value and admin-created only — no `code` field here
+// since the code is always system-generated, never typed by the admin.
+export const giftCardCreateSchema = z.object({
+  initialValue: z.number().positive('Amount must be positive').max(100000, 'Amount too high'),
+  purchaserName: optionalSafeText('Purchaser name', 100),
+  purchaserNote: optionalSafeText('Note', 500),
+});
+
+export const giftCardRedeemSchema = z.object({
+  code: z.string().trim().min(1, 'Code is required').max(20, 'Code too long'),
+  amount: z.number().positive('Amount must be positive'),
+});
+
+export const giftCardAdjustSchema = z.object({
+  delta: z.number().refine(v => v !== 0, 'Adjustment cannot be zero'),
+  reason: z.string().trim()
+    .min(1, 'Reason is required')
+    .max(500, 'Reason must be under 500 characters')
+    .refine(noHtmlTags, 'Reason contains invalid characters'),
+});
+
 export const holidaySchema = z.object({
   date: z.string().min(1, 'Date is required'),
   reason: optionalSafeText('Reason', 200),

@@ -19,7 +19,7 @@ import { LogoUpload as LogoUploadComponent } from '@/components/LogoUpload';
 import { Textarea } from '@/components/ui/textarea';
 import { TipTapEditor } from '@/components/TipTapEditor';
 import { BookingStats } from '@/components/BookingStats';
-import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone, CreditCard, Square, RotateCcw, BookOpen, ScrollText, Eye, Clock, Check, Bot, FileSpreadsheet, Printer, History, Bug, ShoppingBag, DatabaseBackup, Upload } from 'lucide-react';
+import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone, CreditCard, Square, RotateCcw, BookOpen, ScrollText, Eye, Clock, Check, Bot, FileSpreadsheet, Printer, History, Bug, ShoppingBag, DatabaseBackup, Upload, Gift } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ALL_I18N_KEYS } from '@/lib/i18n-keys';
 import { Switch } from '@/components/ui/switch';
@@ -51,6 +51,7 @@ import { KnowledgeBaseManager } from '@/components/settings/KnowledgeBaseManager
 import { AISettingsPanel } from '@/components/settings/AISettingsPanel';
 import { PricingManager } from '@/components/settings/PricingManager';
 import { BranchesManager } from '@/components/settings/BranchesManager';
+import { GiftCardsPanel } from '@/components/gift-cards/GiftCardsPanel';
 
 const CURRENCIES = ['VND', 'USD', 'EUR', 'AUD'] as const;
 
@@ -2455,6 +2456,7 @@ const AdminDashboard = () => {
     { value: 'customers', icon: UserCheck, label: t('Khách hàng') },
     { value: 'sales', icon: DollarSign, label: t('Thanh toán') },
     { value: 'payment_history', icon: History, label: t('Lịch sử thanh toán') },
+    { value: 'gift_cards', icon: Gift, label: t('Thẻ quà tặng') },
     { value: 'services', icon: Scissors, label: t('Dịch vụ') },
     { value: 'products', icon: ShoppingBag, label: t('Sản phẩm') },
     { value: 'therapists', icon: Users, label: t('Thợ') },
@@ -3989,6 +3991,11 @@ const AdminDashboard = () => {
               })()}
             </DialogContent>
           </Dialog>
+
+          {/* Gift Cards Tab */}
+          <TabsContent value="gift_cards">
+            <GiftCardsPanel />
+          </TabsContent>
 
           {/* Services Tab */}
           <TabsContent value="services">

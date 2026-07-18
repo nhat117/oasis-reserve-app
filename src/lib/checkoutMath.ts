@@ -66,3 +66,18 @@ export function computeTipAmount(method: TipMethod, value: number, afterDiscount
   if (method === 'percent') return Math.max(0, afterDiscount * value / 100);
   return Math.max(0, value);
 }
+
+export interface GiftCardApplication {
+  giftCardApplied: number;
+  remainingDue: number;
+}
+
+// Splits how much of grandTotal a gift card's balance covers vs. what's left
+// for another tender (cash/card) in the same transaction. Called AFTER
+// computeSaleTotals, not folded into it — a gift card is a payment split,
+// not a discount, so tax/surcharge must still apply to the full grand total
+// regardless of how it's ultimately paid.
+export function applyGiftCardToTotal(grandTotal: number, giftCardBalance: number): GiftCardApplication {
+  const giftCardApplied = Math.max(0, Math.min(grandTotal, giftCardBalance));
+  return { giftCardApplied, remainingDue: Math.max(0, grandTotal - giftCardApplied) };
+}

@@ -1,3 +1,4 @@
+Initialising login role...
 export type Json =
   | string
   | number
@@ -11,6 +12,31 @@ export type Database = {
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.4"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -748,6 +774,126 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "email_unsubscribe_tokens_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gift_card_transactions: {
+        Row: {
+          amount: number
+          balance_after: number
+          created_at: string
+          gift_card_id: string
+          id: string
+          processed_by: string | null
+          processed_by_email: string | null
+          reason: string | null
+          sale_id: string | null
+          tenant_id: string | null
+          type: string
+        }
+        Insert: {
+          amount: number
+          balance_after: number
+          created_at?: string
+          gift_card_id: string
+          id?: string
+          processed_by?: string | null
+          processed_by_email?: string | null
+          reason?: string | null
+          sale_id?: string | null
+          tenant_id?: string | null
+          type: string
+        }
+        Update: {
+          amount?: number
+          balance_after?: number
+          created_at?: string
+          gift_card_id?: string
+          id?: string
+          processed_by?: string | null
+          processed_by_email?: string | null
+          reason?: string | null
+          sale_id?: string | null
+          tenant_id?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gift_card_transactions_gift_card_id_fkey"
+            columns: ["gift_card_id"]
+            isOneToOne: false
+            referencedRelation: "gift_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gift_card_transactions_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gift_card_transactions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gift_cards: {
+        Row: {
+          activation_date: string
+          balance: number
+          code: string
+          created_at: string
+          created_by: string | null
+          expiry_date: string
+          id: string
+          initial_value: number
+          purchaser_name: string | null
+          purchaser_note: string | null
+          status: string
+          tenant_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          activation_date?: string
+          balance: number
+          code: string
+          created_at?: string
+          created_by?: string | null
+          expiry_date: string
+          id?: string
+          initial_value: number
+          purchaser_name?: string | null
+          purchaser_note?: string | null
+          status?: string
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          activation_date?: string
+          balance?: number
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          expiry_date?: string
+          id?: string
+          initial_value?: number
+          purchaser_name?: string | null
+          purchaser_note?: string | null
+          status?: string
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gift_cards_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -1505,6 +1651,9 @@ export type Database = {
           customer_name: string | null
           customer_phone: string | null
           external_payment_id: string | null
+          gift_card_amount: number
+          gift_card_code: string | null
+          gift_card_id: string | null
           id: string
           is_refunded: boolean
           notes: string | null
@@ -1528,6 +1677,9 @@ export type Database = {
           customer_name?: string | null
           customer_phone?: string | null
           external_payment_id?: string | null
+          gift_card_amount?: number
+          gift_card_code?: string | null
+          gift_card_id?: string | null
           id?: string
           is_refunded?: boolean
           notes?: string | null
@@ -1551,6 +1703,9 @@ export type Database = {
           customer_name?: string | null
           customer_phone?: string | null
           external_payment_id?: string | null
+          gift_card_amount?: number
+          gift_card_code?: string | null
+          gift_card_id?: string | null
           id?: string
           is_refunded?: boolean
           notes?: string | null
@@ -1573,6 +1728,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_gift_card_id_fkey"
+            columns: ["gift_card_id"]
+            isOneToOne: false
+            referencedRelation: "gift_cards"
             referencedColumns: ["id"]
           },
           {
@@ -1906,6 +2068,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      adjust_gift_card_balance: {
+        Args: { p_delta: number; p_gift_card_id: string; p_reason: string }
+        Returns: Json
+      }
       check_rate_limit: {
         Args: { p_key: string; p_max_tokens?: number; p_window_sec?: number }
         Returns: Json
@@ -1970,6 +2136,10 @@ export type Database = {
           msg_id: number
           read_ct: number
         }[]
+      }
+      redeem_gift_card: {
+        Args: { p_amount: number; p_code: string; p_sale_id: string }
+        Returns: Json
       }
       request_tenant_id: { Args: never; Returns: string }
       rotate_api_key: {
@@ -2126,9 +2296,14 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       app_role: ["admin", "user", "employee"],
     },
   },
 } as const
+A new version of Supabase CLI is available: v2.109.1 (currently installed v2.84.2)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli

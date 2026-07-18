@@ -4,6 +4,7 @@ export const EMPLOYEE_TABS = [
   'customers',
   'sales',
   'payment_history',
+  'gift_cards',
   'services',
   'products',
   'therapists',
