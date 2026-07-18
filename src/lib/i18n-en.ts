@@ -475,6 +475,15 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Điều chỉnh": "Adjustment",
   "Sử dụng": "Redemption",
   "Đang tạo...": "Creating...",
+  "đã áp dụng": "applied",
+  "còn lại": "remaining",
+  "Mã thẻ quà tặng": "Gift card code",
+  "Thẻ đã bị khoá": "This card is disabled",
+  "Thẻ đã hết số dư": "This card has no remaining balance",
+  "Thẻ đã hết hạn": "This card has expired",
+  "Không thể trừ thẻ quà tặng": "Could not redeem the gift card",
+  "Đã trừ thẻ quà tặng": "Gift card redeemed",
+  "Số dư còn lại": "Remaining balance",
 
   // Logs
   "Nhật ký hoạt động": "Activity Logs",

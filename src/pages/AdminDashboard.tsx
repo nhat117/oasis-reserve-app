@@ -36,7 +36,7 @@ import {
   saleSchema, serviceSchema, productSchema, therapistSchema, adminBookingSchema,
   membershipTierSchema, discountCodeSchema, holidaySchema, unavailabilitySchema, appSettingSchema,
 } from '@/lib/validation';
-import { computeSaleTotals, computeDiscountedSubtotal, computeTipAmount, computeBaseAmount, TipMethod } from '@/lib/checkoutMath';
+import { computeSaleTotals, computeDiscountedSubtotal, computeTipAmount, computeBaseAmount, applyGiftCardToTotal, TipMethod } from '@/lib/checkoutMath';
 import { EMPLOYEE_TABS, EmployeeTab, filterVisibleTabs, resolveActiveTab } from '@/lib/employeeTabs';
 import { useToast } from '@/hooks/use-toast';
 import { Navigate, Link } from 'react-router-dom';
@@ -100,6 +100,24 @@ const AdminDashboard = () => {
   // Resolves the configured tax type into its display label — "Custom" falls back
   // to the free-text label the tenant typed, or the literal word "Custom" if blank.
   const resolveTaxLabel = (type: string, customLabel: string) => type === 'Custom' ? (customLabel.trim() || 'Custom') : type;
+
+  // A gift card payment is either the sole tender (payment_method='gift_card')
+  // or a split with whatever cash/card tender covered the remainder
+  // (gift_card_amount > 0 but payment_method stays 'cash'/'card') — see the
+  // split-tender convention documented in the gift_cards migration.
+  const paymentMethodLabel = (sale: { payment_method: string; gift_card_amount?: number | null; amount: number }) => {
+    const base = sale.payment_method === 'card' ? t('Thẻ') : t('Tiền mặt');
+    const gcAmt = Number(sale.gift_card_amount || 0);
+    if (sale.payment_method === 'gift_card' || (gcAmt > 0 && gcAmt >= Number(sale.amount))) return t('Thẻ quà tặng');
+    if (gcAmt > 0) return `${t('Thẻ quà tặng')} + ${base}`;
+    return base;
+  };
+
+  const paymentMethodBadgeClass = (sale: { payment_method: string; gift_card_amount?: number | null; amount: number }) => {
+    const gcAmt = Number(sale.gift_card_amount || 0);
+    if (sale.payment_method === 'gift_card' || gcAmt > 0) return 'bg-purple-50 text-purple-600';
+    return sale.payment_method === 'card' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600';
+  };
 
   // Onboarding: show only once for new admin accounts
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -262,6 +280,10 @@ const AdminDashboard = () => {
   const [saleCouponDiscount, setSaleCouponDiscount] = useState<{ percent: number; amount: number } | null>(null);
   const [saleCouponError, setSaleCouponError] = useState('');
   const [saleCouponLoading, setSaleCouponLoading] = useState(false);
+  const [giftCardCodeInput, setGiftCardCodeInput] = useState('');
+  const [appliedGiftCard, setAppliedGiftCard] = useState<{ id: string; code: string; balanceAtValidation: number } | null>(null);
+  const [giftCardValidating, setGiftCardValidating] = useState(false);
+  const [giftCardError, setGiftCardError] = useState('');
   const [saleServiceSearch, setSaleServiceSearch] = useState('');
   const [saleAddOnSearch, setSaleAddOnSearch] = useState('');
   const [saleBookingSearch, setSaleBookingSearch] = useState('');
@@ -533,6 +555,31 @@ const AdminDashboard = () => {
     setSaleCouponDiscount({ percent: Number(data.discount_percent) || 0, amount: Number(data.discount_amount) || 0 });
   };
 
+  // Read-only validation, mirroring applyCoupon — the actual balance
+  // deduction only happens via the redeem_gift_card RPC inside createSale,
+  // never here. Stores the card's raw balance (not a pre-computed applied
+  // amount) so later tip/discount edits don't leave a stale split.
+  const checkGiftCard = async () => {
+    const code = giftCardCodeInput.trim().toUpperCase();
+    if (!code) { setAppliedGiftCard(null); setGiftCardError(''); return; }
+    setGiftCardValidating(true);
+    setGiftCardError('');
+    setAppliedGiftCard(null);
+    const { data, error } = await supabase.from('gift_cards').select('*').eq('code', code).eq('tenant_id', TENANT_ID).maybeSingle();
+    setGiftCardValidating(false);
+    if (error || !data) { setGiftCardError(t('Không tìm thấy thẻ')); return; }
+    if (data.status === 'disabled') { setGiftCardError(t('Thẻ đã bị khoá')); return; }
+    if (data.status === 'redeemed' || Number(data.balance) <= 0) { setGiftCardError(t('Thẻ đã hết số dư')); return; }
+    if (data.expiry_date < format(new Date(), 'yyyy-MM-dd')) { setGiftCardError(t('Thẻ đã hết hạn')); return; }
+    setAppliedGiftCard({ id: data.id, code: data.code, balanceAtValidation: Number(data.balance) });
+  };
+
+  const clearGiftCard = () => {
+    setAppliedGiftCard(null);
+    setGiftCardCodeInput('');
+    setGiftCardError('');
+  };
+
   const createSale = useMutation({
     mutationFn: async () => {
       const mainService = services?.find(sv => sv.id === saleServiceId);
@@ -564,6 +611,9 @@ const AdminDashboard = () => {
         tipAmount: tipAmt,
       });
       const totalAmount = totals.grandTotal;
+      const giftCardSplit = appliedGiftCard
+        ? applyGiftCardToTotal(totalAmount, appliedGiftCard.balanceAtValidation)
+        : null;
 
       const vErr = validateForm(saleSchema, {
         amount: totalAmount,
@@ -575,6 +625,12 @@ const AdminDashboard = () => {
       });
       if (vErr) throw new Error(vErr);
 
+      // Gift-card fields are deliberately omitted here and only written after
+      // the redeem_gift_card RPC confirms success below — a failed
+      // redemption must never leave a sales row claiming money was deducted
+      // that wasn't. If the RPC fails, this row stands as a plain cash/card
+      // sale for the full amount, matching what actually happens at the
+      // register when a gift card can't be used.
       const payload: any = {
         amount: totalAmount,
         tip_amount: totals.tipAmt,
@@ -616,6 +672,41 @@ const AdminDashboard = () => {
         if (dc) await supabase.from('discount_codes').update({ current_uses: (dc.current_uses || 0) + 1 }).eq('id', dc.id);
       }
 
+      // Redeem the gift card only after the sale row exists (the ledger
+      // needs a real sale_id to link to) and only for the amount actually
+      // applied. The RPC re-validates status/expiry/balance server-side and
+      // atomically deducts + logs — this is the only place balance moves.
+      let giftCardApplied = 0;
+      let giftCardRemainingBalance: number | null = null;
+      if (appliedGiftCard && giftCardSplit && giftCardSplit.giftCardApplied > 0 && saleData?.id) {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('redeem_gift_card', {
+          p_code: appliedGiftCard.code,
+          p_amount: giftCardSplit.giftCardApplied,
+          p_sale_id: saleData.id,
+        });
+        if (rpcError) throw rpcError;
+        const rpcResult = rpcData as { success: boolean; error?: string; applied_amount?: number; new_balance?: number };
+        if (!rpcResult.success) {
+          const messages: Record<string, string> = {
+            expired: t('Thẻ đã hết hạn'),
+            disabled: t('Thẻ đã bị khoá'),
+            empty: t('Thẻ đã hết số dư'),
+            not_found: t('Không tìm thấy thẻ'),
+          };
+          throw new Error(messages[rpcResult.error || ''] || t('Không thể trừ thẻ quà tặng'));
+        }
+        giftCardApplied = rpcResult.applied_amount ?? 0;
+        giftCardRemainingBalance = rpcResult.new_balance ?? null;
+        const fullyCovered = giftCardApplied >= totalAmount;
+        const { error: updateError } = await supabase.from('sales').update({
+          gift_card_id: appliedGiftCard.id,
+          gift_card_code: appliedGiftCard.code,
+          gift_card_amount: giftCardApplied,
+          ...(fullyCovered ? { payment_method: 'gift_card' } : {}),
+        }).eq('id', saleData.id);
+        if (updateError) throw updateError;
+      }
+
       // If Square Terminal (not card form), trigger terminal checkout
       if (salePaymentMethod === 'square' && !showSquareCardForm && saleData?.id) {
         setSquareCheckoutPending(true);
@@ -651,8 +742,11 @@ const AdminDashboard = () => {
         tipAmt: totals.tipAmt,
         customerName: saleCustomerName,
         customerPhone: saleCustomerPhone,
-        paymentMethod: salePaymentMethod,
+        paymentMethod: giftCardApplied >= totalAmount && giftCardApplied > 0 ? 'gift_card' : salePaymentMethod,
         couponCode: saleCouponCode || undefined,
+        giftCardCode: giftCardApplied > 0 ? appliedGiftCard?.code : undefined,
+        giftCardApplied: giftCardApplied > 0 ? giftCardApplied : undefined,
+        giftCardRemainingBalance,
       };
     },
     onSuccess: (result) => {
@@ -675,11 +769,16 @@ const AdminDashboard = () => {
           taxLabel: result.taxLabel,
           tip: result.tipAmt,
           coupon: result.couponCode,
+          giftCardCode: result.giftCardCode,
+          giftCardApplied: result.giftCardApplied,
+          giftCardRemainingBalance: result.giftCardRemainingBalance ?? undefined,
           date: format(new Date(), 'dd/MM/yyyy HH:mm'),
         });
       }
       queryClient.invalidateQueries({ queryKey: ['admin-sales'] });
       queryClient.invalidateQueries({ queryKey: ['stats-bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['gift-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['gift-card-liability'] });
       setSaleDialog(false);
       setSaleType('booking');
       setSaleBookingId('');
@@ -699,8 +798,11 @@ const AdminDashboard = () => {
       setTipMethod(null);
       setTipPercent(15);
       setTipCustomAmount('');
+      clearGiftCard();
       queryClient.invalidateQueries({ queryKey: ['discount-codes'] });
-      toast({ title: t('Đã ghi nhận thanh toán') });
+      toast(result?.giftCardApplied
+        ? { title: t('Đã ghi nhận thanh toán'), description: `${t('Đã trừ thẻ quà tặng')}: A$ ${result.giftCardApplied.toLocaleString()}${result.giftCardRemainingBalance != null ? ` · ${t('Số dư còn lại')}: A$ ${result.giftCardRemainingBalance.toLocaleString()}` : ''}` }
+        : { title: t('Đã ghi nhận thanh toán') });
     },
     onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
@@ -1546,7 +1648,7 @@ const AdminDashboard = () => {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['print-receipt-enabled'] }); toast({ title: t('Đã cập nhật') }); },
   });
 
-  const printReceipt = (sale: { amount: number; customerName: string; customerPhone: string; serviceName: string; addOns: { name: string; price: number }[]; products?: { name: string; price: number }[]; paymentMethod: string; discount?: number; surcharge?: number; tax?: number; taxRatePercent?: number; taxLabel?: string; tip?: number; coupon?: string; date: string }) => {
+  const printReceipt = (sale: { amount: number; customerName: string; customerPhone: string; serviceName: string; addOns: { name: string; price: number }[]; products?: { name: string; price: number }[]; paymentMethod: string; discount?: number; surcharge?: number; tax?: number; taxRatePercent?: number; taxLabel?: string; tip?: number; coupon?: string; giftCardCode?: string; giftCardApplied?: number; giftCardRemainingBalance?: number; date: string }) => {
     const win = window.open('about:blank', '_blank');
     if (!win) {
       toast({
@@ -1587,10 +1689,18 @@ const AdminDashboard = () => {
         ${(sale.surcharge || 0) > 0 ? `<tr><td>Card surcharge</td><td class="right">A$ ${(sale.surcharge || 0).toLocaleString()}</td></tr>` : ''}
         ${(sale.tax || 0) > 0 ? `<tr><td>${esc(sale.taxLabel || 'Tax')}${sale.taxRatePercent ? ` (${sale.taxRatePercent}%)` : ''}</td><td class="right">A$ ${(sale.tax || 0).toLocaleString()}</td></tr>` : ''}
         ${(sale.tip || 0) > 0 ? `<tr><td>Tip</td><td class="right">A$ ${(sale.tip || 0).toLocaleString()}</td></tr>` : ''}
+        ${(sale.giftCardApplied || 0) > 0 ? `<tr><td>Gift card${sale.giftCardCode ? ` (${esc(sale.giftCardCode)})` : ''}</td><td class="right" style="color:#16a34a">-A$ ${(sale.giftCardApplied || 0).toLocaleString()}</td></tr>` : ''}
       </table>
       <div class="line"></div>
       <table><tr><td class="total">TOTAL</td><td class="total right">A$ ${sale.amount.toLocaleString()}</td></tr></table>
-      <p style="margin-top:4px;font-size:10px;color:#666">Paid by: ${sale.paymentMethod === 'card' ? 'Card' : sale.paymentMethod === 'square' ? 'Square' : 'Cash'}</p>
+      <p style="margin-top:4px;font-size:10px;color:#666">Paid by: ${
+        sale.paymentMethod === 'gift_card' ? 'Gift Card'
+        : (sale.giftCardApplied || 0) > 0 ? `Gift Card + ${sale.paymentMethod === 'card' ? 'Card' : 'Cash'}`
+        : sale.paymentMethod === 'card' ? 'Card'
+        : sale.paymentMethod === 'square' ? 'Square'
+        : 'Cash'
+      }</p>
+      ${sale.giftCardRemainingBalance != null ? `<p style="font-size:10px;color:#666;margin-top:2px">Gift card remaining balance: A$ ${sale.giftCardRemainingBalance.toLocaleString()}</p>` : ''}
       <div class="line"></div>
       <p class="center" style="font-size:10px;color:#666">Thank you for visiting!</p>
       <script>window.onload=function(){window.print();}</script>
@@ -2427,8 +2537,15 @@ const AdminDashboard = () => {
       taxRatePercent: parseFloat(taxRateSetting || '0'),
       tipAmount: tipAmt,
     });
-    return { addOnTotal, productTotal, base, tipAmt, ...totals };
-  }, [saleAddOns, services, saleAmount, saleProductIds, products, saleCouponDiscount, tipMethod, tipPercent, tipCustomAmount, cardSurchargeSetting, taxRateSetting, salePaymentMethod]);
+    // Recomputed live off the card's raw balance (not a snapshotted applied
+    // amount) so it stays correct if tip/discount change after the card was
+    // applied — the actual RPC call at charge time independently
+    // re-validates the true balance server-side regardless.
+    const giftCardSplit = appliedGiftCard
+      ? applyGiftCardToTotal(totals.grandTotal, appliedGiftCard.balanceAtValidation)
+      : { giftCardApplied: 0, remainingDue: totals.grandTotal };
+    return { addOnTotal, productTotal, base, tipAmt, ...totals, ...giftCardSplit };
+  }, [saleAddOns, services, saleAmount, saleProductIds, products, saleCouponDiscount, tipMethod, tipPercent, tipCustomAmount, cardSurchargeSetting, taxRateSetting, salePaymentMethod, appliedGiftCard]);
 
   if (loading) return (
     <div className="min-h-screen bg-white flex items-center justify-center">
@@ -3385,7 +3502,7 @@ const AdminDashboard = () => {
                   <div className="px-5 py-3.5 border-b border-[#E5E5E5]/40 flex items-center justify-between">
                     <h3 className="text-base font-semibold">{t('Thanh toán hiện tại')} {(saleServiceId || saleAddOns.length > 0 || saleProductIds.length > 0) ? <span className="text-muted-foreground font-normal">({(saleServiceId ? 1 : 0) + saleAddOns.length + saleProductIds.length})</span> : ''}</h3>
                     {(saleServiceId || saleBookingId || saleProductIds.length > 0) && (
-                      <button type="button" className="text-xs text-destructive hover:text-destructive/80 font-medium transition-colors" onClick={() => { setSaleBookingId(''); setSaleServiceId(''); setSaleCustomerName(''); setSaleCustomerPhone(''); setSaleAmount(''); setSaleAddOns([]); setSaleProductIds([]); setSaleCouponCode(''); setSaleCouponDiscount(null); setSaleCouponError(''); setSaleNotes(''); }}>
+                      <button type="button" className="text-xs text-destructive hover:text-destructive/80 font-medium transition-colors" onClick={() => { setSaleBookingId(''); setSaleServiceId(''); setSaleCustomerName(''); setSaleCustomerPhone(''); setSaleAmount(''); setSaleAddOns([]); setSaleProductIds([]); setSaleCouponCode(''); setSaleCouponDiscount(null); setSaleCouponError(''); setSaleNotes(''); clearGiftCard(); }}>
                         {t('Xoá')}
                       </button>
                     )}
@@ -3531,6 +3648,34 @@ const AdminDashboard = () => {
                             both integrations send/reconcile the real totals.amount. */}
                       </div>
 
+                      {/* Gift card — layers on top of the selected tender above, not a tender itself */}
+                      {appliedGiftCard ? (
+                        <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-purple-50 border border-purple-200/60 text-xs">
+                          <div className="min-w-0">
+                            <p className="font-medium text-purple-700 font-mono truncate">{appliedGiftCard.code}</p>
+                            <p className="text-purple-600/80">
+                              -{formatPrice(checkoutTotals.giftCardApplied)} {t('đã áp dụng')} · {formatPrice(appliedGiftCard.balanceAtValidation - checkoutTotals.giftCardApplied)} {t('còn lại')}
+                            </p>
+                          </div>
+                          <button type="button" className="p-1 text-purple-500/60 hover:text-destructive shrink-0" onClick={clearGiftCard}><X className="h-3.5 w-3.5" /></button>
+                        </div>
+                      ) : (
+                        <div>
+                          <div className="flex gap-2">
+                            <Input
+                              value={giftCardCodeInput}
+                              onChange={e => { setGiftCardCodeInput(e.target.value.toUpperCase()); setGiftCardError(''); }}
+                              className="flex-1 h-9 text-sm font-mono bg-[#F5F5F5] border-0"
+                              placeholder={t('Mã thẻ quà tặng')}
+                            />
+                            <Button type="button" variant="outline" size="sm" className="h-9 px-3" onClick={checkGiftCard} disabled={!giftCardCodeInput.trim() || giftCardValidating}>
+                              {giftCardValidating ? <Loader2 className="h-3 w-3 animate-spin" /> : t('Áp dụng')}
+                            </Button>
+                          </div>
+                          {giftCardError && <p className="text-xs text-destructive mt-1">{giftCardError}</p>}
+                        </div>
+                      )}
+
                       {/* Square sub-options */}
                       {salePaymentMethod === 'square' && (
                         <div className="flex gap-2">
@@ -3608,16 +3753,19 @@ const AdminDashboard = () => {
                           {checkoutTotals.surchargeAmt > 0 && <div className="flex justify-between text-muted-foreground"><span>{t('Phụ phí thẻ')} ({cardSurchargeSetting}%)</span><span>{formatPrice(checkoutTotals.surchargeAmt)}</span></div>}
                           {checkoutTotals.taxAmt > 0 && <div className="flex justify-between text-muted-foreground"><span>{resolveTaxLabel(taxType, taxTypeCustomLabel)} ({taxRateSetting}%)</span><span>{formatPrice(checkoutTotals.taxAmt)}</span></div>}
                           {checkoutTotals.tipAmt > 0 && <div className="flex justify-between text-muted-foreground"><span>{t('Tiền tip')}</span><span>+{formatPrice(checkoutTotals.tipAmt)}</span></div>}
+                          {checkoutTotals.giftCardApplied > 0 && <div className="flex justify-between text-purple-700"><span>{t('Thẻ quà tặng')}</span><span>-{formatPrice(checkoutTotals.giftCardApplied)}</span></div>}
                         </div>
                       )}
 
-                      {/* Charge button */}
+                      {/* Charge button — shows what's actually owed via the selected
+                          cash/card tender once a gift card covers part of the total;
+                          the full grand total is still what gets recorded/charged. */}
                       <Button
                         className="w-full h-14 text-lg font-semibold bg-[#006AFF] hover:bg-[#0055CC] rounded-xl"
                         onClick={() => createSale.mutate()}
                         disabled={checkoutTotals.base <= 0 || createSale.isPending || (salePaymentMethod === 'square' && showSquareCardForm)}
                       >
-                        {createSale.isPending ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" />{t('Đang xử lý...')}</> : <>{t('Thanh toán')} {checkoutTotals.grandTotal > 0 ? formatPrice(checkoutTotals.grandTotal) : ''}</>}
+                        {createSale.isPending ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" />{t('Đang xử lý...')}</> : <>{t('Thanh toán')} {checkoutTotals.grandTotal > 0 ? formatPrice(checkoutTotals.remainingDue) : ''}</>}
                       </Button>
                     </div>
                   )}
@@ -3687,12 +3835,8 @@ const AdminDashboard = () => {
                                 <p className="text-[15px] font-semibold text-[#1B1B1B]">{formatPrice(Number(s.amount))}</p>
                                 <p className="text-xs text-muted-foreground mt-0.5">{s.sale_date}</p>
                               </div>
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium tracking-wide ${
-                                s.payment_method === 'card'
-                                  ? 'bg-blue-50 text-blue-600'
-                                  : 'bg-emerald-50 text-emerald-600'
-                              }`}>
-                                {s.payment_method === 'card' ? t('Thẻ') : t('Tiền mặt')}
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium tracking-wide ${paymentMethodBadgeClass(s)}`}>
+                                {paymentMethodLabel(s)}
                               </span>
                             </div>
                             <div className="flex items-center justify-between">
@@ -3724,6 +3868,8 @@ const AdminDashboard = () => {
                                       taxLabel: s.tax_label,
                                       tip: Number(s.tip_amount || 0),
                                       coupon: undefined,
+                                      giftCardCode: s.gift_card_code || undefined,
+                                      giftCardApplied: Number(s.gift_card_amount || 0) || undefined,
                                       date: s.sale_date,
                                     })}>
                                       <Printer className="h-3.5 w-3.5 mr-2" /> {t('In lại hoá đơn')}
@@ -3789,12 +3935,8 @@ const AdminDashboard = () => {
                                 {s.is_refunded ? (
                                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium tracking-wide bg-amber-50 text-amber-600">{t('Đã hoàn tiền')}</span>
                                 ) : (
-                                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium tracking-wide ${
-                                    s.payment_method === 'card'
-                                      ? 'bg-blue-50 text-blue-600'
-                                      : 'bg-emerald-50 text-emerald-600'
-                                  }`}>
-                                    {s.payment_method === 'card' ? t('Thẻ') : t('Tiền mặt')}
+                                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium tracking-wide ${paymentMethodBadgeClass(s)}`}>
+                                    {paymentMethodLabel(s)}
                                   </span>
                                 )}
                               </div>
@@ -3829,6 +3971,8 @@ const AdminDashboard = () => {
                                         taxLabel: s.tax_label,
                                         tip: Number(s.tip_amount || 0),
                                         coupon: undefined,
+                                        giftCardCode: s.gift_card_code || undefined,
+                                        giftCardApplied: Number(s.gift_card_amount || 0) || undefined,
                                         date: s.sale_date,
                                       })}>
                                         <Printer className="h-3.5 w-3.5 mr-2" /> {t('In lại hoá đơn')}
@@ -3920,7 +4064,7 @@ const AdminDashboard = () => {
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground">{t('Phương thức')}</p>
-                          <p className="font-medium mt-0.5">{s.payment_method === 'card' ? t('Thẻ') : t('Tiền mặt')}</p>
+                          <p className="font-medium mt-0.5">{paymentMethodLabel(s)}</p>
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground">{t('Trạng thái')}</p>
@@ -3960,6 +4104,8 @@ const AdminDashboard = () => {
                               taxLabel: s.tax_label,
                               tip: Number(s.tip_amount || 0),
                               coupon: undefined,
+                              giftCardCode: s.gift_card_code || undefined,
+                              giftCardApplied: Number(s.gift_card_amount || 0) || undefined,
                               date: s.sale_date,
                             })}
                           >
