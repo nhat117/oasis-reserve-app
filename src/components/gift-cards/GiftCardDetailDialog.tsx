@@ -12,7 +12,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Ban, RotateCcw, PlusCircle } from 'lucide-react';
+import { Loader2, Ban, RotateCcw, PlusCircle, Trash2 } from 'lucide-react';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface GiftCardDetailDialogProps {
   giftCardId: string;
@@ -32,6 +36,7 @@ export function GiftCardDetailDialog({ giftCardId, open, onOpenChange }: GiftCar
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [adjustDelta, setAdjustDelta] = useState('');
   const [adjustReason, setAdjustReason] = useState('');
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const { data: card } = useQuery({
     queryKey: ['gift-card-detail', giftCardId],
@@ -62,7 +67,16 @@ export function GiftCardDetailDialog({ giftCardId, open, onOpenChange }: GiftCar
     queryClient.invalidateQueries({ queryKey: ['gift-card-transactions', giftCardId] });
     queryClient.invalidateQueries({ queryKey: ['gift-cards'] });
     queryClient.invalidateQueries({ queryKey: ['gift-card-liability'] });
+    queryClient.invalidateQueries({ queryKey: ['gift-card-liability-rows'] });
   };
+
+  // A card with any activity beyond its initial issue (redeemed, manually adjusted,
+  // or balance no longer matches what was issued) has real history — hard-deleting
+  // it would erase that trail, so it gets disabled instead, same as staff/discount codes.
+  const hasActivity = !!card && (
+    Number(card.balance) !== Number(card.initial_value) ||
+    (transactions?.some(tx => tx.type !== 'issue') ?? false)
+  );
 
   const setStatus = useMutation({
     mutationFn: async (status: 'active' | 'disabled') => {
@@ -109,6 +123,30 @@ export function GiftCardDetailDialog({ giftCardId, open, onOpenChange }: GiftCar
       setAdjustDelta('');
       setAdjustReason('');
       toast({ title: t('Đã điều chỉnh số dư') });
+    },
+    onError: (e: Error) => toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }),
+  });
+
+  const deleteGiftCard = useMutation({
+    mutationFn: async () => {
+      if (!isAdmin) throw new Error('Admin only');
+      if (hasActivity) {
+        const { error } = await supabase.from('gift_cards').update({ status: 'disabled' }).eq('id', giftCardId);
+        if (error) throw error;
+        return { deactivated: true };
+      }
+      const { error } = await supabase.from('gift_cards').delete().eq('id', giftCardId);
+      if (error) throw error;
+      return { deactivated: false };
+    },
+    onSuccess: (result) => {
+      logActivity(result?.deactivated ? 'disable_gift_card' : 'delete_gift_card', `Gift card ID: ${giftCardId}`);
+      invalidateAll();
+      setDeleteConfirmOpen(false);
+      if (!result?.deactivated) onOpenChange(false);
+      toast(result?.deactivated
+        ? { title: t('Đã khoá thẻ'), description: t('Thẻ này đã có giao dịch nên không thể xoá hoàn toàn. Đã chuyển sang trạng thái khoá để giữ lịch sử giao dịch.') }
+        : { title: t('Đã xoá thẻ quà tặng') });
     },
     onError: (e: Error) => toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }),
   });
@@ -173,6 +211,9 @@ export function GiftCardDetailDialog({ giftCardId, open, onOpenChange }: GiftCar
                 <Button variant="outline" size="sm" className="flex-1" onClick={() => setAdjustOpen(v => !v)}>
                   <PlusCircle className="h-3.5 w-3.5 mr-1.5" /> {t('Điều chỉnh số dư')}
                 </Button>
+                <Button variant="outline" size="icon" className="text-destructive hover:text-destructive shrink-0" onClick={() => setDeleteConfirmOpen(true)}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
               </div>
             )}
 
@@ -215,6 +256,25 @@ export function GiftCardDetailDialog({ giftCardId, open, onOpenChange }: GiftCar
           </div>
         )}
       </DialogContent>
+
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('Xoá thẻ quà tặng')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {hasActivity
+                ? t('Thẻ này đã có giao dịch nên không thể xoá hoàn toàn. Sẽ chuyển sang trạng thái khoá để giữ lịch sử giao dịch.')
+                : t('Xoá thẻ quà tặng này?')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('Huỷ')}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteGiftCard.mutate()} disabled={deleteGiftCard.isPending}>
+              {deleteGiftCard.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null} {t('Xác nhận')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

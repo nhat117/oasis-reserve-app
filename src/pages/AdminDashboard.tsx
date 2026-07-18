@@ -34,7 +34,7 @@ import { cn } from '@/lib/utils';
 import {
   escapeHtml, validateForm,
   saleSchema, serviceSchema, productSchema, therapistSchema, adminBookingSchema,
-  membershipTierSchema, discountCodeSchema, holidaySchema, unavailabilitySchema, appSettingSchema,
+  membershipTierSchema, holidaySchema, unavailabilitySchema, appSettingSchema,
 } from '@/lib/validation';
 import { computeSaleTotals, computeDiscountedSubtotal, computeTipAmount, computeBaseAmount, applyGiftCardToTotal, TipMethod } from '@/lib/checkoutMath';
 import { EMPLOYEE_TABS, EmployeeTab, filterVisibleTabs, resolveActiveTab } from '@/lib/employeeTabs';
@@ -52,6 +52,7 @@ import { AISettingsPanel } from '@/components/settings/AISettingsPanel';
 import { PricingManager } from '@/components/settings/PricingManager';
 import { BranchesManager } from '@/components/settings/BranchesManager';
 import { GiftCardsPanel } from '@/components/gift-cards/GiftCardsPanel';
+import { DiscountCodesPanel } from '@/components/gift-cards/DiscountCodesPanel';
 
 const CURRENCIES = ['VND', 'USD', 'EUR', 'AUD'] as const;
 
@@ -201,6 +202,7 @@ const AdminDashboard = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [moreSheetOpen, setMoreSheetOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('stats');
+  const [giftCardsSubTab, setGiftCardsSubTab] = useState<'gift_cards' | 'discount_codes'>('gift_cards');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [spaName, setSpaName] = useState('Oasis Reserve');
   const [settingsModal, setSettingsModal] = useState<string | null>(null);
@@ -235,6 +237,9 @@ const AdminDashboard = () => {
   const [viewingTherapist, setViewingTherapist] = useState<any>(null);
   const [viewingUnavailDate, setViewingUnavailDate] = useState<Date | undefined>();
   const [editingTherapist, setEditingTherapist] = useState<any>(null);
+  const [transferDialog, setTransferDialog] = useState(false);
+  const [transferTherapist, setTransferTherapist] = useState<any>(null);
+  const [transferAssignments, setTransferAssignments] = useState<Record<string, string>>({});
   const [therapistName, setTherapistName] = useState('');
   const [therapistPhone, setTherapistPhone] = useState('');
   const [therapistEmail, setTherapistEmail] = useState('');
@@ -245,6 +250,12 @@ const AdminDashboard = () => {
   const [unavailDate, setUnavailDate] = useState<Date | undefined>();
   const [unavailTherapist, setUnavailTherapist] = useState('');
   const [unavailCalendarOpen, setUnavailCalendarOpen] = useState(false);
+  const [unavailRangeMode, setUnavailRangeMode] = useState(false);
+  const [unavailRangeFrom, setUnavailRangeFrom] = useState('');
+  const [unavailRangeTo, setUnavailRangeTo] = useState('');
+  const [viewingUnavailRangeMode, setViewingUnavailRangeMode] = useState(false);
+  const [viewingUnavailRangeFrom, setViewingUnavailRangeFrom] = useState('');
+  const [viewingUnavailRangeTo, setViewingUnavailRangeTo] = useState('');
   const [holidayDate, setHolidayDate] = useState<Date | undefined>();
   const [holidayReason, setHolidayReason] = useState('');
   const [earlyCloseHour, setEarlyCloseHour] = useState('none');
@@ -463,15 +474,6 @@ const AdminDashboard = () => {
   const [tierMinVisits, setTierMinVisits] = useState('0');
   const [tierDiscountPercent, setTierDiscountPercent] = useState('0');
 
-  const [discountDialog, setDiscountDialog] = useState(false);
-  const [editingDiscount, setEditingDiscount] = useState<any>(null);
-  const [discountCode, setDiscountCode] = useState('');
-  const [discountPercent, setDiscountPercent] = useState('0');
-  const [discountAmount, setDiscountAmount] = useState('0');
-  const [discountValidFrom, setDiscountValidFrom] = useState('');
-  const [discountValidTo, setDiscountValidTo] = useState('');
-  const [discountMaxUses, setDiscountMaxUses] = useState('');
-
   // Delete all data state
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
@@ -657,6 +659,30 @@ const AdminDashboard = () => {
         if (itemsError) console.error('Failed to record sale items', itemsError);
       }
 
+      // Staff can add extra services to a booking's cart at checkout (beyond what
+      // was originally scheduled) — sync booking_services to match what was actually
+      // charged, so appointment history reflects the services really performed.
+      if (payload.booking_id && (mainService || addOnServices.length > 0)) {
+        const { error: delBsError } = await supabase.from('booking_services').delete().eq('booking_id', payload.booking_id);
+        if (delBsError) console.error('Failed to sync booking services', delBsError);
+        const bookingServiceRows = [
+          ...(mainService ? [{ service: mainService, isPrimary: true }] : []),
+          ...addOnServices.map(s => ({ service: s, isPrimary: false })),
+        ];
+        const { error: bsError } = await supabase.from('booking_services').insert(
+          bookingServiceRows.map(({ service, isPrimary }) => ({
+            booking_id: payload.booking_id,
+            service_id: service.id,
+            service_name: service.name,
+            duration_minutes: service.duration_minutes,
+            price: service.price,
+            is_primary: isPrimary,
+            tenant_id: TENANT_ID,
+          })),
+        );
+        if (bsError) console.error('Failed to sync booking services', bsError);
+      }
+
       // Increment coupon usage
       if (saleCouponDiscount && saleCouponCode.trim()) {
         const code = saleCouponCode.trim().toUpperCase();
@@ -768,6 +794,7 @@ const AdminDashboard = () => {
         });
       }
       queryClient.invalidateQueries({ queryKey: ['admin-sales'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-bookings'] });
       queryClient.invalidateQueries({ queryKey: ['stats-bookings'] });
       queryClient.invalidateQueries({ queryKey: ['gift-cards'] });
       queryClient.invalidateQueries({ queryKey: ['gift-card-liability'] });
@@ -1492,62 +1519,6 @@ const AdminDashboard = () => {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['membership-tiers'] }); },
   });
 
-  // Discount codes
-  const { data: discountCodes } = useQuery({
-    queryKey: ['discount-codes'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('discount_codes').select('*').order('created_at', { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const saveDiscount = useMutation({
-    mutationFn: async () => {
-      requireAdmin();
-      const vErr = validateForm(discountCodeSchema, {
-        code: discountCode.toUpperCase().trim(),
-        discount_percent: parseFloat(discountPercent),
-        discount_amount: parseFloat(discountAmount),
-        valid_from: discountValidFrom || '',
-        valid_to: discountValidTo || '',
-        max_uses: discountMaxUses ? parseInt(discountMaxUses) : null,
-      });
-      if (vErr) throw new Error(vErr);
-      const payload: any = {
-        code: discountCode.toUpperCase().trim(),
-        discount_percent: parseFloat(discountPercent),
-        discount_amount: parseFloat(discountAmount),
-        valid_from: discountValidFrom || null,
-        valid_to: discountValidTo || null,
-        max_uses: discountMaxUses ? parseInt(discountMaxUses) : null,
-      };
-      if (editingDiscount) {
-        const { error } = await supabase.from('discount_codes').update(payload).eq('id', editingDiscount.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('discount_codes').insert({ ...payload, tenant_id: TENANT_ID });
-        if (error) throw error;
-      }
-    },
-    onSuccess: () => { logActivity('save_discount_code', `Code: ${discountCode}`); queryClient.invalidateQueries({ queryKey: ['discount-codes'] }); setDiscountDialog(false); setEditingDiscount(null); toast({ title: t('Đã lưu mã giảm giá') }); },
-    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
-  });
-
-  const deleteDiscount = useMutation({
-    mutationFn: async (id: string) => { if (!isAdmin) throw new Error('Admin only'); const { error } = await supabase.from('discount_codes').delete().eq('id', id); if (error) throw error; },
-    onSuccess: (_d, id) => { logActivity('delete_discount_code', `Code ID: ${id}`); queryClient.invalidateQueries({ queryKey: ['discount-codes'] }); toast({ title: t('Đã xoá') }); },
-  });
-
-  const toggleDiscountActive = useMutation({
-    mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
-      requireAdmin();
-      const { error } = await supabase.from('discount_codes').update({ is_active: active }).eq('id', id);
-      if (error) throw error;
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['discount-codes'] }); },
-  });
-
   // Membership & discount enabled toggles
   const { data: membershipEnabled } = useQuery({
     queryKey: ['membership-enabled'],
@@ -1574,15 +1545,6 @@ const AdminDashboard = () => {
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['membership-enabled'] }); toast({ title: t('Đã cập nhật') }); },
-  });
-
-  const toggleDiscountCodes = useMutation({
-    mutationFn: async (enabled: boolean) => {
-      requireAdmin();
-      const { error } = await upsertSetting('discount_codes_enabled', String(enabled));
-      if (error) throw error;
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['discount-codes-enabled'] }); toast({ title: t('Đã cập nhật') }); },
   });
 
   // Receipt printing
@@ -1813,6 +1775,34 @@ const AdminDashboard = () => {
       if (error) throw error;
     },
     onSuccess: (_d, id) => { logActivity('delete_unavailability', `ID: ${id}`); queryClient.invalidateQueries({ queryKey: ['admin-unavailability'] }); toast({ title: t('Đã xoá ngày nghỉ') }); },
+  });
+
+  // therapist_unavailability is one row per day (unique per therapist+date), so a
+  // multi-day leave request is inserted as N rows here rather than a start/end range column.
+  const addUnavailabilityRange = useMutation({
+    mutationFn: async ({ therapistId, from, to, reason }: { therapistId: string; from: string; to: string; reason?: string }) => {
+      requireAdmin();
+      const start = new Date(`${from}T00:00:00`);
+      const end = new Date(`${to}T00:00:00`);
+      if (end < start) throw new Error(t('Ngày kết thúc phải sau ngày bắt đầu'));
+      const dates: string[] = [];
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) dates.push(format(d, 'yyyy-MM-dd'));
+      if (dates.length > 90) throw new Error(t('Khoảng ngày quá dài (tối đa 90 ngày)'));
+      for (const date of dates) {
+        const vErr = validateForm(unavailabilitySchema, { therapistId, date, reason: reason || '' });
+        if (vErr) throw new Error(vErr);
+      }
+      const { error } = await supabase.from('therapist_unavailability')
+        .upsert(dates.map(date => ({ therapist_id: therapistId, unavailable_date: date, reason, tenant_id: TENANT_ID })), { onConflict: 'therapist_id,unavailable_date', ignoreDuplicates: true });
+      if (error) throw error;
+      return dates.length;
+    },
+    onSuccess: (count) => {
+      logActivity('add_unavailability_range', `Added ${count} days off`);
+      queryClient.invalidateQueries({ queryKey: ['admin-unavailability'] });
+      toast({ title: t('Đã thêm ngày nghỉ'), description: `${count} ${t('ngày đã được thêm')}` });
+    },
+    onError: (e: any) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
 
   // Shop holidays
@@ -2323,6 +2313,97 @@ const AdminDashboard = () => {
     },
     onError: (e: any) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
+
+  // Upcoming (not-yet-started, non-cancelled) bookings currently assigned to a therapist —
+  // these are the ones that need a new staff member before the therapist can be hidden/deleted.
+  const getUpcomingBookingsForTherapist = (therapistId: string) => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const now = new Date();
+    return (bookings || []).filter((b: any) => {
+      if (b.therapist_id !== therapistId) return false;
+      if (b.status !== 'confirmed') return false;
+      if (b.booking_date > today) return true;
+      if (b.booking_date === today) {
+        const [h, m] = (b.start_time || '').split(':').map(Number);
+        const startMs = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m).getTime();
+        return startMs > now.getTime();
+      }
+      return false;
+    });
+  };
+
+  // Other active staff free to take over a given booking's date/time slot —
+  // same working_days/hours/break/conflict checks used when creating a booking,
+  // just evaluated for one already-scheduled slot instead of a full day's grid.
+  const getAvailableTherapistsForBooking = (booking: any, excludeTherapistId: string) => {
+    const dateStr = booking.booking_date;
+    const bookingDate = new Date(`${dateStr}T00:00:00`);
+    const dayOfWeek = bookingDate.getDay() === 0 ? 7 : bookingDate.getDay();
+    const startMins = timeToMins(booking.start_time);
+    const endMins = timeToMins(booking.end_time);
+    const TRANSFER_BUFFER = 15;
+    const unavailableIds = new Set((unavailabilities || []).filter((u: any) => u.unavailable_date === dateStr).map((u: any) => u.therapist_id));
+    const dayBookings = (bookings || []).filter((b: any) => b.booking_date === dateStr && b.status === 'confirmed' && b.id !== booking.id);
+
+    return (therapists || []).filter((th: any) => {
+      if (th.id === excludeTherapistId || !th.is_active) return false;
+      if (unavailableIds.has(th.id)) return false;
+      if (!th.working_days.includes(dayOfWeek)) return false;
+      if (startMins < th.start_hour * 60 || endMins > th.end_hour * 60) return false;
+      if (th.break_start != null && th.break_end != null) {
+        const breakStart = th.break_start * 60;
+        const breakEnd = th.break_end * 60;
+        if (startMins < breakEnd && endMins > breakStart) return false;
+      }
+      return !dayBookings.some((b: any) => {
+        if (b.therapist_id !== th.id) return false;
+        const bStart = timeToMins(b.start_time);
+        const bEnd = timeToMins(b.end_time);
+        return startMins < (bEnd + TRANSFER_BUFFER) && endMins > (bStart - TRANSFER_BUFFER);
+      });
+    });
+  };
+
+  const openDeleteTherapist = (th: any) => {
+    const upcoming = getUpcomingBookingsForTherapist(th.id);
+    if (upcoming.length === 0) {
+      openConfirm(t('Xoá thợ'), t('Xoá thợ này? Nếu nhân viên đã có lịch hẹn hoặc lịch sử bán hàng, hệ thống sẽ ẩn thay vì xoá hoàn toàn để giữ dữ liệu cũ.'), () => deleteTherapist.mutate(th.id));
+      return;
+    }
+    const initialAssignments: Record<string, string> = {};
+    upcoming.forEach((b: any) => {
+      const suggestion = getAvailableTherapistsForBooking(b, th.id)[0];
+      if (suggestion) initialAssignments[b.id] = suggestion.id;
+    });
+    setTransferAssignments(initialAssignments);
+    setTransferTherapist(th);
+    setTransferDialog(true);
+  };
+
+  const [transferSubmitting, setTransferSubmitting] = useState(false);
+  const confirmTransferAndDelete = async () => {
+    if (!transferTherapist) return;
+    const upcoming = getUpcomingBookingsForTherapist(transferTherapist.id);
+    setTransferSubmitting(true);
+    try {
+      for (const b of upcoming) {
+        const newTherapistId = transferAssignments[b.id];
+        if (!newTherapistId) continue;
+        const { error } = await supabase.from('bookings').update({ therapist_id: newTherapistId }).eq('id', b.id);
+        if (error) throw error;
+      }
+      logActivity('transfer_bookings', `From therapist ID: ${transferTherapist.id}, Count: ${upcoming.length}`);
+      queryClient.invalidateQueries({ queryKey: ['admin-bookings'] });
+      setTransferDialog(false);
+      deleteTherapist.mutate(transferTherapist.id);
+      setTransferTherapist(null);
+      setTransferAssignments({});
+    } catch (e: any) {
+      toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' });
+    } finally {
+      setTransferSubmitting(false);
+    }
+  };
 
 
   const openServiceEdit = (service?: any) => {
@@ -3545,6 +3626,17 @@ const AdminDashboard = () => {
                           ) : null;
                         })}
 
+                        {/* Add another service before charging — surfaces the flow for adding
+                            on-the-spot add-ons to a booking (e.g. customer wants an extra
+                            treatment) without requiring staff to already know the Library tab exists. */}
+                        <button
+                          type="button"
+                          className="flex items-center gap-1.5 text-xs font-medium text-[#006AFF] hover:text-[#006AFF]/80 transition-colors"
+                          onClick={() => setPosTab('library')}
+                        >
+                          <Plus className="h-3.5 w-3.5" /> {t('Thêm dịch vụ')}
+                        </button>
+
                         {/* Discount */}
                         {discountCodesEnabled && !saleCouponDiscount && (
                           <div>
@@ -4094,9 +4186,20 @@ const AdminDashboard = () => {
             </DialogContent>
           </Dialog>
 
-          {/* Gift Cards Tab */}
+          {/* Gift Cards & Discount Codes Tab */}
           <TabsContent value="gift_cards">
-            <GiftCardsPanel />
+            <Tabs value={giftCardsSubTab} onValueChange={(v) => setGiftCardsSubTab(v as 'gift_cards' | 'discount_codes')}>
+              <TabsList>
+                <TabsTrigger value="gift_cards"><Gift className="h-3.5 w-3.5 mr-1.5" /> {t('Thẻ quà tặng')}</TabsTrigger>
+                <TabsTrigger value="discount_codes"><Tag className="h-3.5 w-3.5 mr-1.5" /> {t('Mã giảm giá')}</TabsTrigger>
+              </TabsList>
+              <TabsContent value="gift_cards" className="pt-4">
+                <GiftCardsPanel />
+              </TabsContent>
+              <TabsContent value="discount_codes" className="pt-4">
+                <DiscountCodesPanel />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           {/* Services Tab */}
@@ -4472,19 +4575,51 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Staff days-off calendar dialog */}
-                <Dialog open={unavailCalendarOpen} onOpenChange={(open) => { setUnavailCalendarOpen(open); if (!open) setUnavailDate(undefined); }}>
+                <Dialog open={unavailCalendarOpen} onOpenChange={(open) => { setUnavailCalendarOpen(open); if (!open) { setUnavailDate(undefined); setUnavailRangeMode(false); setUnavailRangeFrom(''); setUnavailRangeTo(''); } }}>
                   <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
                     <DialogHeader>
                       <DialogTitle>{t('Ngày nghỉ nhân viên')}</DialogTitle>
                       <DialogDescription>{t('Chọn ngày trên lịch để thêm ngày nghỉ cho nhân viên')}</DialogDescription>
                     </DialogHeader>
-                    <Select value={unavailTherapist} onValueChange={(v) => { setUnavailTherapist(v); setUnavailDate(undefined); }}>
-                      <SelectTrigger className="w-full sm:w-[200px] h-9 text-sm rounded-full bg-[#F5F5F5] border-[#E5E5E5]/50"><SelectValue placeholder={t('Chọn thợ')} /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">{t('Tất cả thợ')}</SelectItem>
-                        {therapists?.map(th => <SelectItem key={th.id} value={th.id}>{th.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex items-center justify-between gap-2">
+                      <Select value={unavailTherapist} onValueChange={(v) => { setUnavailTherapist(v); setUnavailDate(undefined); }}>
+                        <SelectTrigger className="w-full sm:w-[200px] h-9 text-sm rounded-full bg-[#F5F5F5] border-[#E5E5E5]/50"><SelectValue placeholder={t('Chọn thợ')} /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">{t('Tất cả thợ')}</SelectItem>
+                          {therapists?.map(th => <SelectItem key={th.id} value={th.id}>{th.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      {unavailTherapist !== 'all' && (
+                        <Button size="sm" variant={unavailRangeMode ? 'default' : 'outline'} className="h-9 rounded-full text-xs shrink-0" onClick={() => setUnavailRangeMode(v => !v)}>
+                          {t('Chọn nhiều ngày')}
+                        </Button>
+                      )}
+                    </div>
+                    {unavailTherapist && unavailTherapist !== 'all' && unavailRangeMode && (
+                      <div className="flex flex-col gap-2 p-3 bg-[#F5F5F5] rounded-xl border border-[#E5E5E5]/60">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <span className="text-[10px] text-muted-foreground">{t('Từ ngày')}</span>
+                            <Input type="date" value={unavailRangeFrom} onChange={e => setUnavailRangeFrom(e.target.value)} className="mt-0.5 bg-white border-[#E5E5E5]/60 h-9" />
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-muted-foreground">{t('Đến ngày')}</span>
+                            <Input type="date" value={unavailRangeTo} onChange={e => setUnavailRangeTo(e.target.value)} className="mt-0.5 bg-white border-[#E5E5E5]/60 h-9" />
+                          </div>
+                        </div>
+                        <Button
+                          size="sm" className="h-9 w-fit rounded-full"
+                          disabled={!unavailRangeFrom || !unavailRangeTo || addUnavailabilityRange.isPending}
+                          onClick={() => {
+                            addUnavailabilityRange.mutate({ therapistId: unavailTherapist, from: unavailRangeFrom, to: unavailRangeTo }, {
+                              onSuccess: () => { setUnavailRangeFrom(''); setUnavailRangeTo(''); },
+                            });
+                          }}
+                        >
+                          {addUnavailabilityRange.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Plus className="h-3.5 w-3.5 mr-1" />} {t('Thêm ngày nghỉ')}
+                        </Button>
+                      </div>
+                    )}
                     <div className="fc-custom fc-mini shrink-0">
                       <FullCalendar
                         plugins={[dayGridPlugin, interactionPlugin]}
@@ -4865,7 +5000,7 @@ const AdminDashboard = () => {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-36">
                                   {th.is_active ? (
-                                    <DropdownMenuItem className="text-destructive text-xs" onClick={() => openConfirm(t('Xoá thợ'), t('Xoá thợ này? Nếu nhân viên đã có lịch hẹn hoặc lịch sử bán hàng, hệ thống sẽ ẩn thay vì xoá hoàn toàn để giữ dữ liệu cũ.'), () => deleteTherapist.mutate(th.id))}>
+                                    <DropdownMenuItem className="text-destructive text-xs" onClick={() => openDeleteTherapist(th)}>
                                       <Trash2 className="h-3.5 w-3.5 mr-2" /> {t('Xóa')}
                                     </DropdownMenuItem>
                                   ) : (
@@ -4923,7 +5058,7 @@ const AdminDashboard = () => {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   {th.is_active ? (
-                                    <DropdownMenuItem className="text-destructive text-xs" onClick={() => openConfirm(t('Xoá thợ'), t('Xoá thợ này? Nếu nhân viên đã có lịch hẹn hoặc lịch sử bán hàng, hệ thống sẽ ẩn thay vì xoá hoàn toàn để giữ dữ liệu cũ.'), () => deleteTherapist.mutate(th.id))}>
+                                    <DropdownMenuItem className="text-destructive text-xs" onClick={() => openDeleteTherapist(th)}>
                                       <Trash2 className="h-3.5 w-3.5 mr-2" /> {t('Xóa')}
                                     </DropdownMenuItem>
                                   ) : (
@@ -4944,8 +5079,59 @@ const AdminDashboard = () => {
             </div>
           </TabsContent>
 
+          {/* Transfer bookings before deleting/hiding a staff member */}
+          <Dialog open={transferDialog} onOpenChange={(open) => { setTransferDialog(open); if (!open) { setTransferTherapist(null); setTransferAssignments({}); } }}>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>{t('Chuyển lịch hẹn trước khi xoá')}</DialogTitle>
+                <DialogDescription>
+                  {t('Nhân viên này còn lịch hẹn sắp tới. Chọn nhân viên khác đang rảnh cho từng lịch hẹn trước khi xoá.')}
+                </DialogDescription>
+              </DialogHeader>
+              {transferTherapist && (
+                <div className="space-y-3 pt-2 max-h-[60vh] overflow-y-auto">
+                  {getUpcomingBookingsForTherapist(transferTherapist.id).map((b: any) => {
+                    const options = getAvailableTherapistsForBooking(b, transferTherapist.id);
+                    return (
+                      <div key={b.id} className="rounded-lg border border-[#E5E5E5]/60 p-3 space-y-2">
+                        <div className="text-sm">
+                          <p className="font-medium">{b.customer_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {format(new Date(`${b.booking_date}T00:00:00`), 'dd/MM/yyyy')} · {b.start_time?.slice(0, 5)}–{b.end_time?.slice(0, 5)} · {b.services?.name}
+                          </p>
+                        </div>
+                        <Select
+                          value={transferAssignments[b.id] || ''}
+                          onValueChange={(v) => setTransferAssignments(prev => ({ ...prev, [b.id]: v }))}
+                        >
+                          <SelectTrigger className="h-9 text-xs">
+                            <SelectValue placeholder={t('Chọn nhân viên thay thế')} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {options.length === 0 ? (
+                              <div className="px-3 py-2 text-xs text-muted-foreground">{t('Không có nhân viên nào rảnh cho lịch hẹn này')}</div>
+                            ) : options.map((opt: any) => (
+                              <SelectItem key={opt.id} value={opt.id}>{opt.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    );
+                  })}
+                  <Button
+                    className="w-full h-10 bg-[#006AFF] hover:bg-[#1B1B1B] text-white"
+                    disabled={transferSubmitting || getUpcomingBookingsForTherapist(transferTherapist.id).some((b: any) => !transferAssignments[b.id])}
+                    onClick={confirmTransferAndDelete}
+                  >
+                    {transferSubmitting ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang xử lý...')}</>) : t('Xác nhận chuyển & xoá')}
+                  </Button>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
+
           {/* Therapist Info Dialog */}
-          <Dialog open={therapistInfoDialog} onOpenChange={(open) => { setTherapistInfoDialog(open); if (!open) setViewingUnavailDate(undefined); }}>
+          <Dialog open={therapistInfoDialog} onOpenChange={(open) => { setTherapistInfoDialog(open); if (!open) { setViewingUnavailDate(undefined); setViewingUnavailRangeMode(false); setViewingUnavailRangeFrom(''); setViewingUnavailRangeTo(''); } }}>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>{viewingTherapist?.name}</DialogTitle>
@@ -4974,7 +5160,37 @@ const AdminDashboard = () => {
                     </div>
                   </div>
                   <div className="border-t pt-3">
-                    <p className="text-sm font-medium mb-2">{t('Ngày nghỉ')}</p>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-medium">{t('Ngày nghỉ')}</p>
+                      <Button size="sm" variant={viewingUnavailRangeMode ? 'default' : 'outline'} className="h-8 rounded-full text-xs" onClick={() => setViewingUnavailRangeMode(v => !v)}>
+                        {t('Chọn nhiều ngày')}
+                      </Button>
+                    </div>
+                    {viewingUnavailRangeMode && (
+                      <div className="flex flex-col gap-2 p-3 mb-3 bg-[#F5F5F5] rounded-xl border border-[#E5E5E5]/60">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <span className="text-[10px] text-muted-foreground">{t('Từ ngày')}</span>
+                            <Input type="date" value={viewingUnavailRangeFrom} onChange={e => setViewingUnavailRangeFrom(e.target.value)} className="mt-0.5 bg-white border-[#E5E5E5]/60 h-9" />
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-muted-foreground">{t('Đến ngày')}</span>
+                            <Input type="date" value={viewingUnavailRangeTo} onChange={e => setViewingUnavailRangeTo(e.target.value)} className="mt-0.5 bg-white border-[#E5E5E5]/60 h-9" />
+                          </div>
+                        </div>
+                        <Button
+                          size="sm" className="h-9 w-fit rounded-full"
+                          disabled={!viewingUnavailRangeFrom || !viewingUnavailRangeTo || addUnavailabilityRange.isPending}
+                          onClick={() => {
+                            addUnavailabilityRange.mutate({ therapistId: viewingTherapist.id, from: viewingUnavailRangeFrom, to: viewingUnavailRangeTo }, {
+                              onSuccess: () => { setViewingUnavailRangeFrom(''); setViewingUnavailRangeTo(''); },
+                            });
+                          }}
+                        >
+                          {addUnavailabilityRange.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Plus className="h-3.5 w-3.5 mr-1" />} {t('Thêm ngày nghỉ')}
+                        </Button>
+                      </div>
+                    )}
                     <div className="fc-custom fc-mini shrink-0">
                       <FullCalendar
                         plugins={[dayGridPlugin, interactionPlugin]}
@@ -5102,7 +5318,6 @@ const AdminDashboard = () => {
               { key: 'email', icon: Mail, label: t('Cài đặt email'), desc: resendSettings?.['resend_api_key'] ? t('Đã cấu hình') : t('Chưa cấu hình') },
               { key: 'ai_assistant', icon: Bot, label: t('AI, Dịch thuật & Knowledge Base'), desc: isAiLicensed ? (aiReplyConfig?.ai_enabled ? t('AI Reply ON') : t('AI Reply OFF — booking only')) : t('Chưa kích hoạt — cần mã bản quyền') },
               { key: 'membership', icon: Crown, label: t('Hạng thành viên'), desc: `${membershipTiers?.length || 0} ${t('hạng')}` },
-              { key: 'discounts', icon: Tag, label: t('Mã giảm giá'), desc: `${discountCodes?.length || 0} ${t('mã')}` },
               { key: 'about', icon: BookOpen, label: t('Về chúng tôi'), desc: t('Chỉnh sửa nội dung trang Về chúng tôi') },
               { key: 'terms', icon: ScrollText, label: t('Điều khoản'), desc: t('Chỉnh sửa nội dung trang Điều khoản') },
               ...(isAdmin ? [{ key: 'logs', icon: FileText, label: t('Nhật ký hoạt động'), desc: t('Tải xuống CSV') }] : []),
@@ -5747,199 +5962,6 @@ const AdminDashboard = () => {
                   </div>
                   <Button onClick={() => saveTier.mutate()} disabled={!tierName.trim() || saveTier.isPending}>
                     {saveTier.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : (editingTier ? t('Cập nhật') : t('Tạo'))}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-
-            {/* ── Discount Codes Modal ── */}
-            <Dialog open={settingsModal === 'discounts'} onOpenChange={(open) => !open && setSettingsModal(null)}>
-              <DialogContent className="max-w-[100vw] sm:max-w-[560px] p-0 gap-0 rounded-none sm:rounded-xl overflow-hidden max-h-[85vh] overflow-y-auto">
-                <div className="px-5 py-4 border-b border-border/60">
-                  <DialogHeader>
-                    <div className="flex items-center justify-between">
-                      <DialogTitle className="text-lg">{t('Mã giảm giá')}</DialogTitle>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">{t('Bật/Tắt')}</span>
-                        <Switch checked={discountCodesEnabled === true} onCheckedChange={(v) => toggleDiscountCodes.mutate(v)} disabled={toggleDiscountCodes.isPending} />
-                      </div>
-                    </div>
-                  </DialogHeader>
-                  <div className="flex items-center gap-2 mt-3">
-                    <Button size="sm" variant="outline" className="text-xs" onClick={() => {
-                      setEditingDiscount(null); setDiscountCode(''); setDiscountPercent('0'); setDiscountAmount('0'); setDiscountValidFrom(''); setDiscountValidTo(''); setDiscountMaxUses(''); setDiscountDialog(true);
-                    }}>
-                      <Plus className="h-3.5 w-3.5 mr-1" /> {t('Thêm')}
-                    </Button>
-                    <Button size="sm" variant="outline" className="text-xs" onClick={() => {
-                      if (!discountCodes?.length) return;
-                      const header = 'Code,Type,Discount %,Discount Amount,Valid From,Valid To,Max Uses,Used,Active\n';
-                      const rows = discountCodes.map(dc => `${dc.code},${Number(dc.discount_amount) > 0 && Number(dc.discount_percent) === 0 ? 'Gift Card' : 'Discount'},${dc.discount_percent},${dc.discount_amount},${dc.valid_from || ''},${dc.valid_to || ''},${dc.max_uses || ''},${dc.current_uses || 0},${dc.is_active}`).join('\n');
-                      const blob = new Blob([header + rows], { type: 'text/csv' });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a'); a.href = url; a.download = `discount-codes-${format(new Date(), 'yyyy-MM-dd')}.csv`; a.click();
-                      URL.revokeObjectURL(url);
-                    }} disabled={!discountCodes?.length}>
-                      <Download className="h-3.5 w-3.5 mr-1" /> CSV
-                    </Button>
-                  </div>
-                </div>
-                <div className="px-5 py-4">
-                  {!discountCodes?.length ? (
-                    <p className="text-sm text-muted-foreground text-center py-6">{t('Chưa có mã giảm giá nào')}</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {discountCodes.map(dc => (
-                        <div key={dc.id} className="flex items-center justify-between p-3 rounded-xl border border-border/50 hover:bg-muted/30 transition-colors">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <Switch checked={dc.is_active} onCheckedChange={(v) => toggleDiscountActive.mutate({ id: dc.id, active: v })} />
-                            <div className="min-w-0">
-                              <p className="text-sm font-mono font-semibold truncate">{dc.code}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {Number(dc.discount_percent) > 0 && `${dc.discount_percent}%`}
-                                {Number(dc.discount_percent) > 0 && Number(dc.discount_amount) > 0 && ' + '}
-                                {Number(dc.discount_amount) > 0 && `A$ ${dc.discount_amount}`}
-                                {dc.max_uses && ` · ${dc.current_uses}/${dc.max_uses} ${t('đã dùng')}`}
-                                {dc.valid_to && ` · ${t('hết hạn')} ${dc.valid_to}`}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
-                              setEditingDiscount(dc); setDiscountCode(dc.code); setDiscountPercent(String(dc.discount_percent)); setDiscountAmount(String(dc.discount_amount));
-                              setDiscountValidFrom(dc.valid_from || ''); setDiscountValidTo(dc.valid_to || ''); setDiscountMaxUses(dc.max_uses ? String(dc.max_uses) : ''); setDiscountDialog(true);
-                            }}>
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => openConfirm(t('Xoá mã giảm giá'), t('Xoá mã này?'), () => deleteDiscount.mutate(dc.id))}>
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </DialogContent>
-            </Dialog>
-
-            {/* Add/Edit Discount Code Dialog (Revamped) */}
-            <Dialog open={discountDialog} onOpenChange={setDiscountDialog}>
-              <DialogContent className="max-w-[100vw] sm:max-w-[520px] p-0 gap-0 rounded-none sm:rounded-xl overflow-hidden">
-                <div className="px-5 py-4 border-b border-border/60 bg-gradient-to-r from-blue-50 to-indigo-50">
-                  <DialogHeader>
-                    <DialogTitle className="text-lg flex items-center gap-2">
-                      <Tag className="h-5 w-5 text-[#006AFF]" />
-                      {editingDiscount ? t('Sửa mã giảm giá') : t('Thêm mã giảm giá')}
-                    </DialogTitle>
-                    <DialogDescription className="text-sm">{t('Tạo mã khuyến mãi cho khách hàng')}</DialogDescription>
-                  </DialogHeader>
-                </div>
-                <div className="px-5 py-5 space-y-5">
-                  {/* Code input */}
-                  <div>
-                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Mã giảm giá')}</Label>
-                    <Input
-                      value={discountCode}
-                      onChange={e => setDiscountCode(e.target.value.toUpperCase())}
-                      placeholder="WELCOME10"
-                      className="mt-1.5 font-mono text-lg tracking-wider h-12 bg-[#F5F5F5] border-[#E5E5E5]/60"
-                    />
-                  </div>
-
-                  {/* Discount type - percent & fixed side by side */}
-                  <div>
-                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Giá trị giảm')}</Label>
-                    <div className="grid grid-cols-2 gap-3 mt-1.5">
-                      <div className="relative">
-                        <Input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={discountPercent}
-                          onChange={e => setDiscountPercent(e.target.value)}
-                          className="bg-[#F5F5F5] border-[#E5E5E5]/60 pr-8"
-                          placeholder="0"
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">%</span>
-                      </div>
-                      <div className="relative">
-                        <Input
-                          type="number"
-                          min="0"
-                          value={discountAmount}
-                          onChange={e => setDiscountAmount(e.target.value)}
-                          className="bg-[#F5F5F5] border-[#E5E5E5]/60 pl-10"
-                          placeholder="0"
-                        />
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">A$</span>
-                      </div>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1.5">{t('Có thể dùng % hoặc số tiền cố định, hoặc cả hai')}</p>
-                  </div>
-
-                  {/* Date range */}
-                  <div>
-                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Thời gian hiệu lực')}</Label>
-                    <div className="grid grid-cols-2 gap-3 mt-1.5">
-                      <div>
-                        <span className="text-[10px] text-muted-foreground">{t('Từ ngày')}</span>
-                        <Input type="date" value={discountValidFrom} onChange={e => setDiscountValidFrom(e.target.value)} className="mt-0.5 bg-[#F5F5F5] border-[#E5E5E5]/60" />
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-muted-foreground">{t('Đến ngày')}</span>
-                        <Input type="date" value={discountValidTo} onChange={e => setDiscountValidTo(e.target.value)} className="mt-0.5 bg-[#F5F5F5] border-[#E5E5E5]/60" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Max uses */}
-                  <div>
-                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Giới hạn sử dụng')}</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={discountMaxUses}
-                      onChange={e => setDiscountMaxUses(e.target.value)}
-                      className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60"
-                      placeholder={t('Không giới hạn')}
-                    />
-                  </div>
-
-                  {/* Preview card */}
-                  {discountCode.trim() && (
-                    <div className="p-4 bg-gradient-to-r from-[#006AFF]/5 to-indigo-50 rounded-xl border border-[#006AFF]/20">
-                      <div className="flex items-center justify-between">
-                        <code className="font-mono font-bold text-base text-[#006AFF]">{discountCode}</code>
-                        <div className="text-right text-sm font-semibold text-[#1B1B1B]">
-                          {Number(discountPercent) > 0 && <span>{discountPercent}%</span>}
-                          {Number(discountPercent) > 0 && Number(discountAmount) > 0 && <span> + </span>}
-                          {Number(discountAmount) > 0 && <span>A$ {discountAmount}</span>}
-                          {!Number(discountPercent) && !Number(discountAmount) && <span className="text-muted-foreground text-xs">{t('Chưa có giá trị')}</span>}
-                        </div>
-                      </div>
-                      {(discountValidFrom || discountValidTo || discountMaxUses) && (
-                        <div className="flex gap-3 mt-2 text-xs text-muted-foreground">
-                          {discountValidFrom && <span>{t('Từ')} {discountValidFrom}</span>}
-                          {discountValidTo && <span>{t('Đến')} {discountValidTo}</span>}
-                          {discountMaxUses && <span>· {t('tối đa')} {discountMaxUses} {t('lần')}</span>}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Footer */}
-                <div className="px-5 py-4 border-t border-border/60">
-                  <Button
-                    className="w-full h-12 text-base font-medium bg-[#006AFF] hover:bg-[#1B1B1B]"
-                    onClick={() => saveDiscount.mutate()}
-                    disabled={!discountCode.trim() || saveDiscount.isPending}
-                  >
-                    {saveDiscount.isPending
-                      ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" />{t('Đang lưu...')}</>
-                      : editingDiscount ? t('Cập nhật mã giảm giá') : <><Tag className="h-4 w-4 mr-2" />{t('Tạo mã giảm giá')}</>
-                    }
                   </Button>
                 </div>
               </DialogContent>
