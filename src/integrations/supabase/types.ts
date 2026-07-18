@@ -1912,6 +1912,63 @@ export type Database = {
         }
         Relationships: []
       }
+      therapist_weekly_hours: {
+        Row: {
+          break_end_minute: number | null
+          break_start_minute: number | null
+          created_at: string
+          day_of_week: number
+          end_minute: number
+          id: string
+          is_working: boolean
+          start_minute: number
+          tenant_id: string | null
+          therapist_id: string
+          updated_at: string
+        }
+        Insert: {
+          break_end_minute?: number | null
+          break_start_minute?: number | null
+          created_at?: string
+          day_of_week: number
+          end_minute?: number
+          id?: string
+          is_working?: boolean
+          start_minute?: number
+          tenant_id?: string | null
+          therapist_id: string
+          updated_at?: string
+        }
+        Update: {
+          break_end_minute?: number | null
+          break_start_minute?: number | null
+          created_at?: string
+          day_of_week?: number
+          end_minute?: number
+          id?: string
+          is_working?: boolean
+          start_minute?: number
+          tenant_id?: string | null
+          therapist_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "therapist_weekly_hours_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "therapist_weekly_hours_therapist_id_fkey"
+            columns: ["therapist_id"]
+            isOneToOne: false
+            referencedRelation: "therapists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       therapist_unavailability: {
         Row: {
           created_at: string

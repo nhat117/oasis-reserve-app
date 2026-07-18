@@ -98,11 +98,18 @@ const Booking = () => {
   const { data: therapists } = useQuery({
     queryKey: ['therapists'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('therapists').select('*').eq('is_active', true);
+      const { data, error } = await supabase.from('therapists').select('*, therapist_weekly_hours(*)').eq('is_active', true);
       if (error) throw error;
       return data;
     },
   });
+
+  const getTherapistDayHours = (therapist: any, dayOfWeek: number) => {
+    const rows = therapist?.therapist_weekly_hours as any[] | undefined;
+    return (rows || []).find(r => r.day_of_week === dayOfWeek) || null;
+  };
+
+  const formatMinutesHHMM = (mins: number) => `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
 
   const { data: randomEnabled } = useQuery({
     queryKey: ['random-therapist-setting'],
@@ -202,24 +209,14 @@ const Booking = () => {
 
     return therapists.filter(t => {
       if (unavailability?.includes(t.id)) return false;
-      if (!t.working_days.includes(dayOfWeek)) return false;
-      const slotHour = parseInt(timeStr);
-      const slotMin = parseInt(timeStr.split(':')[1]);
-      const endHour = parseInt(endStr);
-      const endMin = parseInt(endStr.split(':')[1]);
-      const endTotalMin = endHour * 60 + endMin;
-      const therapistEndMin = t.end_hour * 60;
-      if (slotHour < t.start_hour || endTotalMin > therapistEndMin) return false;
-      const tAny = t as any;
-      if (tAny.break_start != null && tAny.break_end != null) {
-        const breakStart = tAny.break_start * 60;
-        const breakEnd = tAny.break_end * 60;
-        const slotStartMin = slotHour * 60 + slotMin;
-        const slotEndMin = endHour * 60 + endMin;
-        if (slotStartMin < breakEnd && slotEndMin > breakStart) return false;
-      }
+      const dayHours = getTherapistDayHours(t, dayOfWeek);
+      if (!dayHours || !dayHours.is_working) return false;
       const slotStartMin = parseInt(timeStr.split(':')[0]) * 60 + parseInt(timeStr.split(':')[1]);
       const slotEndMin = parseInt(endStr.split(':')[0]) * 60 + parseInt(endStr.split(':')[1]);
+      if (slotStartMin < dayHours.start_minute || slotEndMin > dayHours.end_minute) return false;
+      if (dayHours.break_start_minute != null && dayHours.break_end_minute != null) {
+        if (slotStartMin < dayHours.break_end_minute && slotEndMin > dayHours.break_start_minute) return false;
+      }
       const isBooked = existingBookings?.some(b => {
         if (b.therapist_id !== t.id) return false;
         const bStartParts = b.start_time.split(':');
@@ -239,31 +236,33 @@ const Booking = () => {
     const now = new Date();
     const dayOfWeek = selectedDate.getDay() === 0 ? 7 : selectedDate.getDay();
 
-    const workingTherapists = therapists.filter(t => t.working_days.includes(dayOfWeek));
+    const workingTherapists = therapists.filter(t => {
+      const dayHours = getTherapistDayHours(t, dayOfWeek);
+      return dayHours?.is_working;
+    });
     if (workingTherapists.length === 0) return [];
 
-    const minStart = Math.min(...workingTherapists.map(t => t.start_hour));
-    const maxEnd = Math.max(...workingTherapists.map(t => t.end_hour));
+    const minStartMin = Math.min(...workingTherapists.map(t => getTherapistDayHours(t, dayOfWeek)!.start_minute));
+    const maxEndMin = Math.max(...workingTherapists.map(t => getTherapistDayHours(t, dayOfWeek)!.end_minute));
+    const effectiveMaxEndMin = earlyCloseHour ? Math.min(maxEndMin, earlyCloseHour * 60) : maxEndMin;
 
-    for (let h = minStart; h < maxEnd; h++) {
-      for (let m = 0; m < 60; m += 30) {
-        const slotStart = new Date(selectedDate);
-        slotStart.setHours(h, m, 0, 0);
-        const slotEnd = addMinutes(slotStart, duration);
+    for (let mins = minStartMin; mins < maxEndMin; mins += 30) {
+      const slotStart = new Date(selectedDate);
+      slotStart.setHours(0, 0, 0, 0);
+      const slotStartMin = mins;
+      slotStart.setMinutes(slotStartMin);
 
-        const effectiveMaxEnd = earlyCloseHour ? Math.min(maxEnd, earlyCloseHour) : maxEnd;
-        if (slotEnd.getHours() > effectiveMaxEnd || (slotEnd.getHours() === effectiveMaxEnd && slotEnd.getMinutes() > 0)) continue;
-        if (isToday(selectedDate) && isBefore(slotStart, now)) continue;
+      if (slotStartMin + duration > effectiveMaxEndMin) continue;
+      if (isToday(selectedDate) && isBefore(slotStart, now)) continue;
 
-        const startStr = format(slotStart, 'HH:mm');
-        const available = getAvailableTherapists(startStr, duration);
+      const startStr = format(slotStart, 'HH:mm');
+      const available = getAvailableTherapists(startStr, duration);
 
-        if (selectedTherapist !== 'any') {
-          const isAvail = available.some(t => t.id === selectedTherapist);
-          if (isAvail) slots.push({ time: startStr, therapistCount: 1 });
-        } else {
-          if (available.length > 0) slots.push({ time: startStr, therapistCount: available.length });
-        }
+      if (selectedTherapist !== 'any') {
+        const isAvail = available.some(t => t.id === selectedTherapist);
+        if (isAvail) slots.push({ time: startStr, therapistCount: 1 });
+      } else {
+        if (available.length > 0) slots.push({ time: startStr, therapistCount: available.length });
       }
     }
     return slots;
@@ -540,6 +539,9 @@ const Booking = () => {
               </>
             )}
           </div>
+          <p className="text-xs text-muted-foreground/80">
+            {t('Yêu cầu đặt lịch của bạn đã được ghi nhận — vui lòng chờ nhân viên xác nhận trước ngày hẹn.')}
+          </p>
           <Link to="/">
             <Button className="rounded-none text-xs tracking-[0.15em] uppercase px-10 h-11">
               {t('Về trang chủ')}
@@ -698,7 +700,7 @@ const Booking = () => {
                       if (!openDays.includes(dayOfWeek)) return true;
                       // No working therapists
                       if (therapists) {
-                        const hasWorkingTherapist = therapists.some(th => th.working_days.includes(dayOfWeek));
+                        const hasWorkingTherapist = therapists.some(th => getTherapistDayHours(th, dayOfWeek)?.is_working);
                         if (!hasWorkingTherapist) return true;
                       }
                       return false;
@@ -726,11 +728,15 @@ const Booking = () => {
                     {randomEnabled !== false && (
                       <SelectItem value="any">{t('Tự động chọn (bất kỳ thợ trống)')}</SelectItem>
                     )}
-                    {therapists?.filter(t => !unavailability?.includes(t.id)).map(t => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.name} ({t.start_hour}:00–{t.end_hour}:00)
-                      </SelectItem>
-                    ))}
+                    {therapists?.filter(t => !unavailability?.includes(t.id)).map(t => {
+                      const dayOfWeek = selectedDate.getDay() === 0 ? 7 : selectedDate.getDay();
+                      const dayHours = getTherapistDayHours(t, dayOfWeek);
+                      return (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}{dayHours?.is_working ? ` (${formatMinutesHHMM(dayHours.start_minute)}–${formatMinutesHHMM(dayHours.end_minute)})` : ''}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>

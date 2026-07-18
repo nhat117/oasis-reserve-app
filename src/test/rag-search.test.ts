@@ -47,12 +47,31 @@ interface Service {
   duration_minutes: number;
 }
 
+interface WeeklyHour {
+  day_of_week: number;
+  is_working: boolean;
+  start_minute: number;
+  end_minute: number;
+}
+
 interface Therapist {
   id: string;
   name: string;
-  working_days: number[];
-  start_hour: number;
-  end_hour: number;
+  therapist_weekly_hours: WeeklyHour[];
+}
+
+function formatMinutesHHMM(mins: number): string {
+  return `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+}
+
+function describeWeeklyHours(therapist: Therapist): string {
+  const dayNames = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const working = therapist.therapist_weekly_hours.filter((r) => r.is_working);
+  if (working.length === 0) return 'no working days set';
+  return working
+    .sort((a, b) => a.day_of_week - b.day_of_week)
+    .map((r) => `${dayNames[r.day_of_week]} ${formatMinutesHHMM(r.start_minute)}-${formatMinutesHHMM(r.end_minute)}`)
+    .join(', ');
 }
 
 function buildSystemPrompt(
@@ -67,7 +86,7 @@ function buildSystemPrompt(
     .join('\n');
 
   const therapistsList = therapists
-    .map((t) => `- ${t.name} (works days: ${t.working_days.join(',')}, ${t.start_hour}:00-${t.end_hour}:00) [id: ${t.id}]`)
+    .map((t) => `- ${t.name} (${describeWeeklyHours(t)}) [id: ${t.id}]`)
     .join('\n');
 
   const base = customOverride || `You are ${shopName}'s friendly AI booking assistant.`;
@@ -139,7 +158,10 @@ describe('RAG: System Prompt Building', () => {
   ];
 
   const therapists: Therapist[] = [
-    { id: 't1', name: 'Lisa', working_days: [1, 2, 3, 4, 5], start_hour: 9, end_hour: 17 },
+    {
+      id: 't1', name: 'Lisa',
+      therapist_weekly_hours: [1, 2, 3, 4, 5].map((day) => ({ day_of_week: day, is_working: true, start_minute: 540, end_minute: 1020 })),
+    },
   ];
 
   it('includes shop name in default prompt', () => {
@@ -161,7 +183,7 @@ describe('RAG: System Prompt Building', () => {
 
   it('lists therapists with schedule', () => {
     const prompt = buildSystemPrompt('Salon', services, therapists, '', null);
-    expect(prompt).toContain('Lisa (works days: 1,2,3,4,5, 9:00-17:00)');
+    expect(prompt).toContain('Lisa (Mon 09:00-17:00, Tue 09:00-17:00, Wed 09:00-17:00, Thu 09:00-17:00, Fri 09:00-17:00)');
   });
 
   it('includes RAG context when available', () => {

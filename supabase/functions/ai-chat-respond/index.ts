@@ -139,7 +139,7 @@ Deno.serve(async (req) => {
     // 6. Load existing shop data (scoped by tenant_id)
     const [servicesResult, therapistsResult, tenantResult] = await Promise.all([
       supabase.from("services").select("id, name, price, duration_minutes, is_active").eq("tenant_id", tenant_id).eq("is_active", true),
-      supabase.from("therapists").select("id, name, working_days, start_hour, end_hour, break_start, break_end, is_active").eq("tenant_id", tenant_id).eq("is_active", true),
+      supabase.from("therapists").select("id, name, is_active, therapist_weekly_hours(*)").eq("tenant_id", tenant_id).eq("is_active", true),
       supabase.from("tenants").select("name").eq("id", tenant_id).single(),
     ]);
 
@@ -477,7 +477,26 @@ function textSimilarity(a: string, b: string): number {
 // ─── System Prompt Builder ───────────────────────────────────────────
 
 interface Service { id: string; name: string; price: number; duration_minutes: number }
-interface Therapist { id: string; name: string; working_days: number[]; start_hour: number; end_hour: number }
+interface WeeklyHour { day_of_week: number; is_working: boolean; start_minute: number; end_minute: number; break_start_minute: number | null; break_end_minute: number | null }
+interface Therapist { id: string; name: string; therapist_weekly_hours: WeeklyHour[] }
+
+function getDayHours(therapist: Therapist, dayOfWeek: number): WeeklyHour | undefined {
+  return therapist.therapist_weekly_hours?.find((r) => r.day_of_week === dayOfWeek);
+}
+
+function formatMinutesHHMM(mins: number): string {
+  return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+}
+
+function describeWeeklyHours(therapist: Therapist): string {
+  const dayNames = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const working = (therapist.therapist_weekly_hours || []).filter((r) => r.is_working);
+  if (working.length === 0) return "no working days set";
+  return working
+    .sort((a, b) => a.day_of_week - b.day_of_week)
+    .map((r) => `${dayNames[r.day_of_week]} ${formatMinutesHHMM(r.start_minute)}-${formatMinutesHHMM(r.end_minute)}`)
+    .join(", ");
+}
 
 function buildSystemPrompt(
   shopName: string,
@@ -491,7 +510,7 @@ function buildSystemPrompt(
     .join("\n");
 
   const therapistsList = therapists
-    .map((t) => `- ${t.name} (works days: ${t.working_days.join(",")}, ${t.start_hour}:00-${t.end_hour}:00) [id: ${t.id}]`)
+    .map((t) => `- ${t.name} (${describeWeeklyHours(t)}) [id: ${t.id}]`)
     .join("\n");
 
   const base = customOverride || `You are ${shopName}'s friendly AI booking assistant.`;
@@ -630,8 +649,7 @@ async function executeTool(
       return {
         therapists: therapists.map((t) => ({
           id: t.id, name: t.name,
-          working_days: t.working_days,
-          hours: `${t.start_hour}:00 - ${t.end_hour}:00`,
+          weekly_hours: describeWeeklyHours(t),
         })),
       };
 
@@ -736,68 +754,61 @@ async function toolCheckAvailability(
     : therapists;
 
   const workingTherapists = candidateTherapists.filter(
-    (t) => t.working_days.includes(dayOfWeek) && !unavailableIds.has(t.id),
+    (t) => getDayHours(t, dayOfWeek)?.is_working && !unavailableIds.has(t.id),
   );
 
   if (workingTherapists.length === 0) {
     return { available_slots: [], message: "No therapists available on this date." };
   }
 
-  const minStart = Math.min(...workingTherapists.map((t) => t.start_hour));
-  const rawMaxEnd = Math.max(...workingTherapists.map((t) => t.end_hour));
-  const maxEnd = earlyCloseHour ? Math.min(rawMaxEnd, earlyCloseHour) : rawMaxEnd;
+  const minStartMin = Math.min(...workingTherapists.map((t) => getDayHours(t, dayOfWeek)!.start_minute));
+  const rawMaxEndMin = Math.max(...workingTherapists.map((t) => getDayHours(t, dayOfWeek)!.end_minute));
+  const maxEndMin = earlyCloseHour ? Math.min(rawMaxEndMin, earlyCloseHour * 60) : rawMaxEndMin;
 
   const now = new Date();
   const isToday = date.toDateString() === now.toDateString();
 
   const slots: { time: string; available_therapists: number }[] = [];
 
-  for (let h = minStart; h < maxEnd; h++) {
-    for (let m = 0; m < 60; m += 30) {
-      const slotStartMin = h * 60 + m;
-      const slotEndMin = slotStartMin + duration;
+  for (let slotStartMin = minStartMin; slotStartMin < maxEndMin; slotStartMin += 30) {
+    const slotEndMin = slotStartMin + duration;
 
-      if (slotEndMin > maxEnd * 60) continue;
+    if (slotEndMin > maxEndMin) continue;
 
-      // Skip past times if today
-      if (isToday) {
-        const nowMin = now.getHours() * 60 + now.getMinutes();
-        if (slotStartMin <= nowMin) continue;
+    // Skip past times if today
+    if (isToday) {
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      if (slotStartMin <= nowMin) continue;
+    }
+
+    const timeStr = formatMinutesHHMM(slotStartMin);
+
+    // Count how many therapists can handle this slot
+    let availCount = 0;
+    for (const t of workingTherapists) {
+      const dayHours = getDayHours(t, dayOfWeek)!;
+      if (slotStartMin < dayHours.start_minute || slotEndMin > dayHours.end_minute) continue;
+
+      // Check break overlap
+      if (dayHours.break_start_minute != null && dayHours.break_end_minute != null) {
+        if (slotStartMin < dayHours.break_end_minute && slotEndMin > dayHours.break_start_minute) continue;
       }
 
-      const timeStr = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      // Check booking conflicts
+      const hasConflict = (existingBookings || []).some((b: { therapist_id: string; start_time: string; end_time: string }) => {
+        if (b.therapist_id !== t.id) return false;
+        const bParts = b.start_time.split(":");
+        const bStartMin = parseInt(bParts[0]) * 60 + parseInt(bParts[1]);
+        const beParts = b.end_time.split(":");
+        const bEndMin = parseInt(beParts[0]) * 60 + parseInt(beParts[1]);
+        return slotStartMin < bEndMin + BUFFER_MINUTES && slotEndMin > bStartMin - BUFFER_MINUTES;
+      });
 
-      // Count how many therapists can handle this slot
-      let availCount = 0;
-      for (const t of workingTherapists) {
-        const tStartMin = t.start_hour * 60;
-        const tEndMin = t.end_hour * 60;
-        if (slotStartMin < tStartMin || slotEndMin > tEndMin) continue;
+      if (!hasConflict) availCount++;
+    }
 
-        // Check break overlap
-        const tAny = t as Record<string, unknown>;
-        if (tAny.break_start != null && tAny.break_end != null) {
-          const breakStartMin = (tAny.break_start as number) * 60;
-          const breakEndMin = (tAny.break_end as number) * 60;
-          if (slotStartMin < breakEndMin && slotEndMin > breakStartMin) continue;
-        }
-
-        // Check booking conflicts
-        const hasConflict = (existingBookings || []).some((b: { therapist_id: string; start_time: string; end_time: string }) => {
-          if (b.therapist_id !== t.id) return false;
-          const bParts = b.start_time.split(":");
-          const bStartMin = parseInt(bParts[0]) * 60 + parseInt(bParts[1]);
-          const beParts = b.end_time.split(":");
-          const bEndMin = parseInt(beParts[0]) * 60 + parseInt(beParts[1]);
-          return slotStartMin < bEndMin + BUFFER_MINUTES && slotEndMin > bStartMin - BUFFER_MINUTES;
-        });
-
-        if (!hasConflict) availCount++;
-      }
-
-      if (availCount > 0) {
-        slots.push({ time: timeStr, available_therapists: availCount });
-      }
+    if (availCount > 0) {
+      slots.push({ time: timeStr, available_therapists: availCount });
     }
   }
 
@@ -870,7 +881,7 @@ async function toolCreateBooking(
     const unavailableIds = new Set((unavailList || []).map((u: { therapist_id: string }) => u.therapist_id));
 
     const available = therapists
-      .filter((t) => t.working_days.includes(dow) && !unavailableIds.has(t.id))
+      .filter((t) => getDayHours(t, dow)?.is_working && !unavailableIds.has(t.id))
       .sort((a, b) => (bookingCounts[a.id] || 0) - (bookingCounts[b.id] || 0));
 
     if (available.length === 0) {

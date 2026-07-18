@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  bookingCustomerSchema, loginSchema, serviceSchema, therapistSchema,
+  bookingCustomerSchema, loginSchema, serviceSchema, therapistSchema, therapistWeeklyHourSchema,
   adminBookingSchema, saleSchema, membershipTierSchema, discountCodeSchema,
   holidaySchema, unavailabilitySchema, appSettingSchema,
   edgeFnCheckoutSchema, edgeFnRefundSchema, edgeFnEmailSchema,
@@ -98,13 +98,51 @@ describe('serviceSchema', () => {
 describe('therapistSchema', () => {
   it('accepts valid therapist', () => {
     expect(therapistSchema.safeParse({
-      name: 'Alice', phone: '', email: '', start_hour: 9, end_hour: 17, break_start: null, break_end: null,
+      name: 'Alice', phone: '', email: '',
     }).success).toBe(true);
   });
 
-  it('rejects start_hour > 23', () => {
+  it('rejects empty name', () => {
     expect(therapistSchema.safeParse({
-      name: 'Alice', phone: '', email: '', start_hour: 25, end_hour: 17, break_start: null, break_end: null,
+      name: '', phone: '', email: '',
+    }).success).toBe(false);
+  });
+});
+
+describe('therapistWeeklyHourSchema', () => {
+  it('accepts a valid working day', () => {
+    expect(therapistWeeklyHourSchema.safeParse({
+      day_of_week: 1, is_working: true, start_minute: 540, end_minute: 1020, break_start_minute: null, break_end_minute: null,
+    }).success).toBe(true);
+  });
+
+  it('accepts a half-hour start/end boundary', () => {
+    expect(therapistWeeklyHourSchema.safeParse({
+      day_of_week: 1, is_working: true, start_minute: 570, end_minute: 1050, break_start_minute: 750, break_end_minute: 780,
+    }).success).toBe(true);
+  });
+
+  it('accepts a day off without minute checks', () => {
+    expect(therapistWeeklyHourSchema.safeParse({
+      day_of_week: 2, is_working: false, start_minute: 540, end_minute: 540, break_start_minute: null, break_end_minute: null,
+    }).success).toBe(true);
+  });
+
+  it('rejects start_minute > 1440', () => {
+    expect(therapistWeeklyHourSchema.safeParse({
+      day_of_week: 1, is_working: true, start_minute: 1500, end_minute: 1020, break_start_minute: null, break_end_minute: null,
+    }).success).toBe(false);
+  });
+
+  it('rejects end_minute not after start_minute when working', () => {
+    expect(therapistWeeklyHourSchema.safeParse({
+      day_of_week: 1, is_working: true, start_minute: 1020, end_minute: 540, break_start_minute: null, break_end_minute: null,
+    }).success).toBe(false);
+  });
+
+  it('rejects day_of_week outside 1-7', () => {
+    expect(therapistWeeklyHourSchema.safeParse({
+      day_of_week: 8, is_working: true, start_minute: 540, end_minute: 1020, break_start_minute: null, break_end_minute: null,
     }).success).toBe(false);
   });
 });

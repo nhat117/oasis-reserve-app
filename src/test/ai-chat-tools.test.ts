@@ -11,14 +11,19 @@ import { addMinutes, format } from 'date-fns';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
+interface WeeklyHour {
+  day_of_week: number;
+  is_working: boolean;
+  start_minute: number;
+  end_minute: number;
+  break_start_minute: number | null;
+  break_end_minute: number | null;
+}
+
 interface Therapist {
   id: string;
   name: string;
-  start_hour: number;
-  end_hour: number;
-  working_days: number[];
-  break_start: number | null;
-  break_end: number | null;
+  therapist_weekly_hours: WeeklyHour[];
 }
 
 interface Booking {
@@ -29,6 +34,10 @@ interface Booking {
 }
 
 const BUFFER_MINUTES = 15;
+
+function getDayHours(therapist: Therapist, dayOfWeek: number): WeeklyHour | undefined {
+  return therapist.therapist_weekly_hours.find((r) => r.day_of_week === dayOfWeek);
+}
 
 // ─── Extracted logic (matches ai-chat-respond tool executor) ─────────
 
@@ -44,50 +53,44 @@ function checkSlotAvailability(
   const dayOfWeek = date.getDay() === 0 ? 7 : date.getDay();
 
   const workingTherapists = therapists.filter(
-    (t) => t.working_days.includes(dayOfWeek) && !unavailableIds.has(t.id),
+    (t) => getDayHours(t, dayOfWeek)?.is_working && !unavailableIds.has(t.id),
   );
 
   if (workingTherapists.length === 0) return [];
 
-  const minStart = Math.min(...workingTherapists.map((t) => t.start_hour));
-  const rawMaxEnd = Math.max(...workingTherapists.map((t) => t.end_hour));
-  const maxEnd = earlyCloseHour ? Math.min(rawMaxEnd, earlyCloseHour) : rawMaxEnd;
+  const minStartMin = Math.min(...workingTherapists.map((t) => getDayHours(t, dayOfWeek)!.start_minute));
+  const rawMaxEndMin = Math.max(...workingTherapists.map((t) => getDayHours(t, dayOfWeek)!.end_minute));
+  const maxEndMin = earlyCloseHour ? Math.min(rawMaxEndMin, earlyCloseHour * 60) : rawMaxEndMin;
 
   const slots: { time: string; available_therapists: number }[] = [];
 
-  for (let h = minStart; h < maxEnd; h++) {
-    for (let m = 0; m < 60; m += 30) {
-      const slotStartMin = h * 60 + m;
-      const slotEndMin = slotStartMin + duration;
-      if (slotEndMin > maxEnd * 60) continue;
+  for (let slotStartMin = minStartMin; slotStartMin < maxEndMin; slotStartMin += 30) {
+    const slotEndMin = slotStartMin + duration;
+    if (slotEndMin > maxEndMin) continue;
 
-      const slotTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-      let availCount = 0;
+    const slotTime = `${String(Math.floor(slotStartMin / 60)).padStart(2, '0')}:${String(slotStartMin % 60).padStart(2, '0')}`;
+    let availCount = 0;
 
-      for (const t of workingTherapists) {
-        const tStartMin = t.start_hour * 60;
-        const tEndMin = t.end_hour * 60;
-        if (slotStartMin < tStartMin || slotEndMin > tEndMin) continue;
+    for (const t of workingTherapists) {
+      const dayHours = getDayHours(t, dayOfWeek)!;
+      if (slotStartMin < dayHours.start_minute || slotEndMin > dayHours.end_minute) continue;
 
-        if (t.break_start != null && t.break_end != null) {
-          const breakStartMin = t.break_start * 60;
-          const breakEndMin = t.break_end * 60;
-          if (slotStartMin < breakEndMin && slotEndMin > breakStartMin) continue;
-        }
-
-        const hasConflict = existingBookings.some((b) => {
-          if (b.therapist_id !== t.id) return false;
-          const bStart = parseInt(b.start_time.split(':')[0]) * 60 + parseInt(b.start_time.split(':')[1]);
-          const bEnd = parseInt(b.end_time.split(':')[0]) * 60 + parseInt(b.end_time.split(':')[1]);
-          return slotStartMin < bEnd + BUFFER_MINUTES && slotEndMin > bStart - BUFFER_MINUTES;
-        });
-
-        if (!hasConflict) availCount++;
+      if (dayHours.break_start_minute != null && dayHours.break_end_minute != null) {
+        if (slotStartMin < dayHours.break_end_minute && slotEndMin > dayHours.break_start_minute) continue;
       }
 
-      if (availCount > 0) {
-        slots.push({ time: slotTime, available_therapists: availCount });
-      }
+      const hasConflict = existingBookings.some((b) => {
+        if (b.therapist_id !== t.id) return false;
+        const bStart = parseInt(b.start_time.split(':')[0]) * 60 + parseInt(b.start_time.split(':')[1]);
+        const bEnd = parseInt(b.end_time.split(':')[0]) * 60 + parseInt(b.end_time.split(':')[1]);
+        return slotStartMin < bEnd + BUFFER_MINUTES && slotEndMin > bStart - BUFFER_MINUTES;
+      });
+
+      if (!hasConflict) availCount++;
+    }
+
+    if (availCount > 0) {
+      slots.push({ time: slotTime, available_therapists: availCount });
     }
   }
 
@@ -113,10 +116,20 @@ function shouldHandoff(message: string, keywords: string[]): boolean {
 
 // ─── Test Data ───────────────────────────────────────────────────────
 
+const makeWeeklyHours = (workingDays: number[], startHour: number, endHour: number, breakStartHour: number | null, breakEndHour: number | null): WeeklyHour[] =>
+  [1, 2, 3, 4, 5, 6, 7].map((day) => ({
+    day_of_week: day,
+    is_working: workingDays.includes(day),
+    start_minute: startHour * 60,
+    end_minute: endHour * 60,
+    break_start_minute: breakStartHour != null ? breakStartHour * 60 : null,
+    break_end_minute: breakEndHour != null ? breakEndHour * 60 : null,
+  }));
+
 const therapists: Therapist[] = [
-  { id: 't1', name: 'Lisa', start_hour: 9, end_hour: 17, working_days: [1, 2, 3, 4, 5], break_start: 12, break_end: 13 },
-  { id: 't2', name: 'Mai', start_hour: 10, end_hour: 18, working_days: [1, 2, 3, 4, 5, 6], break_start: null, break_end: null },
-  { id: 't3', name: 'Trang', start_hour: 9, end_hour: 15, working_days: [1, 3, 5], break_start: null, break_end: null },
+  { id: 't1', name: 'Lisa', therapist_weekly_hours: makeWeeklyHours([1, 2, 3, 4, 5], 9, 17, 12, 13) },
+  { id: 't2', name: 'Mai', therapist_weekly_hours: makeWeeklyHours([1, 2, 3, 4, 5, 6], 10, 18, null, null) },
+  { id: 't3', name: 'Trang', therapist_weekly_hours: makeWeeklyHours([1, 3, 5], 9, 15, null, null) },
 ];
 
 // ─── Tests ───────────────────────────────────────────────────────────

@@ -3,14 +3,19 @@ import { addMinutes, format } from 'date-fns';
 
 // Pure logic extracted from Booking.tsx for testing
 
+interface WeeklyHour {
+  day_of_week: number;
+  is_working: boolean;
+  start_minute: number;
+  end_minute: number;
+  break_start_minute: number | null;
+  break_end_minute: number | null;
+}
+
 interface Therapist {
   id: string;
   name: string;
-  start_hour: number;
-  end_hour: number;
-  working_days: number[];
-  break_start: number | null;
-  break_end: number | null;
+  therapist_weekly_hours: WeeklyHour[];
 }
 
 interface ExistingBooking {
@@ -21,6 +26,10 @@ interface ExistingBooking {
 }
 
 const BUFFER_MINUTES = 15;
+
+function getDayHours(therapist: Therapist, dayOfWeek: number): WeeklyHour | undefined {
+  return therapist.therapist_weekly_hours.find(r => r.day_of_week === dayOfWeek);
+}
 
 function getAvailableTherapists(
   timeStr: string,
@@ -35,24 +44,19 @@ function getAvailableTherapists(
 
   return therapists.filter(t => {
     if (unavailableIds.includes(t.id)) return false;
-    if (!t.working_days.includes(dayOfWeek)) return false;
+    const dayHours = getDayHours(t, dayOfWeek);
+    if (!dayHours || !dayHours.is_working) return false;
 
-    const slotHour = parseInt(timeStr);
-    const endHour = parseInt(endStr);
-    if (slotHour < t.start_hour || endHour > t.end_hour) return false;
+    const slotStartMin = parseInt(timeStr.split(':')[0]) * 60 + parseInt(timeStr.split(':')[1]);
+    const slotEndMin = parseInt(endStr.split(':')[0]) * 60 + parseInt(endStr.split(':')[1]);
+    if (slotStartMin < dayHours.start_minute || slotEndMin > dayHours.end_minute) return false;
 
     // Break time check
-    if (t.break_start != null && t.break_end != null) {
-      const breakStartMin = t.break_start * 60;
-      const breakEndMin = t.break_end * 60;
-      const slotStartMin = parseInt(timeStr.split(':')[0]) * 60 + parseInt(timeStr.split(':')[1]);
-      const slotEndMin = parseInt(endStr.split(':')[0]) * 60 + parseInt(endStr.split(':')[1]);
-      if (slotStartMin < breakEndMin && slotEndMin > breakStartMin) return false;
+    if (dayHours.break_start_minute != null && dayHours.break_end_minute != null) {
+      if (slotStartMin < dayHours.break_end_minute && slotEndMin > dayHours.break_start_minute) return false;
     }
 
     // Existing booking overlap check with buffer
-    const slotStartMin = parseInt(timeStr.split(':')[0]) * 60 + parseInt(timeStr.split(':')[1]);
-    const slotEndMin = parseInt(endStr.split(':')[0]) * 60 + parseInt(endStr.split(':')[1]);
     const isBooked = existingBookings.some(b => {
       if (b.therapist_id !== t.id) return false;
       const bStartParts = b.start_time.split(':');
@@ -65,13 +69,21 @@ function getAvailableTherapists(
   });
 }
 
+const makeWeeklyHours = (workingDays: number[], startHour: number, endHour: number, breakStartHour: number | null, breakEndHour: number | null): WeeklyHour[] =>
+  [1, 2, 3, 4, 5, 6, 7].map(day => ({
+    day_of_week: day,
+    is_working: workingDays.includes(day),
+    start_minute: startHour * 60,
+    end_minute: endHour * 60,
+    break_start_minute: breakStartHour != null ? breakStartHour * 60 : null,
+    break_end_minute: breakEndHour != null ? breakEndHour * 60 : null,
+  }));
+
 const therapistA: Therapist = {
-  id: 'a', name: 'A', start_hour: 9, end_hour: 18,
-  working_days: [1, 2, 3, 4, 5, 6], break_start: 12, break_end: 13,
+  id: 'a', name: 'A', therapist_weekly_hours: makeWeeklyHours([1, 2, 3, 4, 5, 6], 9, 18, 12, 13),
 };
 const therapistB: Therapist = {
-  id: 'b', name: 'B', start_hour: 10, end_hour: 17,
-  working_days: [1, 2, 3, 4, 5], break_start: null, break_end: null,
+  id: 'b', name: 'B', therapist_weekly_hours: makeWeeklyHours([1, 2, 3, 4, 5], 10, 17, null, null),
 };
 
 // Monday
@@ -135,13 +147,11 @@ describe('Booking Availability', () => {
   });
 
   it('excludes slot that ends after operating hours', () => {
-    // 90 min service starting at 17:00 ends at 18:30
-    // endStr = "18:30", parseInt("18:30") = 18 which equals A's end_hour (18)
-    // The check is endHour > end_hour, so 18 > 18 is false — A passes
-    // This reveals a bug: the check doesn't account for minutes past the hour
-    // For now, test actual behavior: A is included (bug), B is excluded
+    // 90 min service starting at 17:00 ends at 18:30, past A's 18:00 end_minute.
+    // Minute-precision comparison correctly excludes A (previously a bug when
+    // this only compared whole hours, since parseInt("18:30") === 18 === end_hour).
     const result = getAvailableTherapists('17:00', 90, [therapistA, therapistB], monday, [], []);
-    expect(result.map(t => t.id)).toEqual(['a']); // Known: should be [] but end-minute not checked
+    expect(result).toEqual([]);
   });
 
   it('all therapists available at valid midday slot', () => {

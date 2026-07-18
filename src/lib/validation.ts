@@ -78,10 +78,21 @@ export const therapistSchema = z.object({
   name: safeName('Therapist name'),
   phone: optionalPhone,
   email: optionalEmail,
-  start_hour: z.number().int().min(0).max(23),
-  end_hour: z.number().int().min(1).max(24),
-  break_start: z.number().int().min(0).max(23).nullable(),
-  break_end: z.number().int().min(0).max(24).nullable(),
+});
+
+// One row per day of week (1=Mon..7=Sun) — validated independently since a
+// therapist can be off on a given day (is_working=false skips the hour checks).
+// Minutes are minutes-since-midnight (0-1440) so the schedule grid can snap
+// to any half-hour boundary, not just whole hours.
+export const therapistWeeklyHourSchema = z.object({
+  day_of_week: z.number().int().min(1).max(7),
+  is_working: z.boolean(),
+  start_minute: z.number().int().min(0).max(1440),
+  end_minute: z.number().int().min(0).max(1440),
+  break_start_minute: z.number().int().min(0).max(1440).nullable(),
+  break_end_minute: z.number().int().min(0).max(1440).nullable(),
+}).refine(d => !d.is_working || d.end_minute > d.start_minute, {
+  message: 'End time must be after start time',
 });
 
 export const adminBookingSchema = z.object({

@@ -33,7 +33,7 @@ import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear } f
 import { cn } from '@/lib/utils';
 import {
   escapeHtml, validateForm,
-  saleSchema, serviceSchema, productSchema, therapistSchema, adminBookingSchema,
+  saleSchema, serviceSchema, productSchema, therapistSchema, therapistWeeklyHourSchema, adminBookingSchema,
   membershipTierSchema, holidaySchema, unavailabilitySchema, appSettingSchema,
 } from '@/lib/validation';
 import { computeSaleTotals, computeDiscountedSubtotal, computeTipAmount, computeBaseAmount, applyGiftCardToTotal, TipMethod } from '@/lib/checkoutMath';
@@ -243,10 +243,8 @@ const AdminDashboard = () => {
   const [therapistName, setTherapistName] = useState('');
   const [therapistPhone, setTherapistPhone] = useState('');
   const [therapistEmail, setTherapistEmail] = useState('');
-  const [therapistStartHour, setTherapistStartHour] = useState('9');
-  const [therapistEndHour, setTherapistEndHour] = useState('18');
-  const [therapistBreakStart, setTherapistBreakStart] = useState('');
-  const [therapistBreakEnd, setTherapistBreakEnd] = useState('');
+  type WeeklyHourRow = { day_of_week: number; is_working: boolean; start_minute: number; end_minute: number; break_start_minute: number | null; break_end_minute: number | null };
+  const [therapistWeeklyHours, setTherapistWeeklyHours] = useState<WeeklyHourRow[]>([]);
   const [unavailDate, setUnavailDate] = useState<Date | undefined>();
   const [unavailTherapist, setUnavailTherapist] = useState('');
   const [unavailCalendarOpen, setUnavailCalendarOpen] = useState(false);
@@ -463,9 +461,11 @@ const AdminDashboard = () => {
   const [reminder1stHours, setReminder1stHours] = useState('24');
   const [reminder2ndHours, setReminder2ndHours] = useState('1');
 
-  // New booking SMS notification state
+  // New booking SMS/email notification state
   const [notifySmsEnabled, setNotifySmsEnabled] = useState(false);
   const [notifyPhone, setNotifyPhone] = useState('');
+  const [notifyEmailEnabled, setNotifyEmailEnabled] = useState(false);
+  const [notifyEmail, setNotifyEmail] = useState('');
 
   // Membership & discount state
   const [membershipDialog, setMembershipDialog] = useState(false);
@@ -515,11 +515,43 @@ const AdminDashboard = () => {
   const { data: therapists } = useQuery({
     queryKey: ['admin-therapists'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('therapists').select('*').order('created_at');
+      const { data, error } = await supabase.from('therapists').select('*, therapist_weekly_hours(*)').order('created_at');
       if (error) throw error;
       return data;
     },
   });
+
+  const DAYS_OF_WEEK = [
+    { value: 1, label: t('Thứ 2') },
+    { value: 2, label: t('Thứ 3') },
+    { value: 3, label: t('Thứ 4') },
+    { value: 4, label: t('Thứ 5') },
+    { value: 5, label: t('Thứ 6') },
+    { value: 6, label: t('Thứ 7') },
+    { value: 7, label: t('Chủ nhật') },
+  ];
+
+  const defaultWeeklyHours = () => DAYS_OF_WEEK.map(d => ({
+    day_of_week: d.value, is_working: d.value >= 1 && d.value <= 6, start_minute: 9 * 60, end_minute: 18 * 60, break_start_minute: null as number | null, break_end_minute: null as number | null,
+  }));
+
+  // Single source of truth for "is this therapist working on this weekday, and
+  // during what hours" — used by both admin booking creation and the transfer
+  // dialog's availability lookup, so they can't drift apart.
+  const getTherapistDayHours = (therapist: any, dayOfWeek: number) => {
+    const rows = therapist?.therapist_weekly_hours as any[] | undefined;
+    return (rows || []).find(r => r.day_of_week === dayOfWeek) || null;
+  };
+
+  const formatMinutesHHMM = (mins: number) => `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+
+  // <input type="time"> works in "HH:MM" strings — these convert to/from the
+  // minutes-since-midnight ints stored on therapist_weekly_hours.
+  const minutesToTimeInput = (mins: number | null) => mins == null ? '' : formatMinutesHHMM(mins);
+  const timeInputToMinutes = (value: string) => {
+    const [h, m] = value.split(':').map(Number);
+    return h * 60 + m;
+  };
 
   // Sales
   const { data: sales } = useQuery({
@@ -1438,7 +1470,7 @@ const AdminDashboard = () => {
     queryKey: ['reminder-settings'],
     queryFn: async () => {
       const { data, error } = await supabase.from('app_settings').select('key, value')
-        .in('key', ['reminder_email_enabled', 'reminder_sms_enabled', 'reminder_1st_hours', 'reminder_2nd_hours', 'notify_sms_enabled', 'notify_phone']);
+        .in('key', ['reminder_email_enabled', 'reminder_sms_enabled', 'reminder_1st_hours', 'reminder_2nd_hours', 'notify_sms_enabled', 'notify_phone', 'notify_email_enabled', 'notify_email']);
       if (error) throw error;
       const map: Record<string, string> = {};
       data?.forEach(r => { map[r.key] = r.value; });
@@ -1454,6 +1486,8 @@ const AdminDashboard = () => {
       setReminder2ndHours(reminderSettings['reminder_2nd_hours'] || '1');
       setNotifySmsEnabled(reminderSettings['notify_sms_enabled'] === 'true');
       setNotifyPhone(reminderSettings['notify_phone'] || '');
+      setNotifyEmailEnabled(reminderSettings['notify_email_enabled'] === 'true');
+      setNotifyEmail(reminderSettings['notify_email'] || '');
     }
   }, [reminderSettings]);
 
@@ -1467,6 +1501,8 @@ const AdminDashboard = () => {
         { key: 'reminder_2nd_hours', value: reminder2ndHours },
         { key: 'notify_sms_enabled', value: String(notifySmsEnabled) },
         { key: 'notify_phone', value: notifyPhone },
+        { key: 'notify_email_enabled', value: String(notifyEmailEnabled) },
+        { key: 'notify_email', value: notifyEmail },
       ];
       for (const row of rows) {
         const { error } = await upsertSetting(row.key, row.value);
@@ -2244,28 +2280,36 @@ const AdminDashboard = () => {
         name: therapistName,
         phone: therapistPhone || null,
         email: therapistEmail || null,
-        start_hour: parseInt(therapistStartHour),
-        end_hour: parseInt(therapistEndHour),
-        break_start: therapistBreakStart ? parseInt(therapistBreakStart) : null,
-        break_end: therapistBreakEnd ? parseInt(therapistBreakEnd) : null,
       } as any;
       const vErr = validateForm(therapistSchema, {
         name: payload.name,
         phone: payload.phone || '',
         email: payload.email || '',
-        start_hour: payload.start_hour,
-        end_hour: payload.end_hour,
-        break_start: payload.break_start,
-        break_end: payload.break_end,
       });
       if (vErr) throw new Error(vErr);
+      for (const row of therapistWeeklyHours) {
+        const rowErr = validateForm(therapistWeeklyHourSchema, row);
+        if (rowErr) throw new Error(rowErr);
+      }
+
+      let therapistId = editingTherapist?.id;
       if (editingTherapist) {
         const { error } = await supabase.from('therapists').update(payload).eq('id', editingTherapist.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('therapists').insert({ ...payload, tenant_id: TENANT_ID });
+        const { data, error } = await supabase.from('therapists').insert({ ...payload, tenant_id: TENANT_ID }).select('id').single();
         if (error) throw error;
+        therapistId = data.id;
       }
+
+      // Weekly hours are fully replaced each save — simpler than diffing
+      // per-day rows, and this dialog is the only place they're edited.
+      const { error: delError } = await supabase.from('therapist_weekly_hours').delete().eq('therapist_id', therapistId);
+      if (delError) throw delError;
+      const { error: hoursError } = await supabase.from('therapist_weekly_hours').insert(
+        therapistWeeklyHours.map(row => ({ ...row, therapist_id: therapistId, tenant_id: TENANT_ID }))
+      );
+      if (hoursError) throw hoursError;
     },
     onSuccess: () => {
       logActivity(editingTherapist ? 'update_therapist' : 'create_therapist', `Therapist: ${therapistName}`);
@@ -2348,12 +2392,11 @@ const AdminDashboard = () => {
     return (therapists || []).filter((th: any) => {
       if (th.id === excludeTherapistId || !th.is_active) return false;
       if (unavailableIds.has(th.id)) return false;
-      if (!th.working_days.includes(dayOfWeek)) return false;
-      if (startMins < th.start_hour * 60 || endMins > th.end_hour * 60) return false;
-      if (th.break_start != null && th.break_end != null) {
-        const breakStart = th.break_start * 60;
-        const breakEnd = th.break_end * 60;
-        if (startMins < breakEnd && endMins > breakStart) return false;
+      const dayHours = getTherapistDayHours(th, dayOfWeek);
+      if (!dayHours || !dayHours.is_working) return false;
+      if (startMins < dayHours.start_minute || endMins > dayHours.end_minute) return false;
+      if (dayHours.break_start_minute != null && dayHours.break_end_minute != null) {
+        if (startMins < dayHours.break_end_minute && endMins > dayHours.break_start_minute) return false;
       }
       return !dayBookings.some((b: any) => {
         if (b.therapist_id !== th.id) return false;
@@ -2442,10 +2485,17 @@ const AdminDashboard = () => {
     setTherapistName(therapist?.name || '');
     setTherapistPhone(therapist?.phone || '');
     setTherapistEmail(therapist?.email || '');
-    setTherapistStartHour(String(therapist?.start_hour || 9));
-    setTherapistEndHour(String(therapist?.end_hour || 18));
-    setTherapistBreakStart(therapist?.break_start ? String(therapist.break_start) : '');
-    setTherapistBreakEnd(therapist?.break_end ? String(therapist.break_end) : '');
+    if (therapist) {
+      const existing: any[] = therapist.therapist_weekly_hours || [];
+      setTherapistWeeklyHours(DAYS_OF_WEEK.map(d => {
+        const row = existing.find(r => r.day_of_week === d.value);
+        return row
+          ? { day_of_week: d.value, is_working: row.is_working, start_minute: row.start_minute, end_minute: row.end_minute, break_start_minute: row.break_start_minute, break_end_minute: row.break_end_minute }
+          : { day_of_week: d.value, is_working: false, start_minute: 9 * 60, end_minute: 18 * 60, break_start_minute: null, break_end_minute: null };
+      }));
+    } else {
+      setTherapistWeeklyHours(defaultWeeklyHours());
+    }
     setTherapistDialog(true);
   };
 
@@ -2518,12 +2568,11 @@ const AdminDashboard = () => {
       for (const th of candidateTherapists) {
         if (unavailableTherapistIds.has(th.id)) continue;
         const dayOfWeek = bookingDate.getDay() === 0 ? 7 : bookingDate.getDay();
-        if (!th.working_days.includes(dayOfWeek)) continue;
-        if (sh < th.start_hour || endMins > th.end_hour * 60) continue;
-        if (th.break_start && th.break_end) {
-          const breakStartMin = th.break_start * 60;
-          const breakEndMin = th.break_end * 60;
-          if (startMins < breakEndMin && endMins > breakStartMin) continue;
+        const dayHours = getTherapistDayHours(th, dayOfWeek);
+        if (!dayHours || !dayHours.is_working) continue;
+        if (startMins < dayHours.start_minute || endMins > dayHours.end_minute) continue;
+        if (dayHours.break_start_minute != null && dayHours.break_end_minute != null) {
+          if (startMins < dayHours.break_end_minute && endMins > dayHours.break_start_minute) continue;
         }
 
         // Check conflicts with existing bookings for this therapist
@@ -4485,7 +4534,7 @@ const AdminDashboard = () => {
                   <DialogTrigger asChild>
                     <Button size="sm" className="w-full sm:w-auto h-9 px-4" onClick={() => openTherapistEdit()}><Plus className="h-4 w-4 mr-1.5" /> {t('Thêm nhân viên')}</Button>
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-[440px]">
+                  <DialogContent className="sm:max-w-[520px] max-h-[85vh] overflow-y-auto">
                     <DialogHeader>
                       <DialogTitle className="text-[#1B1B1B]">{editingTherapist ? t('Sửa thông tin thợ') : t('Thêm thợ')}</DialogTitle>
                       <DialogDescription className="text-muted-foreground/60">{editingTherapist ? t('Chỉnh sửa thông tin thợ') : t('Thêm thợ mới vào hệ thống')}</DialogDescription>
@@ -4506,29 +4555,39 @@ const AdminDashboard = () => {
                         </div>
                       </div>
                       <div className="border-t border-[#E5E5E5]/30 pt-4">
-                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">{t('Giờ làm việc')}</p>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label className="text-xs text-muted-foreground">{t('Giờ bắt đầu')}</Label>
-                            <Input type="number" min="6" max="22" value={therapistStartHour} onChange={e => setTherapistStartHour(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" />
-                          </div>
-                          <div>
-                            <Label className="text-xs text-muted-foreground">{t('Giờ kết thúc')}</Label>
-                            <Input type="number" min="6" max="22" value={therapistEndHour} onChange={e => setTherapistEndHour(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" />
-                          </div>
-                        </div>
-                      </div>
-                      <div className="border-t border-[#E5E5E5]/30 pt-4">
-                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">{t('Nghỉ trưa')}</p>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label className="text-xs text-muted-foreground">{t('Nghỉ trưa từ')}</Label>
-                            <Input type="number" min="6" max="22" placeholder="12" value={therapistBreakStart} onChange={e => setTherapistBreakStart(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" />
-                          </div>
-                          <div>
-                            <Label className="text-xs text-muted-foreground">{t('Nghỉ trưa đến')}</Label>
-                            <Input type="number" min="6" max="22" placeholder="13" value={therapistBreakEnd} onChange={e => setTherapistBreakEnd(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" />
-                          </div>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">{t('Giờ làm việc theo ngày')}</p>
+                        <div className="space-y-2">
+                          {DAYS_OF_WEEK.map(d => {
+                            const row = therapistWeeklyHours.find(r => r.day_of_week === d.value);
+                            if (!row) return null;
+                            const updateRow = (patch: Partial<WeeklyHourRow>) =>
+                              setTherapistWeeklyHours(prev => prev.map(r => r.day_of_week === d.value ? { ...r, ...patch } : r));
+                            return (
+                              <div key={d.value} className="rounded-lg border border-[#E5E5E5]/50 p-3">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <Switch checked={row.is_working} onCheckedChange={(v) => updateRow({ is_working: v })} />
+                                    <span className="text-sm font-medium w-16">{d.label}</span>
+                                  </div>
+                                  {row.is_working && (
+                                    <div className="flex items-center gap-1.5 text-xs">
+                                      <Input type="time" value={minutesToTimeInput(row.start_minute)} onChange={e => updateRow({ start_minute: timeInputToMinutes(e.target.value) })} className="w-24 h-8 text-xs bg-[#F5F5F5] border-[#E5E5E5]/60" />
+                                      <span className="text-muted-foreground">–</span>
+                                      <Input type="time" value={minutesToTimeInput(row.end_minute)} onChange={e => updateRow({ end_minute: timeInputToMinutes(e.target.value) })} className="w-24 h-8 text-xs bg-[#F5F5F5] border-[#E5E5E5]/60" />
+                                    </div>
+                                  )}
+                                </div>
+                                {row.is_working && (
+                                  <div className="flex items-center gap-1.5 text-xs mt-2 pl-9">
+                                    <span className="text-muted-foreground">{t('Nghỉ trưa')}:</span>
+                                    <Input type="time" value={minutesToTimeInput(row.break_start_minute)} onChange={e => updateRow({ break_start_minute: e.target.value ? timeInputToMinutes(e.target.value) : null })} className="w-24 h-8 text-xs bg-[#F5F5F5] border-[#E5E5E5]/60" />
+                                    <span className="text-muted-foreground">–</span>
+                                    <Input type="time" value={minutesToTimeInput(row.break_end_minute)} onChange={e => updateRow({ break_end_minute: e.target.value ? timeInputToMinutes(e.target.value) : null })} className="w-24 h-8 text-xs bg-[#F5F5F5] border-[#E5E5E5]/60" />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                       <Button className="w-full h-10 bg-[#006AFF] hover:bg-[#1B1B1B] text-white" onClick={() => saveTherapist.mutate()} disabled={!therapistName.trim() || saveTherapist.isPending}>
@@ -4951,12 +5010,11 @@ const AdminDashboard = () => {
 
                           {/* Working hours */}
                           <div className="min-w-0">
-                            <p className="text-[13px] text-[#555555]">
-                              {th.start_hour}:00 – {th.end_hour}:00
-                            </p>
-                            {th.break_start != null && th.break_end != null && (
-                              <p className="text-[11px] text-muted-foreground/50 mt-0.5">{t('Nghỉ trưa')} {th.break_start}:00–{th.break_end}:00</p>
-                            )}
+                            {(() => {
+                              const workingRows = (th.therapist_weekly_hours || []).filter((r: any) => r.is_working);
+                              if (!workingRows.length) return <p className="text-[13px] text-muted-foreground/50">{t('Chưa cài giờ làm việc')}</p>;
+                              return <p className="text-[13px] text-[#555555]">{workingRows.length} {t('ngày/tuần')}</p>;
+                            })()}
                           </div>
 
                           {/* Status badge */}
@@ -5031,7 +5089,7 @@ const AdminDashboard = () => {
                                 className="text-[14px] font-medium text-[#1B1B1B] truncate block text-left"
                                 onClick={() => { setViewingTherapist(th); setTherapistInfoDialog(true); }}
                               >{th.name}</button>
-                              <p className="text-[11px] text-muted-foreground/60 mt-0.5">{th.start_hour}:00 – {th.end_hour}:00</p>
+                              <p className="text-[11px] text-muted-foreground/60 mt-0.5">{(th.therapist_weekly_hours || []).filter((r: any) => r.is_working).length} {t('ngày/tuần')}</p>
                             </div>
                           </div>
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium shrink-0 ${
@@ -5149,14 +5207,24 @@ const AdminDashboard = () => {
                       <p>{viewingTherapist.phone || '—'}</p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground text-xs">{t('Giờ làm việc')}</p>
-                      <p>{viewingTherapist.start_hour}:00 – {viewingTherapist.end_hour}:00</p>
-                    </div>
-                    <div>
                       <p className="text-muted-foreground text-xs">{t('Trạng thái')}</p>
                       <Badge variant={viewingTherapist.is_active ? 'default' : 'secondary'}>
                         {viewingTherapist.is_active ? t('Hoạt động') : t('Tắt')}
                       </Badge>
+                    </div>
+                  </div>
+                  <div className="border-t pt-3">
+                    <p className="text-muted-foreground text-xs mb-1.5">{t('Giờ làm việc theo ngày')}</p>
+                    <div className="space-y-1">
+                      {DAYS_OF_WEEK.map(d => {
+                        const row = (viewingTherapist.therapist_weekly_hours || []).find((r: any) => r.day_of_week === d.value);
+                        return (
+                          <div key={d.value} className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground">{d.label}</span>
+                            <span>{row?.is_working ? `${formatMinutesHHMM(row.start_minute)} – ${formatMinutesHHMM(row.end_minute)}` : t('Nghỉ')}</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                   <div className="border-t pt-3">
@@ -6906,7 +6974,7 @@ const AdminDashboard = () => {
 
                   <div className="border-t border-border/40" />
 
-                  {/* New booking SMS notification to owner */}
+                  {/* New booking SMS/email notification to owner */}
                   <div className="space-y-4">
                     <div className="flex items-center gap-2">
                       <Bell className="h-4 w-4 text-muted-foreground" />
@@ -6929,6 +6997,25 @@ const AdminDashboard = () => {
                           className="mt-1"
                         />
                         <p className="text-xs text-muted-foreground mt-1">{t('Số điện thoại chủ tiệm nhận SMS khi có lịch hẹn mới')}</p>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm">{t('Email khi có lịch mới')}</p>
+                        <p className="text-xs text-muted-foreground">{t('Gửi email đến chủ tiệm khi khách đặt lịch mới')}</p>
+                      </div>
+                      <Switch checked={notifyEmailEnabled} onCheckedChange={setNotifyEmailEnabled} />
+                    </div>
+                    {notifyEmailEnabled && (
+                      <div>
+                        <Label>{t('Email nhận thông báo')}</Label>
+                        <Input
+                          value={notifyEmail}
+                          onChange={e => setNotifyEmail(e.target.value)}
+                          placeholder="owner@example.com"
+                          className="mt-1"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">{t('Email chủ tiệm nhận thông báo khi có lịch hẹn mới. Cần cấu hình Resend trong Cài đặt email.')}</p>
                       </div>
                     )}
                   </div>
