@@ -472,14 +472,6 @@ const AdminDashboard = () => {
   const [discountValidTo, setDiscountValidTo] = useState('');
   const [discountMaxUses, setDiscountMaxUses] = useState('');
 
-  // Gift card batch state
-  const [giftCardDialog, setGiftCardDialog] = useState(false);
-  const [giftCardCount, setGiftCardCount] = useState('5');
-  const [giftCardAmount, setGiftCardAmount] = useState('50');
-  const [giftCardPrefix, setGiftCardPrefix] = useState('GIFT');
-  const [giftCardMaxUses, setGiftCardMaxUses] = useState('1');
-  const [giftCardValidTo, setGiftCardValidTo] = useState('');
-
   // Delete all data state
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
@@ -1554,42 +1546,6 @@ const AdminDashboard = () => {
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['discount-codes'] }); },
-  });
-
-  const createGiftCardBatch = useMutation({
-    mutationFn: async () => {
-      requireAdmin();
-      const count = parseInt(giftCardCount);
-      const amount = parseFloat(giftCardAmount);
-      const maxUses = parseInt(giftCardMaxUses) || 1;
-      const prefix = giftCardPrefix.trim().toUpperCase() || 'GIFT';
-      if (count < 1 || count > 100) throw new Error('Batch size must be 1-100');
-      if (amount <= 0) throw new Error('Amount must be positive');
-      const codes = Array.from({ length: count }, () => {
-        const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
-        return `${prefix}-${rand}`;
-      });
-      const rows = codes.map(code => ({
-        code,
-        discount_percent: 0,
-        discount_amount: amount,
-        valid_from: format(new Date(), 'yyyy-MM-dd'),
-        valid_to: giftCardValidTo || null,
-        max_uses: maxUses,
-        is_active: true,
-        tenant_id: TENANT_ID,
-      }));
-      const { error } = await supabase.from('discount_codes').insert(rows);
-      if (error) throw error;
-      return codes;
-    },
-    onSuccess: (codes) => {
-      logActivity('create_gift_cards', `Created ${codes.length} gift cards: ${codes.slice(0, 3).join(', ')}...`);
-      queryClient.invalidateQueries({ queryKey: ['discount-codes'] });
-      setGiftCardDialog(false);
-      toast({ title: t('Đã tạo phiếu quà tặng'), description: `${codes.length} ${t('mã đã được tạo')}` });
-    },
-    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
 
   // Membership & discount enabled toggles
@@ -5815,9 +5771,6 @@ const AdminDashboard = () => {
                     }}>
                       <Plus className="h-3.5 w-3.5 mr-1" /> {t('Thêm')}
                     </Button>
-                    <Button size="sm" variant="outline" className="text-xs" onClick={() => setGiftCardDialog(true)}>
-                      <Crown className="h-3.5 w-3.5 mr-1" /> {t('Phiếu quà tặng')}
-                    </Button>
                     <Button size="sm" variant="outline" className="text-xs" onClick={() => {
                       if (!discountCodes?.length) return;
                       const header = 'Code,Type,Discount %,Discount Amount,Valid From,Valid To,Max Uses,Used,Active\n';
@@ -5987,48 +5940,6 @@ const AdminDashboard = () => {
                       ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" />{t('Đang lưu...')}</>
                       : editingDiscount ? t('Cập nhật mã giảm giá') : <><Tag className="h-4 w-4 mr-2" />{t('Tạo mã giảm giá')}</>
                     }
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-
-            {/* ── Gift Card Batch Dialog ── */}
-            <Dialog open={giftCardDialog} onOpenChange={setGiftCardDialog}>
-              <DialogContent className="sm:max-w-[420px]">
-                <DialogHeader>
-                  <DialogTitle className="text-[#1B1B1B]">{t('Tạo phiếu quà tặng hàng loạt')}</DialogTitle>
-                  <DialogDescription className="text-muted-foreground/60">{t('Tạo nhiều mã quà tặng cùng lúc')}</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 pt-2">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Số lượng')}</Label>
-                      <Input type="number" min="1" max="100" value={giftCardCount} onChange={e => setGiftCardCount(e.target.value)} className="mt-1 bg-[#F5F5F5] border-[#E5E5E5]/60" />
-                    </div>
-                    <div>
-                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Giá trị (A$)')}</Label>
-                      <Input type="number" min="1" value={giftCardAmount} onChange={e => setGiftCardAmount(e.target.value)} className="mt-1 bg-[#F5F5F5] border-[#E5E5E5]/60" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Tiền tố mã')}</Label>
-                      <Input value={giftCardPrefix} onChange={e => setGiftCardPrefix(e.target.value.toUpperCase())} className="mt-1 font-mono bg-[#F5F5F5] border-[#E5E5E5]/60" placeholder="GIFT" />
-                    </div>
-                    <div>
-                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Số lần dùng / mã')}</Label>
-                      <Input type="number" min="1" value={giftCardMaxUses} onChange={e => setGiftCardMaxUses(e.target.value)} className="mt-1 bg-[#F5F5F5] border-[#E5E5E5]/60" />
-                    </div>
-                  </div>
-                  <div>
-                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Hết hạn')} ({t('tuỳ chọn')})</Label>
-                    <Input type="date" value={giftCardValidTo} onChange={e => setGiftCardValidTo(e.target.value)} className="mt-1 bg-[#F5F5F5] border-[#E5E5E5]/60" />
-                  </div>
-                  <div className="p-3 bg-[#F5F5F5] rounded-lg border border-[#E5E5E5]/40 text-sm text-muted-foreground">
-                    {t('Sẽ tạo')} <strong className="text-[#1B1B1B]">{giftCardCount}</strong> {t('mã có dạng')} <code className="font-mono text-xs bg-white px-1.5 py-0.5 rounded border">{giftCardPrefix || 'GIFT'}-XXXXXX</code> {t('trị giá')} <strong className="text-[#1B1B1B]">A$ {giftCardAmount}</strong>
-                  </div>
-                  <Button className="w-full bg-[#006AFF] hover:bg-[#1B1B1B]" onClick={() => createGiftCardBatch.mutate()} disabled={createGiftCardBatch.isPending || parseInt(giftCardCount) < 1 || parseFloat(giftCardAmount) <= 0}>
-                    {createGiftCardBatch.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang tạo...')}</> : <><Crown className="h-4 w-4 mr-2" />{t('Tạo phiếu quà tặng')}</>}
                   </Button>
                 </div>
               </DialogContent>

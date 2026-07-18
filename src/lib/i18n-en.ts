@@ -484,6 +484,7 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Không thể trừ thẻ quà tặng": "Could not redeem the gift card",
   "Đã trừ thẻ quà tặng": "Gift card redeemed",
   "Số dư còn lại": "Remaining balance",
+  "Số dư thẻ quà tặng chưa sử dụng": "Outstanding gift card balance",
 
   // Logs
   "Nhật ký hoạt động": "Activity Logs",

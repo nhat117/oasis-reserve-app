@@ -1,13 +1,13 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, TENANT_ID } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarDays, TrendingUp, TrendingDown, DollarSign, Clock, CalendarCheck, Users, CalendarIcon, Crown, UserCheck, UserX } from 'lucide-react';
+import { CalendarDays, TrendingUp, TrendingDown, DollarSign, Clock, CalendarCheck, Users, CalendarIcon, Crown, UserCheck, UserX, Gift, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, subDays, addDays, startOfMonth, endOfMonth, differenceInDays, eachDayOfInterval } from 'date-fns';
 import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { useI18n } from '@/hooks/useI18n';
@@ -86,6 +86,7 @@ export function BookingStats({ className }: StatsProps) {
     const rangeTips = rangeSales.reduce((s, sale) => s + Number((sale as any).tip_amount || 0), 0);
     const rangeTax = rangeSales.reduce((s, sale) => s + Number((sale as any).tax_amount || 0), 0);
     const rangeProductRevenue = rangeSales.reduce((s, sale) => s + ((sale as any).sale_items || []).filter((i: any) => i.item_type === 'product').reduce((s2: number, i: any) => s2 + Number(i.price || 0), 0), 0);
+    const rangeGiftCardRedemptions = rangeSales.reduce((s, sale) => s + Number((sale as any).gift_card_amount || 0), 0);
     const rangeBookingValue = rangeBookings.reduce((s, b) => s + ((b as any).services?.price || 0), 0);
 
     // Previous period for comparison
@@ -210,6 +211,7 @@ export function BookingStats({ className }: StatsProps) {
       rangeTips,
       rangeTax,
       rangeProductRevenue,
+      rangeGiftCardRedemptions,
       rangeCount: rangeBookings.length,
       rangeValue: rangeBookingValue,
       revenueTrend,
@@ -348,7 +350,7 @@ export function BookingStats({ className }: StatsProps) {
             label: t('Doanh thu'),
             value: formatPrice(stats.rangeRevenue),
             trend: stats.revenueTrend,
-            sub: [t(rangeLabel), stats.rangeTips > 0 ? `${t('Tiền tip')}: ${formatPrice(stats.rangeTips)}` : null, stats.rangeTax > 0 ? `${t('Thuế')}: ${formatPrice(stats.rangeTax)}` : null, stats.rangeProductRevenue > 0 ? `${t('Sản phẩm')}: ${formatPrice(stats.rangeProductRevenue)}` : null].filter(Boolean).join(' · '),
+            sub: [t(rangeLabel), stats.rangeTips > 0 ? `${t('Tiền tip')}: ${formatPrice(stats.rangeTips)}` : null, stats.rangeTax > 0 ? `${t('Thuế')}: ${formatPrice(stats.rangeTax)}` : null, stats.rangeProductRevenue > 0 ? `${t('Sản phẩm')}: ${formatPrice(stats.rangeProductRevenue)}` : null, stats.rangeGiftCardRedemptions > 0 ? `${t('Thẻ quà tặng')}: ${formatPrice(stats.rangeGiftCardRedemptions)}` : null].filter(Boolean).join(' · '),
           },
           {
             icon: CalendarCheck,
@@ -379,6 +381,8 @@ export function BookingStats({ className }: StatsProps) {
           </Card>
         ))}
       </div>
+
+      <GiftCardLiabilityCard />
 
       {/* ── Attendance / Show Rate Cards ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
@@ -727,5 +731,98 @@ export function BookingStats({ className }: StatsProps) {
         </div>
       </div>
     </div>
+  );
+}
+
+const LIABILITY_PAGE_SIZE = 20;
+
+// Outstanding liability is a point-in-time snapshot across ALL active cards,
+// not a date-ranged aggregate — deliberately kept out of the stats useMemo
+// above (which filters by dateRange) and given its own query/pagination.
+function GiftCardLiabilityCard() {
+  const { t } = useI18n();
+  const [expanded, setExpanded] = useState(false);
+  const [page, setPage] = useState(0);
+  const formatPrice = (p: number) => `A$ ${p.toLocaleString()}`;
+
+  const { data: liability } = useQuery({
+    queryKey: ['gift-card-liability', TENANT_ID],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('gift_cards')
+        .select('balance')
+        .eq('tenant_id', TENANT_ID)
+        .eq('status', 'active');
+      if (error) throw error;
+      const total = data.reduce((sum, c) => sum + Number(c.balance), 0);
+      return { total, count: data.length };
+    },
+  });
+
+  const { data: rows } = useQuery({
+    queryKey: ['gift-card-liability-rows', TENANT_ID, page],
+    queryFn: async () => {
+      const { data, error, count } = await supabase
+        .from('gift_cards')
+        .select('code, balance, initial_value, expiry_date, purchaser_name', { count: 'exact' })
+        .eq('tenant_id', TENANT_ID)
+        .eq('status', 'active')
+        .order('balance', { ascending: false })
+        .range(page * LIABILITY_PAGE_SIZE, page * LIABILITY_PAGE_SIZE + LIABILITY_PAGE_SIZE - 1);
+      if (error) throw error;
+      return { rows: data, total: count ?? 0 };
+    },
+    enabled: expanded,
+  });
+
+  if (!liability || liability.count === 0) return null;
+
+  const total = rows?.total ?? 0;
+  const hasNext = (page + 1) * LIABILITY_PAGE_SIZE < total;
+  const hasPrev = page > 0;
+
+  return (
+    <Card className="card-hover border-border/50 mb-6">
+      <CardContent className="p-5">
+        <button type="button" className="w-full flex items-center justify-between" onClick={() => setExpanded(v => !v)}>
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-purple-50 flex items-center justify-center">
+              <Gift className="h-5 w-5 text-purple-600" />
+            </div>
+            <div className="text-left">
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{t('Số dư thẻ quà tặng chưa sử dụng')}</p>
+              <p className="text-2xl font-semibold font-serif tracking-tight text-foreground">{formatPrice(liability.total)}</p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">{liability.count} {t('thẻ')}</p>
+        </button>
+        {expanded && rows && (
+          <div className="mt-4 pt-4 border-t border-border/40 space-y-1.5">
+            {rows.rows.map(card => (
+              <div key={card.code} className="flex items-center justify-between text-sm py-1">
+                <div className="min-w-0">
+                  <p className="font-mono font-medium truncate">{card.code}</p>
+                  <p className="text-xs text-muted-foreground">{t('Hết hạn')} {card.expiry_date}{card.purchaser_name ? ` · ${card.purchaser_name}` : ''}</p>
+                </div>
+                <span className="font-medium tabular-nums shrink-0">{formatPrice(Number(card.balance))}</span>
+              </div>
+            ))}
+            {total > LIABILITY_PAGE_SIZE && (
+              <div className="flex items-center justify-between pt-2 text-xs text-muted-foreground">
+                <span>{page * LIABILITY_PAGE_SIZE + 1}–{Math.min((page + 1) * LIABILITY_PAGE_SIZE, total)} / {total}</span>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); setPage(p => p - 1); }} disabled={!hasPrev}>
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); setPage(p => p + 1); }} disabled={!hasNext}>
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
