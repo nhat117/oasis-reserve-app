@@ -56,6 +56,7 @@ import { DiscountCodesPanel } from '@/components/gift-cards/DiscountCodesPanel';
 import { WeeklyShiftEditor } from '@/components/WeeklyShiftEditor';
 
 const CURRENCIES = ['VND', 'USD', 'EUR', 'AUD'] as const;
+const CUSTOMER_PAGE_SIZE = 20;
 
 const THERAPIST_COLORS = [
   '#3b82f6', '#f43f5e', '#10b981', '#f59e0b',
@@ -482,6 +483,8 @@ const AdminDashboard = () => {
 
   // Customer list state
   const [customerSearch, setCustomerSearch] = useState('');
+  const [customerTierFilter, setCustomerTierFilter] = useState('all'); // 'all' | 'none' | tier id
+  const [customerPage, setCustomerPage] = useState(0);
 
   const { data: bookings } = useQuery({
     queryKey: ['admin-bookings', filterTherapist],
@@ -1709,21 +1712,37 @@ const AdminDashboard = () => {
     }
   };
 
-  // Guest visits / customers
-  const { data: guestVisits } = useQuery({
-    queryKey: ['guest-visits'],
+  // Guest visits / customers — server-side paginated, same pattern as
+  // GiftCardsPanel/DiscountCodesPanel (page + search + a select filter).
+  const { data: customersPage, isLoading: customersLoading } = useQuery({
+    queryKey: ['guest-visits', TENANT_ID, customerPage, customerSearch, customerTierFilter],
     queryFn: async () => {
-      const { data, error } = await supabase.from('guest_visits').select('*, membership_tiers(name, discount_percent)').order('visit_count', { ascending: false });
+      let query = supabase
+        .from('guest_visits')
+        .select('*, membership_tiers(name, discount_percent)', { count: 'exact' })
+        .order('visit_count', { ascending: false })
+        .range(customerPage * CUSTOMER_PAGE_SIZE, customerPage * CUSTOMER_PAGE_SIZE + CUSTOMER_PAGE_SIZE - 1);
+      if (customerSearch.trim()) {
+        // Strip characters that have special meaning in a PostgREST .or()
+        // filter string (comma separates conditions, parens delimit them) —
+        // the search box shouldn't be able to inject extra filter clauses.
+        const s = customerSearch.trim().replace(/[,()]/g, '');
+        if (s) query = query.or(`customer_name.ilike.%${s}%,customer_phone.ilike.%${s}%`);
+      }
+      if (customerTierFilter === 'none') query = query.is('membership_tier_id', null);
+      else if (customerTierFilter !== 'all') query = query.eq('membership_tier_id', customerTierFilter);
+      const { data, error, count } = await query;
       if (error) throw error;
-      return data;
+      return { rows: data, total: count ?? 0 };
     },
   });
 
-  const filteredCustomers = (guestVisits || []).filter(g => {
-    if (!customerSearch.trim()) return true;
-    const s = customerSearch.toLowerCase();
-    return g.customer_phone?.toLowerCase().includes(s) || g.customer_name?.toLowerCase().includes(s);
-  });
+  const visibleCustomers = customersPage?.rows ?? [];
+  const totalCustomers = customersPage?.total ?? 0;
+  const hasNextCustomers = (customerPage + 1) * CUSTOMER_PAGE_SIZE < totalCustomers;
+  const hasPrevCustomers = customerPage > 0;
+
+  useEffect(() => { setCustomerPage(0); }, [customerSearch, customerTierFilter]);
 
   const filteredSales = useMemo(() => (sales || []).filter((s: any) => {
     if (salesFilterMethod !== 'all' && s.payment_method !== salesFilterMethod) return false;
@@ -1739,8 +1758,7 @@ const AdminDashboard = () => {
     return true;
   }), [sales, salesFilterMethod, salesFilterDateFrom, salesFilterDateTo, salesFilterSearch]);
 
-  // Progressive rendering for large lists
-  const { visibleItems: visibleCustomers, hasMore: hasMoreCustomers, sentinelRef: customerSentinelRef } = useLoadMore(filteredCustomers);
+  // Progressive rendering for large lists (customers use server-side pagination instead — see customersPage above)
   const { visibleItems: visibleSales, hasMore: hasMoreSales, sentinelRef: salesSentinelRef } = useLoadMore(filteredSales);
 
   // Filtered active services for POS service picker
@@ -3049,21 +3067,35 @@ const AdminDashboard = () => {
               <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
                 <div>
                   <h2 className="text-xl font-semibold text-[#1B1B1B] tracking-tight">{t('Khách hàng')}</h2>
-                  <p className="text-sm text-muted-foreground/70 mt-0.5">{filteredCustomers.length} {t('khách hàng')}{hasMoreCustomers ? ` (${visibleCustomers.length} ${t('hiển thị')})` : ''}</p>
+                  <p className="text-sm text-muted-foreground/70 mt-0.5">{totalCustomers} {t('khách hàng')}</p>
                 </div>
-                <div className="relative w-full sm:w-[280px]">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
-                  <Input
-                    placeholder={t('Tìm theo tên hoặc SĐT...')}
-                    value={customerSearch}
-                    onChange={e => setCustomerSearch(e.target.value)}
-                    className="pl-9 h-10 text-sm bg-[#F5F5F5] border-[#E5E5E5]/50 rounded-xl focus:bg-white"
-                  />
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative w-full sm:w-[240px]">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
+                    <Input
+                      placeholder={t('Tìm theo tên hoặc SĐT...')}
+                      value={customerSearch}
+                      onChange={e => setCustomerSearch(e.target.value)}
+                      className="pl-9 h-10 text-sm bg-[#F5F5F5] border-[#E5E5E5]/50 rounded-xl focus:bg-white"
+                    />
+                  </div>
+                  <Select value={customerTierFilter} onValueChange={setCustomerTierFilter}>
+                    <SelectTrigger className="w-[160px] h-10 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">{t('Tất cả')}</SelectItem>
+                      <SelectItem value="none">{t('Chưa có hạng')}</SelectItem>
+                      {(membershipTiers || []).map(tier => (
+                        <SelectItem key={tier.id} value={tier.id}>{tier.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
               {/* Customer list */}
-              {filteredCustomers.length === 0 ? (
+              {customersLoading ? (
+                <p className="text-sm text-muted-foreground text-center py-20">{t('Đang tải...')}</p>
+              ) : visibleCustomers.length === 0 ? (
                 <div className="text-center py-20 text-muted-foreground">
                   <UserCheck className="h-10 w-10 mx-auto mb-3 opacity-15" />
                   <p className="text-sm font-medium">{t('Chưa có khách hàng')}</p>
@@ -3169,7 +3201,19 @@ const AdminDashboard = () => {
                       );
                     })}
                   </div>
-                  {hasMoreCustomers && <div ref={customerSentinelRef} className="py-4 text-center text-xs text-muted-foreground/50"><Loader2 className="h-4 w-4 animate-spin inline mr-1.5" />{t('Đang tải thêm...')}</div>}
+                  {totalCustomers > CUSTOMER_PAGE_SIZE && (
+                    <div className="flex items-center justify-between text-sm text-muted-foreground pt-1">
+                      <span>{customerPage * CUSTOMER_PAGE_SIZE + 1}–{Math.min((customerPage + 1) * CUSTOMER_PAGE_SIZE, totalCustomers)} / {totalCustomers}</span>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setCustomerPage(p => p - 1)} disabled={!hasPrevCustomers}>
+                          <ChevronLeft className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => setCustomerPage(p => p + 1)} disabled={!hasNextCustomers}>
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
             </div>
