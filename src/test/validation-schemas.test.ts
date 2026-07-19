@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  bookingCustomerSchema, loginSchema, serviceSchema, therapistSchema, therapistWeeklyHourSchema,
+  bookingCustomerSchema, loginSchema, serviceSchema, therapistSchema, weeklyShiftBlockSchema, validateDayBlocks,
   adminBookingSchema, saleSchema, membershipTierSchema, discountCodeSchema,
   holidaySchema, unavailabilitySchema, appSettingSchema,
   edgeFnCheckoutSchema, edgeFnRefundSchema, edgeFnEmailSchema,
@@ -109,41 +109,72 @@ describe('therapistSchema', () => {
   });
 });
 
-describe('therapistWeeklyHourSchema', () => {
-  it('accepts a valid working day', () => {
-    expect(therapistWeeklyHourSchema.safeParse({
-      day_of_week: 1, is_working: true, start_minute: 540, end_minute: 1020, break_start_minute: null, break_end_minute: null,
+describe('weeklyShiftBlockSchema', () => {
+  it('accepts a valid block', () => {
+    expect(weeklyShiftBlockSchema.safeParse({
+      day_of_week: 1, is_working: true, start_minute: 540, end_minute: 1020,
     }).success).toBe(true);
   });
 
-  it('accepts a half-hour start/end boundary', () => {
-    expect(therapistWeeklyHourSchema.safeParse({
-      day_of_week: 1, is_working: true, start_minute: 570, end_minute: 1050, break_start_minute: 750, break_end_minute: 780,
-    }).success).toBe(true);
-  });
-
-  it('accepts a day off without minute checks', () => {
-    expect(therapistWeeklyHourSchema.safeParse({
-      day_of_week: 2, is_working: false, start_minute: 540, end_minute: 540, break_start_minute: null, break_end_minute: null,
+  it('accepts a quarter-hour boundary', () => {
+    expect(weeklyShiftBlockSchema.safeParse({
+      day_of_week: 1, is_working: true, start_minute: 630, end_minute: 810,
     }).success).toBe(true);
   });
 
   it('rejects start_minute > 1440', () => {
-    expect(therapistWeeklyHourSchema.safeParse({
-      day_of_week: 1, is_working: true, start_minute: 1500, end_minute: 1020, break_start_minute: null, break_end_minute: null,
+    expect(weeklyShiftBlockSchema.safeParse({
+      day_of_week: 1, is_working: true, start_minute: 1500, end_minute: 1020,
     }).success).toBe(false);
   });
 
-  it('rejects end_minute not after start_minute when working', () => {
-    expect(therapistWeeklyHourSchema.safeParse({
-      day_of_week: 1, is_working: true, start_minute: 1020, end_minute: 540, break_start_minute: null, break_end_minute: null,
+  it('rejects end_minute not after start_minute', () => {
+    expect(weeklyShiftBlockSchema.safeParse({
+      day_of_week: 1, is_working: true, start_minute: 1020, end_minute: 540,
     }).success).toBe(false);
   });
 
   it('rejects day_of_week outside 1-7', () => {
-    expect(therapistWeeklyHourSchema.safeParse({
-      day_of_week: 8, is_working: true, start_minute: 540, end_minute: 1020, break_start_minute: null, break_end_minute: null,
+    expect(weeklyShiftBlockSchema.safeParse({
+      day_of_week: 8, is_working: true, start_minute: 540, end_minute: 1020,
     }).success).toBe(false);
+  });
+
+  it('rejects a start_minute not aligned to 15 minutes', () => {
+    expect(weeklyShiftBlockSchema.safeParse({
+      day_of_week: 1, is_working: true, start_minute: 541, end_minute: 1020,
+    }).success).toBe(false);
+  });
+});
+
+describe('validateDayBlocks', () => {
+  it('accepts an empty day (off)', () => {
+    expect(validateDayBlocks([])).toBeNull();
+  });
+
+  it('accepts non-overlapping blocks with a gap', () => {
+    expect(validateDayBlocks([
+      { start_minute: 630, end_minute: 810 },
+      { start_minute: 1020, end_minute: 1290 },
+    ])).toBeNull();
+  });
+
+  it('accepts touching blocks (no gap)', () => {
+    expect(validateDayBlocks([
+      { start_minute: 540, end_minute: 720 },
+      { start_minute: 720, end_minute: 900 },
+    ])).toBeNull();
+  });
+
+  it('rejects overlapping blocks', () => {
+    expect(validateDayBlocks([
+      { start_minute: 540, end_minute: 780 },
+      { start_minute: 720, end_minute: 900 },
+    ])).toBe('Shift blocks cannot overlap');
+  });
+
+  it('rejects a block with end before start', () => {
+    expect(validateDayBlocks([{ start_minute: 900, end_minute: 540 }])).not.toBeNull();
   });
 });
 

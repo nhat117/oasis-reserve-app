@@ -1,129 +1,151 @@
 import { useState } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Switch } from '@/components/ui/switch';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
+import { DayShiftEditor } from '@/components/DayShiftEditor';
+import { Coffee } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-export interface WeeklyHourRow {
-  day_of_week: number; // 1=Mon..7=Sun
-  is_working: boolean;
-  start_minute: number;
-  end_minute: number;
-  break_start_minute: number | null;
-  break_end_minute: number | null;
-}
+import { DayBlocksMap, sortBlocks, deriveBreaks } from '@/lib/weeklyScheduleLogic';
+import { formatMinutesHHMM } from '@/lib/shiftLogic';
 
 interface WeeklyShiftEditorProps {
-  value: WeeklyHourRow[]; // exactly 7 rows, one per day_of_week 1-7
-  onChange: (rows: WeeklyHourRow[]) => void;
+  value: DayBlocksMap; // keys 1-7 always present
+  onChange: (next: DayBlocksMap) => void;
   dayLabels: string[]; // 7 short labels, index 0 = Monday
   offLabel: string;
   workingLabel: string;
   breakLabel: string;
   doneLabel: string;
+  addShiftLabel: string;
+  copyToDaysLabel: string;
+  shiftCountLabel: (n: number) => string;
+  totalHoursLabel: (h: string) => string;
+  breakHoursLabel: (h: string) => string;
+  shiftNumberLabel: (n: number) => string;
+  copyLabel: string;
+  shopOpenMinute: number; // for scaling each chip's mini timeline bar
+  shopCloseMinute: number;
+  /** The Edit Staff dialog's scrollable content element, so the popover's
+   * collision detection knows the actual visible boundary (not just the
+   * browser viewport) and never overlaps the dialog's Save/Cancel buttons. */
+  collisionBoundary?: HTMLElement | null;
 }
 
-const formatHHMM = (mins: number) => {
-  if (typeof mins !== 'number' || !Number.isFinite(mins)) return '--:--';
-  return `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+// Monday=1..Sunday=7 to match day_of_week; JS getDay() is Sunday=0..Saturday=6.
+const todayDayOfWeek = () => {
+  const d = new Date().getDay();
+  return d === 0 ? 7 : d;
 };
 
-const minutesToTimeInput = (mins: number | null) => (mins == null ? '' : formatHHMM(mins));
-const timeInputToMinutes = (value: string) => {
-  const [h, m] = value.split(':').map(Number);
-  return h * 60 + m;
-};
+const clampPercent = (n: number) => Math.max(0, Math.min(100, n));
 
-const sanitizeRow = (row: WeeklyHourRow): WeeklyHourRow => ({
-  ...row,
-  start_minute: Number.isFinite(row.start_minute) ? row.start_minute : 9 * 60,
-  end_minute: Number.isFinite(row.end_minute) ? row.end_minute : 18 * 60,
-  break_start_minute: Number.isFinite(row.break_start_minute) ? row.break_start_minute : null,
-  break_end_minute: Number.isFinite(row.break_end_minute) ? row.break_end_minute : null,
-});
-
-// A Teams Shifts-style week strip: one card per day showing "Off" or a
-// colored shift pill (time + break). Clicking a card opens a popover with
-// an on/off toggle and time inputs for that single day — no drag gestures,
-// just fill in the times like the Shifts app's day editor.
-export function WeeklyShiftEditor({ value: rawValue, onChange, dayLabels, offLabel, workingLabel, breakLabel, doneLabel }: WeeklyShiftEditorProps) {
-  const value = rawValue.map(sanitizeRow);
+// A Teams Shifts-style week strip: one compact card per day showing "Off" or
+// each shift block's time range (+ derived breaks, if any). Clicking a card
+// opens a popover with a DayShiftEditor for that single day — add/remove
+// blocks, see derived breaks, copy to other days.
+export function WeeklyShiftEditor({
+  value, onChange, dayLabels, offLabel, workingLabel, breakLabel, doneLabel,
+  addShiftLabel, copyToDaysLabel, shiftCountLabel, totalHoursLabel, breakHoursLabel, shiftNumberLabel, copyLabel,
+  shopOpenMinute, shopCloseMinute, collisionBoundary,
+}: WeeklyShiftEditorProps) {
   const [openDay, setOpenDay] = useState<number | null>(null);
+  const today = todayDayOfWeek();
+  const shopSpan = Math.max(1, shopCloseMinute - shopOpenMinute);
 
-  const updateRow = (dayIdx: number, patch: Partial<WeeklyHourRow>) => {
-    onChange(value.map((row, idx) => (idx === dayIdx ? { ...row, ...patch } : row)));
+  const handleCopyToDays = (sourceDay: number, targetDays: number[]) => {
+    const sourceBlocks = value[sourceDay] || [];
+    const next: DayBlocksMap = { ...value };
+    for (const day of targetDays) {
+      next[day] = sourceBlocks.map(b => ({ start_minute: b.start_minute, end_minute: b.end_minute, day_of_week: day }));
+    }
+    onChange(next);
   };
 
   return (
     <div className="grid grid-cols-7 gap-1.5">
-      {dayLabels.map((label, dayIdx) => {
-        const row = value[dayIdx];
+      {dayLabels.map((label, idx) => {
+        const dayOfWeek = idx + 1;
+        const blocks = sortBlocks(value[dayOfWeek] || []);
+        const breaks = deriveBreaks(blocks);
+        const isToday = dayOfWeek === today;
+        const isOpen = openDay === dayOfWeek;
         return (
-          <Popover key={dayIdx} open={openDay === dayIdx} onOpenChange={(open) => setOpenDay(open ? dayIdx : null)}>
+          <Popover key={dayOfWeek} open={isOpen} onOpenChange={(open) => setOpenDay(open ? dayOfWeek : null)}>
             <PopoverTrigger asChild>
               <button
                 type="button"
                 className={cn(
-                  'flex flex-col rounded-lg border p-2 text-left transition-colors min-h-[72px]',
-                  row.is_working ? 'border-[#006AFF]/30 bg-[#006AFF]/5 hover:bg-[#006AFF]/10' : 'border-[#E5E5E5]/60 bg-[#F5F5F5] hover:bg-[#F0F0F0]',
+                  'flex min-h-[52px] flex-col rounded-lg border bg-white px-2 py-1.5 text-left shadow-sm transition-all duration-150',
+                  'hover:shadow-md hover:border-[#D4D4D4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#006AFF]/40',
+                  blocks.length === 0 && 'bg-[#FAFAFA]',
+                  isToday ? 'border-[#006AFF]/40 bg-[#006AFF]/[0.04]' : 'border-[#E5E5E5]/70',
+                  isOpen && 'ring-2 ring-[#006AFF]/30 border-[#006AFF]/50',
                 )}
               >
-                <span className="text-[11px] font-semibold text-[#1B1B1B]">{label}</span>
-                {row.is_working ? (
-                  <div className="mt-1.5">
-                    <span className="inline-block rounded-full bg-[#006AFF] text-white text-[10px] font-medium px-1.5 py-0.5">
-                      {formatHHMM(row.start_minute)}–{formatHHMM(row.end_minute)}
-                    </span>
-                    {row.break_start_minute != null && row.break_end_minute != null && (
-                      <p className="text-[9px] text-muted-foreground mt-1">
-                        {breakLabel} {formatHHMM(row.break_start_minute)}–{formatHHMM(row.break_end_minute)}
+                <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground leading-none">
+                  {label}
+                </span>
+                {blocks.length > 0 ? (
+                  <div className="mt-1 leading-none space-y-0.5">
+                    {blocks.map((b, i) => (
+                      <p key={b.id ?? i} className="text-[12px] font-bold text-[#1B1B1B] leading-tight tabular-nums">
+                        {formatMinutesHHMM(b.start_minute)}–{formatMinutesHHMM(b.end_minute)}
+                      </p>
+                    ))}
+                    {breaks.length > 0 && (
+                      <p className="flex items-center gap-1 text-[9px] text-muted-foreground leading-none" title={breakLabel}>
+                        <Coffee className="h-2.5 w-2.5" aria-hidden="true" />
+                        <span className="tabular-nums">
+                          {breaks.map(b => `${formatMinutesHHMM(b.start_minute)}–${formatMinutesHHMM(b.end_minute)}`).join(', ')}
+                        </span>
                       </p>
                     )}
                   </div>
                 ) : (
-                  <span className="text-[10px] text-muted-foreground/50 mt-1.5">{offLabel}</span>
+                  <span className="mt-1 text-[10px] text-muted-foreground/60 leading-none">{offLabel}</span>
                 )}
+                {/* Mini timeline bar — filled segments for shift blocks, scaled to the shop's open/close window */}
+                <div className="mt-1.5 relative h-[6px] w-full rounded-full bg-[#F0F0F0] overflow-hidden">
+                  {blocks.map((b, i) => {
+                    const left = clampPercent(((b.start_minute - shopOpenMinute) / shopSpan) * 100);
+                    const right = clampPercent(((b.end_minute - shopOpenMinute) / shopSpan) * 100);
+                    return (
+                      <div
+                        key={b.id ?? i}
+                        className="absolute top-0 h-full rounded-full bg-[#006AFF]/70"
+                        style={{ left: `${left}%`, width: `${Math.max(0, right - left)}%` }}
+                      />
+                    );
+                  })}
+                </div>
               </button>
             </PopoverTrigger>
-            <PopoverContent className="w-64 p-3" align="start">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">{label}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">{row.is_working ? workingLabel : offLabel}</span>
-                    <Switch checked={row.is_working} onCheckedChange={(v) => updateRow(dayIdx, { is_working: v })} />
-                  </div>
-                </div>
-                {row.is_working && (
-                  <>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <Label className="text-[10px] text-muted-foreground">{workingLabel}</Label>
-                        <Input type="time" value={minutesToTimeInput(row.start_minute)} onChange={e => updateRow(dayIdx, { start_minute: timeInputToMinutes(e.target.value) })} className="h-8 text-xs mt-0.5" />
-                      </div>
-                      <div>
-                        <Label className="text-[10px] text-muted-foreground opacity-0">–</Label>
-                        <Input type="time" value={minutesToTimeInput(row.end_minute)} onChange={e => updateRow(dayIdx, { end_minute: timeInputToMinutes(e.target.value) })} className="h-8 text-xs mt-0.5" />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <Label className="text-[10px] text-muted-foreground">{breakLabel}</Label>
-                        <Input type="time" value={minutesToTimeInput(row.break_start_minute)} onChange={e => updateRow(dayIdx, { break_start_minute: e.target.value ? timeInputToMinutes(e.target.value) : null })} className="h-8 text-xs mt-0.5" />
-                      </div>
-                      <div>
-                        <Label className="text-[10px] text-muted-foreground opacity-0">–</Label>
-                        <Input type="time" value={minutesToTimeInput(row.break_end_minute)} onChange={e => updateRow(dayIdx, { break_end_minute: e.target.value ? timeInputToMinutes(e.target.value) : null })} className="h-8 text-xs mt-0.5" />
-                      </div>
-                    </div>
-                  </>
-                )}
-                <Button size="sm" className="w-full h-8 text-xs" onClick={() => setOpenDay(null)}>
-                  {doneLabel}
-                </Button>
-              </div>
+            <PopoverContent
+              className="w-64 p-3"
+              align="start"
+              sideOffset={8}
+              avoidCollisions
+              collisionPadding={{ bottom: 88 }}
+              collisionBoundary={collisionBoundary}
+            >
+              <DayShiftEditor
+                label={label}
+                dayOfWeek={dayOfWeek}
+                blocks={blocks}
+                onChangeBlocks={(next) => onChange({ ...value, [dayOfWeek]: next })}
+                onDone={() => setOpenDay(null)}
+                offLabel={offLabel}
+                workingLabel={workingLabel}
+                breakLabel={breakLabel}
+                doneLabel={doneLabel}
+                addShiftLabel={addShiftLabel}
+                copyToDaysLabel={copyToDaysLabel}
+                copyToDayShortLabels={dayLabels}
+                onCopyToDays={(targets) => handleCopyToDays(dayOfWeek, targets)}
+                shiftCountLabel={shiftCountLabel}
+                totalHoursLabel={totalHoursLabel}
+                breakHoursLabel={breakHoursLabel}
+                shiftNumberLabel={shiftNumberLabel}
+                copyLabel={copyLabel}
+              />
             </PopoverContent>
           </Popover>
         );

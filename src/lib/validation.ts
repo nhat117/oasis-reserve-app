@@ -80,20 +80,34 @@ export const therapistSchema = z.object({
   email: optionalEmail,
 });
 
-// One row per day of week (1=Mon..7=Sun) — validated independently since a
-// therapist can be off on a given day (is_working=false skips the hour checks).
-// Minutes are minutes-since-midnight (0-1440) so the schedule grid can snap
-// to any half-hour boundary, not just whole hours.
-export const therapistWeeklyHourSchema = z.object({
+// One row per shift BLOCK — a day may have 0..N rows sharing the same
+// day_of_week (multiple rows on the same day represent a split shift, with
+// the gap between them displayed as a derived break, never stored).
+// Minutes are minutes-since-midnight (0-1440), 15-minute aligned so the day
+// editor can snap to any quarter-hour boundary.
+export const weeklyShiftBlockSchema = z.object({
   day_of_week: z.number().int().min(1).max(7),
-  is_working: z.boolean(),
-  start_minute: z.number().int().min(0).max(1440),
-  end_minute: z.number().int().min(0).max(1440),
-  break_start_minute: z.number().int().min(0).max(1440).nullable(),
-  break_end_minute: z.number().int().min(0).max(1440).nullable(),
-}).refine(d => !d.is_working || d.end_minute > d.start_minute, {
+  is_working: z.literal(true), // every persisted block row is a working block by construction
+  start_minute: z.number().int().min(0).max(1440).multipleOf(15),
+  end_minute: z.number().int().min(0).max(1440).multipleOf(15),
+}).refine(d => d.end_minute > d.start_minute, {
   message: 'End time must be after start time',
 });
+
+// Validates one full day's blocks together — catches cross-row overlaps
+// that a per-row schema can't see. Call once per day_of_week with that
+// day's full block array (an empty array means the day is off, always valid).
+export function validateDayBlocks(blocks: { start_minute: number; end_minute: number }[]): string | null {
+  for (const b of blocks) {
+    const err = validateForm(weeklyShiftBlockSchema, { day_of_week: 1, is_working: true as const, ...b });
+    if (err) return err;
+  }
+  const sorted = [...blocks].sort((a, b) => a.start_minute - b.start_minute);
+  for (let i = 0; i < sorted.length - 1; i++) {
+    if (sorted[i].end_minute > sorted[i + 1].start_minute) return 'Shift blocks cannot overlap';
+  }
+  return null;
+}
 
 export const adminBookingSchema = z.object({
   customerName: safeName('Customer name'),
@@ -160,6 +174,31 @@ export const unavailabilitySchema = z.object({
   therapistId: z.string().uuid('Invalid therapist'),
   date: z.string().min(1, 'Date is required'),
   reason: optionalSafeText('Reason', 200),
+});
+
+// One row per shift block (a work day may have several, e.g. a split shift) —
+// therapist_shifts is date-specific, distinct from the recurring weekly template.
+// Each block may have its own optional break, fully contained within it.
+export const therapistShiftSchema = z.object({
+  therapistId: z.string().uuid('Invalid therapist'),
+  date: z.string().min(1, 'Date is required'),
+  startMinute: z.number().int().min(0).max(1440),
+  endMinute: z.number().int().min(0).max(1440),
+  breakStartMinute: z.number().int().min(0).max(1440).nullable().optional(),
+  breakEndMinute: z.number().int().min(0).max(1440).nullable().optional(),
+  notes: optionalSafeText('Notes', 200),
+}).refine(d => d.endMinute > d.startMinute, {
+  message: 'End time must be after start time',
+}).refine(d => {
+  if (d.breakStartMinute == null || d.breakEndMinute == null) return true;
+  return d.breakStartMinute < d.breakEndMinute;
+}, {
+  message: 'Break end must be after break start',
+}).refine(d => {
+  if (d.breakStartMinute == null || d.breakEndMinute == null) return true;
+  return d.breakStartMinute >= d.startMinute && d.breakEndMinute <= d.endMinute;
+}, {
+  message: 'Break must be within the shift',
 });
 
 export const appSettingSchema = z.object({
