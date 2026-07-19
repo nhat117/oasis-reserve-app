@@ -715,6 +715,28 @@ const AdminDashboard = () => {
         if (dc) await supabase.from('discount_codes').update({ current_uses: (dc.current_uses || 0) + 1 }).eq('id', dc.id);
       }
 
+      // Walk-in sales (no linked booking) never flip a booking to 'completed',
+      // so they'd otherwise never reach guest_visits — record them here so a
+      // walk-in customer's name/visit shows up in the customer directory too.
+      // guest_visits.customer_phone is unique tenant-wide (matches the
+      // track_guest_visit() trigger's own ON CONFLICT (customer_phone) clause);
+      // tier assignment mirrors that trigger's own highest-min_visits-first rule.
+      if (!payload.booking_id && saleCustomerPhone.trim()) {
+        const { data: existingGuest } = await supabase.from('guest_visits').select('visit_count').eq('customer_phone', saleCustomerPhone.trim()).maybeSingle();
+        const newVisitCount = (existingGuest?.visit_count || 0) + 1;
+        const matchedTier = (membershipTiers || [])
+          .filter(tier => tier.is_active && tier.min_visits <= newVisitCount)
+          .sort((a, b) => b.min_visits - a.min_visits)[0];
+        const { error: guestError } = await supabase.from('guest_visits').upsert({
+          customer_phone: saleCustomerPhone.trim(),
+          customer_name: saleCustomerName.trim() || null,
+          visit_count: newVisitCount,
+          membership_tier_id: matchedTier?.id || null,
+          tenant_id: TENANT_ID,
+        }, { onConflict: 'customer_phone' });
+        if (guestError) console.error('Failed to record walk-in guest visit', guestError);
+      }
+
       // Redeem the gift card only after the sale row exists (the ledger
       // needs a real sale_id to link to) and only for the amount actually
       // applied. The RPC re-validates status/expiry/balance server-side and
@@ -823,6 +845,7 @@ const AdminDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ['stats-bookings'] });
       queryClient.invalidateQueries({ queryKey: ['gift-cards'] });
       queryClient.invalidateQueries({ queryKey: ['gift-card-liability'] });
+      queryClient.invalidateQueries({ queryKey: ['guest-visits'] });
       setSaleDialog(false);
       setSaleType('booking');
       setSaleBookingId('');
