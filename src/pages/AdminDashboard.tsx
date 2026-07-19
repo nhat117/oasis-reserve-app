@@ -53,6 +53,7 @@ import { PricingManager } from '@/components/settings/PricingManager';
 import { BranchesManager } from '@/components/settings/BranchesManager';
 import { GiftCardsPanel } from '@/components/gift-cards/GiftCardsPanel';
 import { DiscountCodesPanel } from '@/components/gift-cards/DiscountCodesPanel';
+import { WeeklyShiftEditor } from '@/components/WeeklyShiftEditor';
 
 const CURRENCIES = ['VND', 'USD', 'EUR', 'AUD'] as const;
 
@@ -329,7 +330,7 @@ const AdminDashboard = () => {
   const [shopAddress, setShopAddress] = useState('');
   const [shopAbn, setShopAbn] = useState('');
   const [openingHours, setOpeningHours] = useState('');
-  const [openDays, setOpenDays] = useState<number[]>([1, 2, 3, 4, 5, 6]); // Mon=1..Sun=7
+  const [openDays, setOpenDays] = useState<number[]>([1, 2, 3, 4, 5, 6, 7]); // Mon=1..Sun=7
   const [openTime, setOpenTime] = useState('09:00');
   const [closeTime, setCloseTime] = useState('18:00');
   const [shopState, setShopState] = useState('VIC');
@@ -544,14 +545,6 @@ const AdminDashboard = () => {
   };
 
   const formatMinutesHHMM = (mins: number) => `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
-
-  // <input type="time"> works in "HH:MM" strings — these convert to/from the
-  // minutes-since-midnight ints stored on therapist_weekly_hours.
-  const minutesToTimeInput = (mins: number | null) => mins == null ? '' : formatMinutesHHMM(mins);
-  const timeInputToMinutes = (value: string) => {
-    const [h, m] = value.split(':').map(Number);
-    return h * 60 + m;
-  };
 
   // Sales
   const { data: sales } = useQuery({
@@ -3923,7 +3916,7 @@ const AdminDashboard = () => {
                     {/* Mobile card layout */}
                     <div className="space-y-2 sm:hidden">
                       {visibleSales.map((s: any) => {
-                        const customerName = s.customer_name || s.bookings?.customer_name || '—';
+                        const customerName = s.customer_name || s.bookings?.customer_name || t('Khách vãng lai');
                         const customerPhone = s.customer_phone || s.bookings?.customer_phone || '';
                         return (
                           <div key={s.id} className="bg-white rounded-xl border border-[#E5E5E5]/40 p-4 space-y-2.5 transition-colors hover:border-[#CCCCCC] cursor-pointer" onClick={() => setSelectedSaleDetail(s)}>
@@ -4005,7 +3998,7 @@ const AdminDashboard = () => {
                       {/* Rows */}
                       <div className="space-y-1">
                         {visibleSales.map((s: any) => {
-                          const customerName = s.customer_name || s.bookings?.customer_name || '—';
+                          const customerName = s.customer_name || s.bookings?.customer_name || t('Khách vãng lai');
                           const customerPhone = s.customer_phone || s.bookings?.customer_phone || '';
                           return (
                             <div
@@ -4556,39 +4549,15 @@ const AdminDashboard = () => {
                       </div>
                       <div className="border-t border-[#E5E5E5]/30 pt-4">
                         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">{t('Giờ làm việc theo ngày')}</p>
-                        <div className="space-y-2">
-                          {DAYS_OF_WEEK.map(d => {
-                            const row = therapistWeeklyHours.find(r => r.day_of_week === d.value);
-                            if (!row) return null;
-                            const updateRow = (patch: Partial<WeeklyHourRow>) =>
-                              setTherapistWeeklyHours(prev => prev.map(r => r.day_of_week === d.value ? { ...r, ...patch } : r));
-                            return (
-                              <div key={d.value} className="rounded-lg border border-[#E5E5E5]/50 p-3">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <Switch checked={row.is_working} onCheckedChange={(v) => updateRow({ is_working: v })} />
-                                    <span className="text-sm font-medium w-16">{d.label}</span>
-                                  </div>
-                                  {row.is_working && (
-                                    <div className="flex items-center gap-1.5 text-xs">
-                                      <Input type="time" value={minutesToTimeInput(row.start_minute)} onChange={e => updateRow({ start_minute: timeInputToMinutes(e.target.value) })} className="w-24 h-8 text-xs bg-[#F5F5F5] border-[#E5E5E5]/60" />
-                                      <span className="text-muted-foreground">–</span>
-                                      <Input type="time" value={minutesToTimeInput(row.end_minute)} onChange={e => updateRow({ end_minute: timeInputToMinutes(e.target.value) })} className="w-24 h-8 text-xs bg-[#F5F5F5] border-[#E5E5E5]/60" />
-                                    </div>
-                                  )}
-                                </div>
-                                {row.is_working && (
-                                  <div className="flex items-center gap-1.5 text-xs mt-2 pl-9">
-                                    <span className="text-muted-foreground">{t('Nghỉ trưa')}:</span>
-                                    <Input type="time" value={minutesToTimeInput(row.break_start_minute)} onChange={e => updateRow({ break_start_minute: e.target.value ? timeInputToMinutes(e.target.value) : null })} className="w-24 h-8 text-xs bg-[#F5F5F5] border-[#E5E5E5]/60" />
-                                    <span className="text-muted-foreground">–</span>
-                                    <Input type="time" value={minutesToTimeInput(row.break_end_minute)} onChange={e => updateRow({ break_end_minute: e.target.value ? timeInputToMinutes(e.target.value) : null })} className="w-24 h-8 text-xs bg-[#F5F5F5] border-[#E5E5E5]/60" />
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
+                        <WeeklyShiftEditor
+                          value={therapistWeeklyHours}
+                          onChange={setTherapistWeeklyHours}
+                          dayLabels={DAYS_OF_WEEK.map(d => d.label)}
+                          offLabel={t('Nghỉ')}
+                          workingLabel={t('Làm việc')}
+                          breakLabel={t('Nghỉ trưa')}
+                          doneLabel={t('Xong')}
+                        />
                       </div>
                       <Button className="w-full h-10 bg-[#006AFF] hover:bg-[#1B1B1B] text-white" onClick={() => saveTherapist.mutate()} disabled={!therapistName.trim() || saveTherapist.isPending}>
                         {saveTherapist.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : (editingTherapist ? t('Cập nhật') : t('Thêm mới'))}

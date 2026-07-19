@@ -58,7 +58,7 @@ const Index = () => {
   const shopAddress = shopSettings?.shop_address || '';
   const spaName = shopSettings?.spa_name || 'Oasis Reserve';
   const openingHours = shopSettings?.opening_hours || '';
-  const openDays: number[] = shopSettings?.open_days ? JSON.parse(shopSettings.open_days) : [1, 2, 3, 4, 5, 6];
+  const openDays: number[] = shopSettings?.open_days ? JSON.parse(shopSettings.open_days) : [1, 2, 3, 4, 5, 6, 7];
   const openTime = shopSettings?.open_time || '09:00';
   const closeTime = shopSettings?.close_time || '18:00';
   const shopState = shopSettings?.shop_state || 'VIC';
