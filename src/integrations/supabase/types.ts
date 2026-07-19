@@ -1912,15 +1912,15 @@ export type Database = {
         }
         Relationships: []
       }
-      therapist_weekly_hours: {
+      therapist_shifts: {
         Row: {
           break_end_minute: number | null
           break_start_minute: number | null
           created_at: string
-          day_of_week: number
           end_minute: number
           id: string
-          is_working: boolean
+          notes: string | null
+          shift_date: string
           start_minute: number
           tenant_id: string | null
           therapist_id: string
@@ -1930,11 +1930,11 @@ export type Database = {
           break_end_minute?: number | null
           break_start_minute?: number | null
           created_at?: string
-          day_of_week: number
-          end_minute?: number
+          end_minute: number
           id?: string
-          is_working?: boolean
-          start_minute?: number
+          notes?: string | null
+          shift_date: string
+          start_minute: number
           tenant_id?: string | null
           therapist_id: string
           updated_at?: string
@@ -1943,10 +1943,10 @@ export type Database = {
           break_end_minute?: number | null
           break_start_minute?: number | null
           created_at?: string
-          day_of_week?: number
           end_minute?: number
           id?: string
-          is_working?: boolean
+          notes?: string | null
+          shift_date?: string
           start_minute?: number
           tenant_id?: string | null
           therapist_id?: string
@@ -1954,14 +1954,14 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "therapist_weekly_hours_tenant_id_fkey"
+            foreignKeyName: "therapist_shifts_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "therapist_weekly_hours_therapist_id_fkey"
+            foreignKeyName: "therapist_shifts_therapist_id_fkey"
             columns: ["therapist_id"]
             isOneToOne: false
             referencedRelation: "therapists"
@@ -2004,6 +2004,57 @@ export type Database = {
           },
           {
             foreignKeyName: "therapist_unavailability_therapist_id_fkey"
+            columns: ["therapist_id"]
+            isOneToOne: false
+            referencedRelation: "therapists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      therapist_weekly_hours: {
+        Row: {
+          created_at: string
+          day_of_week: number
+          end_minute: number
+          id: string
+          is_working: boolean
+          start_minute: number
+          tenant_id: string | null
+          therapist_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          day_of_week: number
+          end_minute?: number
+          id?: string
+          is_working?: boolean
+          start_minute?: number
+          tenant_id?: string | null
+          therapist_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          day_of_week?: number
+          end_minute?: number
+          id?: string
+          is_working?: boolean
+          start_minute?: number
+          tenant_id?: string | null
+          therapist_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "therapist_weekly_hours_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "therapist_weekly_hours_therapist_id_fkey"
             columns: ["therapist_id"]
             isOneToOne: false
             referencedRelation: "therapists"
