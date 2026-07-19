@@ -477,11 +477,21 @@ function textSimilarity(a: string, b: string): number {
 // ─── System Prompt Builder ───────────────────────────────────────────
 
 interface Service { id: string; name: string; price: number; duration_minutes: number }
-interface WeeklyHour { day_of_week: number; is_working: boolean; start_minute: number; end_minute: number; break_start_minute: number | null; break_end_minute: number | null }
-interface Therapist { id: string; name: string; therapist_weekly_hours: WeeklyHour[] }
+// A day can now have zero, one, or several independent shift blocks (a
+// split shift) instead of one row with its own break window — the break
+// is just the gap between two blocks, never stored. Mirrors
+// src/lib/weeklyScheduleLogic.ts's WeeklyShiftBlock on the frontend; this
+// Deno edge function can't import from src/lib, so it's duplicated here
+// the same way this file already duplicates formatMinutesHHMM.
+interface WeeklyShiftBlock { day_of_week: number; start_minute: number; end_minute: number }
+interface Therapist { id: string; name: string; therapist_weekly_hours: WeeklyShiftBlock[] }
 
-function getDayHours(therapist: Therapist, dayOfWeek: number): WeeklyHour | undefined {
-  return therapist.therapist_weekly_hours?.find((r) => r.day_of_week === dayOfWeek);
+function getDayBlocks(therapist: Therapist, dayOfWeek: number): WeeklyShiftBlock[] {
+  return (therapist.therapist_weekly_hours || []).filter((r) => r.day_of_week === dayOfWeek);
+}
+
+function fitsInAnyBlock(startMins: number, endMins: number, blocks: WeeklyShiftBlock[]): boolean {
+  return blocks.some((b) => startMins >= b.start_minute && endMins <= b.end_minute);
 }
 
 function formatMinutesHHMM(mins: number): string {
@@ -490,10 +500,10 @@ function formatMinutesHHMM(mins: number): string {
 
 function describeWeeklyHours(therapist: Therapist): string {
   const dayNames = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  const working = (therapist.therapist_weekly_hours || []).filter((r) => r.is_working);
-  if (working.length === 0) return "no working days set";
-  return working
-    .sort((a, b) => a.day_of_week - b.day_of_week)
+  const blocks = therapist.therapist_weekly_hours || [];
+  if (blocks.length === 0) return "no working days set";
+  return [...blocks]
+    .sort((a, b) => a.day_of_week - b.day_of_week || a.start_minute - b.start_minute)
     .map((r) => `${dayNames[r.day_of_week]} ${formatMinutesHHMM(r.start_minute)}-${formatMinutesHHMM(r.end_minute)}`)
     .join(", ");
 }
@@ -754,15 +764,16 @@ async function toolCheckAvailability(
     : therapists;
 
   const workingTherapists = candidateTherapists.filter(
-    (t) => getDayHours(t, dayOfWeek)?.is_working && !unavailableIds.has(t.id),
+    (t) => getDayBlocks(t, dayOfWeek).length > 0 && !unavailableIds.has(t.id),
   );
 
   if (workingTherapists.length === 0) {
     return { available_slots: [], message: "No therapists available on this date." };
   }
 
-  const minStartMin = Math.min(...workingTherapists.map((t) => getDayHours(t, dayOfWeek)!.start_minute));
-  const rawMaxEndMin = Math.max(...workingTherapists.map((t) => getDayHours(t, dayOfWeek)!.end_minute));
+  const allBlocks = workingTherapists.flatMap((t) => getDayBlocks(t, dayOfWeek));
+  const minStartMin = Math.min(...allBlocks.map((b) => b.start_minute));
+  const rawMaxEndMin = Math.max(...allBlocks.map((b) => b.end_minute));
   const maxEndMin = earlyCloseHour ? Math.min(rawMaxEndMin, earlyCloseHour * 60) : rawMaxEndMin;
 
   const now = new Date();
@@ -786,13 +797,8 @@ async function toolCheckAvailability(
     // Count how many therapists can handle this slot
     let availCount = 0;
     for (const t of workingTherapists) {
-      const dayHours = getDayHours(t, dayOfWeek)!;
-      if (slotStartMin < dayHours.start_minute || slotEndMin > dayHours.end_minute) continue;
-
-      // Check break overlap
-      if (dayHours.break_start_minute != null && dayHours.break_end_minute != null) {
-        if (slotStartMin < dayHours.break_end_minute && slotEndMin > dayHours.break_start_minute) continue;
-      }
+      const dayBlocks = getDayBlocks(t, dayOfWeek);
+      if (!fitsInAnyBlock(slotStartMin, slotEndMin, dayBlocks)) continue;
 
       // Check booking conflicts
       const hasConflict = (existingBookings || []).some((b: { therapist_id: string; start_time: string; end_time: string }) => {
@@ -880,8 +886,9 @@ async function toolCreateBooking(
       .eq("unavailable_date", dateStr);
     const unavailableIds = new Set((unavailList || []).map((u: { therapist_id: string }) => u.therapist_id));
 
+    const slotStartMin = startH * 60 + startM;
     const available = therapists
-      .filter((t) => getDayHours(t, dow)?.is_working && !unavailableIds.has(t.id))
+      .filter((t) => fitsInAnyBlock(slotStartMin, endTotalMin, getDayBlocks(t, dow)) && !unavailableIds.has(t.id))
       .sort((a, b) => (bookingCounts[a.id] || 0) - (bookingCounts[b.id] || 0));
 
     if (available.length === 0) {

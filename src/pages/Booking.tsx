@@ -17,6 +17,7 @@ import { useI18n } from '@/hooks/useI18n';
 import Header from '@/components/Header';
 import { bookingCustomerSchema, validateField, escapeHtml } from '@/lib/validation';
 import { SquareCardForm } from '@/components/SquareCardForm';
+import { WeeklyShiftBlock, fitsInAnyBlock } from '@/lib/weeklyScheduleLogic';
 
 const Booking = () => {
   const [searchParams] = useSearchParams();
@@ -104,9 +105,9 @@ const Booking = () => {
     },
   });
 
-  const getTherapistDayHours = (therapist: any, dayOfWeek: number) => {
-    const rows = therapist?.therapist_weekly_hours as any[] | undefined;
-    return (rows || []).find(r => r.day_of_week === dayOfWeek) || null;
+  const getTherapistDayBlocks = (therapist: any, dayOfWeek: number): WeeklyShiftBlock[] => {
+    const rows = therapist?.therapist_weekly_hours as WeeklyShiftBlock[] | undefined;
+    return (rows || []).filter(r => r.day_of_week === dayOfWeek);
   };
 
   const formatMinutesHHMM = (mins: number) => `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
@@ -209,14 +210,11 @@ const Booking = () => {
 
     return therapists.filter(t => {
       if (unavailability?.includes(t.id)) return false;
-      const dayHours = getTherapistDayHours(t, dayOfWeek);
-      if (!dayHours || !dayHours.is_working) return false;
+      const dayBlocks = getTherapistDayBlocks(t, dayOfWeek);
+      if (dayBlocks.length === 0) return false;
       const slotStartMin = parseInt(timeStr.split(':')[0]) * 60 + parseInt(timeStr.split(':')[1]);
       const slotEndMin = parseInt(endStr.split(':')[0]) * 60 + parseInt(endStr.split(':')[1]);
-      if (slotStartMin < dayHours.start_minute || slotEndMin > dayHours.end_minute) return false;
-      if (dayHours.break_start_minute != null && dayHours.break_end_minute != null) {
-        if (slotStartMin < dayHours.break_end_minute && slotEndMin > dayHours.break_start_minute) return false;
-      }
+      if (!fitsInAnyBlock(slotStartMin, slotEndMin, dayBlocks)) return false;
       const isBooked = existingBookings?.some(b => {
         if (b.therapist_id !== t.id) return false;
         const bStartParts = b.start_time.split(':');
@@ -236,14 +234,12 @@ const Booking = () => {
     const now = new Date();
     const dayOfWeek = selectedDate.getDay() === 0 ? 7 : selectedDate.getDay();
 
-    const workingTherapists = therapists.filter(t => {
-      const dayHours = getTherapistDayHours(t, dayOfWeek);
-      return dayHours?.is_working;
-    });
+    const workingTherapists = therapists.filter(t => getTherapistDayBlocks(t, dayOfWeek).length > 0);
     if (workingTherapists.length === 0) return [];
 
-    const minStartMin = Math.min(...workingTherapists.map(t => getTherapistDayHours(t, dayOfWeek)!.start_minute));
-    const maxEndMin = Math.max(...workingTherapists.map(t => getTherapistDayHours(t, dayOfWeek)!.end_minute));
+    const allBlocks = workingTherapists.flatMap(t => getTherapistDayBlocks(t, dayOfWeek));
+    const minStartMin = Math.min(...allBlocks.map(b => b.start_minute));
+    const maxEndMin = Math.max(...allBlocks.map(b => b.end_minute));
     const effectiveMaxEndMin = earlyCloseHour ? Math.min(maxEndMin, earlyCloseHour * 60) : maxEndMin;
 
     for (let mins = minStartMin; mins < maxEndMin; mins += 30) {
@@ -700,7 +696,7 @@ const Booking = () => {
                       if (!openDays.includes(dayOfWeek)) return true;
                       // No working therapists
                       if (therapists) {
-                        const hasWorkingTherapist = therapists.some(th => getTherapistDayHours(th, dayOfWeek)?.is_working);
+                        const hasWorkingTherapist = therapists.some(th => getTherapistDayBlocks(th, dayOfWeek).length > 0);
                         if (!hasWorkingTherapist) return true;
                       }
                       return false;
@@ -730,10 +726,13 @@ const Booking = () => {
                     )}
                     {therapists?.filter(t => !unavailability?.includes(t.id)).map(t => {
                       const dayOfWeek = selectedDate.getDay() === 0 ? 7 : selectedDate.getDay();
-                      const dayHours = getTherapistDayHours(t, dayOfWeek);
+                      const dayBlocks = [...getTherapistDayBlocks(t, dayOfWeek)].sort((a, b) => a.start_minute - b.start_minute);
+                      const blocksLabel = dayBlocks.length
+                        ? ` (${dayBlocks.map(b => `${formatMinutesHHMM(b.start_minute)}–${formatMinutesHHMM(b.end_minute)}`).join(', ')})`
+                        : '';
                       return (
                         <SelectItem key={t.id} value={t.id}>
-                          {t.name}{dayHours?.is_working ? ` (${formatMinutesHHMM(dayHours.start_minute)}–${formatMinutesHHMM(dayHours.end_minute)})` : ''}
+                          {t.name}{blocksLabel}
                         </SelectItem>
                       );
                     })}
