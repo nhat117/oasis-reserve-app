@@ -210,6 +210,14 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Làm việc": "Work",
   "Xoá ngày này": "Clear this day",
   "Xoá giờ nghỉ": "Clear break",
+  "+ Thêm ca": "+ Add shift",
+  "Sao chép sang các ngày khác": "Copy to other days",
+  "Sao chép": "Copy",
+  "Ca {n}": "Shift {n}",
+  "{n} ca": "{n} shifts",
+  "{h}h tổng": "{h}h total",
+  "{h}h nghỉ": "{h}h break",
+  "Ca làm việc không được chồng chéo": "Shift blocks cannot overlap",
   "Thứ 2": "Mon",
   "Thứ 3": "Tue",
   "Thứ 4": "Wed",
@@ -449,7 +457,7 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Lưu cài đặt dịch thuật": "Save translation settings",
   "Đã lưu cài đặt OpenAI": "OpenAI settings saved",
   "Đã dịch tất cả": "All translated",
-  "mã": "keys",
+  "khóa dịch": "keys",
 
   // Membership
   "hạng": "tiers",
@@ -500,7 +508,6 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "trị giá": "worth",
   "Tạo phiếu quà tặng": "Create Gift Cards",
   "Đã tạo phiếu quà tặng": "Gift cards created",
-  "mã đã được tạo": "codes generated",
 
   // Stored-value gift cards
   "Thẻ quà tặng": "Gift Cards",
@@ -539,7 +546,6 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Chưa có giao dịch": "No transactions yet",
   "Điều chỉnh": "Adjustment",
   "Sử dụng": "Redemption",
-  "Đang tạo...": "Creating...",
   "đã áp dụng": "applied",
   "còn lại": "remaining",
   "Mã thẻ quà tặng": "Gift card code",

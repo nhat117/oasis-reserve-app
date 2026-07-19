@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { supabase, TENANT_ID } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -25,17 +25,17 @@ import { ALL_I18N_KEYS } from '@/lib/i18n-keys';
 import { Switch } from '@/components/ui/switch';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid';
-import interactionPlugin, { DateClickArg } from '@fullcalendar/interaction';
-import { EventClickArg } from '@fullcalendar/core';
-import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear } from 'date-fns';
+import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, startOfWeek, addWeeks, subWeeks, addDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import {
   escapeHtml, validateForm,
-  saleSchema, serviceSchema, productSchema, therapistSchema, therapistWeeklyHourSchema, adminBookingSchema,
-  membershipTierSchema, holidaySchema, unavailabilitySchema, appSettingSchema,
+  saleSchema, serviceSchema, productSchema, therapistSchema, validateDayBlocks, adminBookingSchema,
+  membershipTierSchema, holidaySchema, unavailabilitySchema, therapistShiftSchema, appSettingSchema,
 } from '@/lib/validation';
+import { findShiftConflict, aggregateShiftHours, formatMinutesHHMM } from '@/lib/shiftLogic';
+import {
+  WeeklyShiftBlock, DayBlocksMap, fitsInAnyBlock, groupBlocksByDay, flattenBlocksByDay,
+} from '@/lib/weeklyScheduleLogic';
 import { computeSaleTotals, computeDiscountedSubtotal, computeTipAmount, computeBaseAmount, applyGiftCardToTotal, TipMethod } from '@/lib/checkoutMath';
 import { EMPLOYEE_TABS, EmployeeTab, filterVisibleTabs, resolveActiveTab } from '@/lib/employeeTabs';
 import { useToast } from '@/hooks/use-toast';
@@ -53,15 +53,13 @@ import { BranchesManager } from '@/components/settings/BranchesManager';
 import { GiftCardsPanel } from '@/components/gift-cards/GiftCardsPanel';
 import { DiscountCodesPanel } from '@/components/gift-cards/DiscountCodesPanel';
 import { WeeklyShiftEditor } from '@/components/WeeklyShiftEditor';
+import { StaffScheduleDialog } from '@/components/StaffScheduleDialog';
+import { ShiftCalendar } from '@/components/ShiftCalendar';
 
 const CURRENCIES = ['VND', 'USD', 'EUR', 'AUD'] as const;
 const CUSTOMER_PAGE_SIZE = 20;
 const SALES_PAGE_SIZE = 20;
-
-const THERAPIST_COLORS = [
-  '#3b82f6', '#f43f5e', '#10b981', '#f59e0b',
-  '#8b5cf6', '#06b6d4', '#ec4899', '#f97316',
-];
+const CUSTOMER_VISITS_PAGE_SIZE = 10;
 
 const resizeImage = (file: File, maxW = 800, maxH = 600, quality = 0.85): Promise<File> =>
   new Promise((resolve) => {
@@ -234,10 +232,11 @@ const AdminDashboard = () => {
   const serviceImageRef = useRef<HTMLInputElement>(null);
 
   // Therapist form state
+  const [staffAvailabilitySubTab, setStaffAvailabilitySubTab] = useState<'staff' | 'shift'>('staff');
   const [therapistDialog, setTherapistDialog] = useState(false);
   const [therapistInfoDialog, setTherapistInfoDialog] = useState(false);
   const [viewingTherapist, setViewingTherapist] = useState<any>(null);
-  const [viewingUnavailDate, setViewingUnavailDate] = useState<Date | undefined>();
+  const [viewingTherapistScheduleOpen, setViewingTherapistScheduleOpen] = useState(false);
   const [editingTherapist, setEditingTherapist] = useState<any>(null);
   const [transferDialog, setTransferDialog] = useState(false);
   const [transferTherapist, setTransferTherapist] = useState<any>(null);
@@ -245,21 +244,32 @@ const AdminDashboard = () => {
   const [therapistName, setTherapistName] = useState('');
   const [therapistPhone, setTherapistPhone] = useState('');
   const [therapistEmail, setTherapistEmail] = useState('');
-  type WeeklyHourRow = { day_of_week: number; is_working: boolean; start_minute: number; end_minute: number; break_start_minute: number | null; break_end_minute: number | null };
-  const [therapistWeeklyHours, setTherapistWeeklyHours] = useState<WeeklyHourRow[]>([]);
-  const [unavailDate, setUnavailDate] = useState<Date | undefined>();
+  const [therapistWeeklyHours, setTherapistWeeklyHours] = useState<DayBlocksMap>({ 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [] });
+  const therapistDialogScrollRef = useRef<HTMLDivElement>(null);
   const [unavailTherapist, setUnavailTherapist] = useState('');
   const [unavailCalendarOpen, setUnavailCalendarOpen] = useState(false);
-  const [unavailRangeMode, setUnavailRangeMode] = useState(false);
-  const [unavailRangeFrom, setUnavailRangeFrom] = useState('');
-  const [unavailRangeTo, setUnavailRangeTo] = useState('');
-  const [viewingUnavailRangeMode, setViewingUnavailRangeMode] = useState(false);
-  const [viewingUnavailRangeFrom, setViewingUnavailRangeFrom] = useState('');
-  const [viewingUnavailRangeTo, setViewingUnavailRangeTo] = useState('');
-  const [holidayDate, setHolidayDate] = useState<Date | undefined>();
-  const [holidayReason, setHolidayReason] = useState('');
-  const [earlyCloseHour, setEarlyCloseHour] = useState('none');
   const [holidayCalendarOpen, setHolidayCalendarOpen] = useState(false);
+  // Shared across all staff-schedule calendars (day-off, holiday, and the
+  // per-therapist info panel) so month navigation on any one of them scopes
+  // the same underlying queries — the calendar is the source of truth for
+  // which month's data the list below it should show.
+  const [visibleRangeStart, setVisibleRangeStart] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
+  const [visibleRangeEnd, setVisibleRangeEnd] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
+  const handleScheduleDatesSet = (arg: { view: { activeStart: Date; activeEnd: Date } }) => {
+    setVisibleRangeStart(format(arg.view.activeStart, 'yyyy-MM-dd'));
+    setVisibleRangeEnd(format(arg.view.activeEnd, 'yyyy-MM-dd'));
+  };
+
+  // Shift calendar (drag-and-drop, per-date) — its own visible range driven by
+  // FullCalendar's own nav/datesSet, decoupled from both ranges above so
+  // navigating it never re-scopes the Days Off dialogs or vice versa.
+  const [shiftTherapistId, setShiftTherapistId] = useState<string | null>(null);
+  const [shiftRangeStart, setShiftRangeStart] = useState(format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd'));
+  const [shiftRangeEnd, setShiftRangeEnd] = useState(format(addWeeks(startOfWeek(new Date(), { weekStartsOn: 1 }), 1), 'yyyy-MM-dd'));
+  const handleShiftDatesSet = (arg: { view: { activeStart: Date; activeEnd: Date } }) => {
+    setShiftRangeStart(format(arg.view.activeStart, 'yyyy-MM-dd'));
+    setShiftRangeEnd(format(arg.view.activeEnd, 'yyyy-MM-dd'));
+  };
 
   // Create booking form state
   const [bookingDialog, setBookingDialog] = useState(false);
@@ -429,7 +439,7 @@ const AdminDashboard = () => {
     setPopulatingLang(null);
     toast({
       title: errors === 0
-        ? t('Đã dịch tất cả') + ` (${ALL_I18N_KEYS.length} ${t('mã')})`
+        ? t('Đã dịch tất cả') + ` (${ALL_I18N_KEYS.length} ${t('khóa dịch')})`
         : `${t('Hoàn thành')} (${errors} ${t('lỗi')})`,
     });
   };
@@ -486,6 +496,8 @@ const AdminDashboard = () => {
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerTierFilter, setCustomerTierFilter] = useState('all'); // 'all' | 'none' | tier id
   const [customerPage, setCustomerPage] = useState(0);
+  const [selectedCustomerDetail, setSelectedCustomerDetail] = useState<any>(null);
+  const [customerVisitsPage, setCustomerVisitsPage] = useState(0);
 
   const { data: bookings } = useQuery({
     queryKey: ['admin-bookings', filterTherapist],
@@ -536,19 +548,22 @@ const AdminDashboard = () => {
     { value: 7, label: t('Chủ nhật') },
   ];
 
-  const defaultWeeklyHours = () => DAYS_OF_WEEK.map(d => ({
-    day_of_week: d.value, is_working: d.value >= 1 && d.value <= 6, start_minute: 9 * 60, end_minute: 18 * 60, break_start_minute: null as number | null, break_end_minute: null as number | null,
-  }));
-
-  // Single source of truth for "is this therapist working on this weekday, and
-  // during what hours" — used by both admin booking creation and the transfer
-  // dialog's availability lookup, so they can't drift apart.
-  const getTherapistDayHours = (therapist: any, dayOfWeek: number) => {
-    const rows = therapist?.therapist_weekly_hours as any[] | undefined;
-    return (rows || []).find(r => r.day_of_week === dayOfWeek) || null;
+  const defaultWeeklyHours = (): DayBlocksMap => {
+    const map: DayBlocksMap = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [] };
+    for (const d of DAYS_OF_WEEK) {
+      if (d.value >= 1 && d.value <= 6) map[d.value] = [{ day_of_week: d.value, start_minute: 9 * 60, end_minute: 18 * 60 }];
+    }
+    return map;
   };
 
-  const formatMinutesHHMM = (mins: number) => `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+  // Single source of truth for "what shift blocks does this therapist have on
+  // this weekday" — used by both admin booking creation and the transfer
+  // dialog's availability lookup, so they can't drift apart. A day can now
+  // have zero, one, or several blocks (a split shift), not one row.
+  const getTherapistDayBlocks = (therapist: any, dayOfWeek: number): WeeklyShiftBlock[] => {
+    const rows = therapist?.therapist_weekly_hours as WeeklyShiftBlock[] | undefined;
+    return (rows || []).filter(r => r.day_of_week === dayOfWeek);
+  };
 
   // Sales — server-side paginated (same pattern as Customers/Gift Cards), with
   // filters applied in the query itself instead of over a full client-side fetch.
@@ -1762,6 +1777,30 @@ const AdminDashboard = () => {
 
   useEffect(() => { setCustomerPage(0); }, [customerSearch, customerTierFilter]);
 
+  // Visit history for the customer detail dialog — same server-side paging
+  // pattern as the Sales/Customers tabs, scoped to one phone number.
+  const selectedCustomerPhone = selectedCustomerDetail?.customer_phone ?? null;
+  const { data: customerVisitsPageData, isLoading: customerVisitsLoading } = useQuery({
+    queryKey: ['customer-visit-history', selectedCustomerPhone, customerVisitsPage],
+    enabled: !!selectedCustomerPhone,
+    queryFn: async () => {
+      const { data, error, count } = await supabase
+        .from('sales')
+        .select(SALES_SELECT, { count: 'exact' })
+        .eq('customer_phone', selectedCustomerPhone)
+        .order('created_at', { ascending: false })
+        .range(customerVisitsPage * CUSTOMER_VISITS_PAGE_SIZE, customerVisitsPage * CUSTOMER_VISITS_PAGE_SIZE + CUSTOMER_VISITS_PAGE_SIZE - 1);
+      if (error) throw error;
+      return { rows: data as any[], total: count ?? 0 };
+    },
+  });
+  const visibleCustomerVisits = customerVisitsPageData?.rows ?? [];
+  const totalCustomerVisits = customerVisitsPageData?.total ?? 0;
+  const hasNextCustomerVisits = (customerVisitsPage + 1) * CUSTOMER_VISITS_PAGE_SIZE < totalCustomerVisits;
+  const hasPrevCustomerVisits = customerVisitsPage > 0;
+
+  useEffect(() => { setCustomerVisitsPage(0); }, [selectedCustomerPhone]);
+
   // Filtered active services for POS service picker
   const filteredActiveServices = useMemo(() => (services || []).filter(s => s.is_active).filter(s => {
     if (!saleServiceSearch.trim()) return true;
@@ -1819,7 +1858,10 @@ const AdminDashboard = () => {
     onSuccess: () => { logActivity('update_currency', 'Updated currency settings'); queryClient.invalidateQueries({ queryKey: ['currency-settings'] }); toast({ title: t('Đã lưu cài đặt tiền tệ') }); },
   });
 
-  // Therapist unavailability
+  // Therapist unavailability — unscoped fetch kept as-is because booking slot
+  // generation (below) and the customer-facing BookingCalendar prop need to
+  // check arbitrary future dates, not just whatever month the staff-schedule
+  // calendar happens to be showing.
   const { data: unavailabilities } = useQuery({
     queryKey: ['admin-unavailability'],
     queryFn: async () => {
@@ -1829,6 +1871,22 @@ const AdminDashboard = () => {
     },
   });
 
+  // Same data, scoped to the staff-schedule calendar's visible month — this is
+  // what the calendar + its "day off list" actually render, so navigating the
+  // calendar always re-queries instead of re-filtering an unbounded array.
+  const { data: unavailabilitiesInRange, isFetching: unavailRangeFetching } = useQuery({
+    queryKey: ['admin-unavailability-range', visibleRangeStart, visibleRangeEnd],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('therapist_unavailability').select('*, therapists(name)')
+        .gte('unavailable_date', visibleRangeStart)
+        .lt('unavailable_date', visibleRangeEnd)
+        .order('unavailable_date', { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+    placeholderData: keepPreviousData,
+  });
+
   const addUnavailability = useMutation({
     mutationFn: async ({ therapistId, date, reason }: { therapistId: string; date: string; reason?: string }) => {
       const vErr = validateForm(unavailabilitySchema, { therapistId, date, reason: reason || '' });
@@ -1836,7 +1894,12 @@ const AdminDashboard = () => {
       const { error } = await supabase.from('therapist_unavailability').insert({ therapist_id: therapistId, unavailable_date: date, reason, tenant_id: TENANT_ID });
       if (error) throw error;
     },
-    onSuccess: () => { logActivity('add_unavailability', 'Added therapist unavailability'); queryClient.invalidateQueries({ queryKey: ['admin-unavailability'] }); toast({ title: t('Đã thêm ngày nghỉ') }); },
+    onSuccess: () => {
+      logActivity('add_unavailability', 'Added therapist unavailability');
+      queryClient.invalidateQueries({ queryKey: ['admin-unavailability'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-unavailability-range'] });
+      toast({ title: t('Đã thêm ngày nghỉ') });
+    },
   });
 
   const removeUnavailability = useMutation({
@@ -1845,7 +1908,12 @@ const AdminDashboard = () => {
       const { error } = await supabase.from('therapist_unavailability').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: (_d, id) => { logActivity('delete_unavailability', `ID: ${id}`); queryClient.invalidateQueries({ queryKey: ['admin-unavailability'] }); toast({ title: t('Đã xoá ngày nghỉ') }); },
+    onSuccess: (_d, id) => {
+      logActivity('delete_unavailability', `ID: ${id}`);
+      queryClient.invalidateQueries({ queryKey: ['admin-unavailability'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-unavailability-range'] });
+      toast({ title: t('Đã xoá ngày nghỉ') });
+    },
   });
 
   // therapist_unavailability is one row per day (unique per therapist+date), so a
@@ -1871,18 +1939,200 @@ const AdminDashboard = () => {
     onSuccess: (count) => {
       logActivity('add_unavailability_range', `Added ${count} days off`);
       queryClient.invalidateQueries({ queryKey: ['admin-unavailability'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-unavailability-range'] });
       toast({ title: t('Đã thêm ngày nghỉ'), description: `${count} ${t('ngày đã được thêm')}` });
     },
     onError: (e: any) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
 
-  // Shop holidays
+  // Shop holidays — unscoped fetch kept as-is; same reasoning as
+  // unavailabilities above (booking slot generation + BookingCalendar need
+  // arbitrary future dates, not just the staff-schedule calendar's month).
   const { data: shopHolidays } = useQuery({
     queryKey: ['shop-holidays'],
     queryFn: async () => {
       const { data, error } = await supabase.from('shop_holidays').select('*').order('holiday_date', { ascending: true });
       if (error) throw error;
       return data;
+    },
+  });
+
+  // Scoped to the staff-schedule calendar's visible month, same treatment as
+  // unavailabilitiesInRange above.
+  const { data: shopHolidaysInRange, isFetching: shopHolidaysRangeFetching } = useQuery({
+    queryKey: ['shop-holidays-range', visibleRangeStart, visibleRangeEnd],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('shop_holidays').select('*')
+        .gte('holiday_date', visibleRangeStart)
+        .lt('holiday_date', visibleRangeEnd)
+        .order('holiday_date', { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+    placeholderData: keepPreviousData,
+  });
+
+  // The recurring weekly template already applies to every week automatically,
+  // so the only thing worth "copying" from last week is the Days Off records —
+  // maps each entry's weekday onto this week's corresponding date, skipping
+  // dates that already have a day off (ignoreDuplicates) or a shop holiday
+  // this week. Always operates on the real current calendar week (the Staff
+  // sub-tab has no week-nav calendar of its own to scope this to).
+  const copyLastWeekDaysOff = useMutation({
+    mutationFn: async () => {
+      requireAdmin();
+      const thisWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+      const lastWeekStart = format(subWeeks(thisWeekStart, 1), 'yyyy-MM-dd');
+      const lastWeekEnd = format(thisWeekStart, 'yyyy-MM-dd'); // exclusive, i.e. this week's start
+      const thisWeekEnd = format(addWeeks(thisWeekStart, 1), 'yyyy-MM-dd');
+      const [{ data: lastWeek, error: fetchError }, { data: thisWeekHolidays, error: holidaysError }] = await Promise.all([
+        supabase.from('therapist_unavailability')
+          .select('therapist_id, unavailable_date, reason')
+          .gte('unavailable_date', lastWeekStart)
+          .lt('unavailable_date', lastWeekEnd),
+        supabase.from('shop_holidays')
+          .select('holiday_date')
+          .gte('holiday_date', lastWeekEnd)
+          .lt('holiday_date', thisWeekEnd),
+      ]);
+      if (fetchError) throw fetchError;
+      if (holidaysError) throw holidaysError;
+      if (!lastWeek?.length) return 0;
+
+      const holidayDates = new Set((thisWeekHolidays || []).map((h: any) => h.holiday_date));
+      const rows = lastWeek
+        .map((u: any) => {
+          const targetDate = format(addDays(new Date(`${u.unavailable_date}T00:00:00`), 7), 'yyyy-MM-dd');
+          return { therapist_id: u.therapist_id, unavailable_date: targetDate, reason: u.reason, tenant_id: TENANT_ID };
+        })
+        .filter(r => !holidayDates.has(r.unavailable_date));
+      if (!rows.length) return 0;
+
+      const { error } = await supabase.from('therapist_unavailability')
+        .upsert(rows, { onConflict: 'therapist_id,unavailable_date', ignoreDuplicates: true });
+      if (error) throw error;
+      return rows.length;
+    },
+    onSuccess: (count) => {
+      logActivity('copy_last_week_days_off', `Copied ${count} days off`);
+      queryClient.invalidateQueries({ queryKey: ['admin-unavailability-range'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-unavailability'] });
+      toast(count > 0
+        ? { title: t('Đã sao chép ngày nghỉ'), description: `${count} ${t('ngày đã được thêm')}` }
+        : { title: t('Không có ngày nghỉ để sao chép') });
+    },
+    onError: (e: any) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+  });
+
+  // Per-date staff shifts — splits a work day into N independent blocks
+  // (e.g. 09:00-12:00 + 16:00-20:00), distinct from the recurring weekly
+  // template (therapist_weekly_hours, untouched). Month-scoped like the two
+  // range queries above; feeds the Therapist Info dialog's monthly hours total.
+  const { data: shiftsInRange } = useQuery({
+    queryKey: ['therapist-shifts', visibleRangeStart, visibleRangeEnd],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('therapist_shifts').select('*, therapists(name)')
+        .gte('shift_date', visibleRangeStart)
+        .lt('shift_date', visibleRangeEnd)
+        .order('shift_date', { ascending: true })
+        .order('start_minute', { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+    placeholderData: keepPreviousData,
+  });
+
+  // Same table again, scoped to the Shift calendar's own visible range (which
+  // navigates independently via its own FullCalendar instance) — this is what
+  // ShiftCalendar renders and what its own-day conflict check reads, so a
+  // conflict is never missed just because the Days Off dialog's month range
+  // happens to differ from what the Shift calendar is currently showing.
+  const { data: shiftsForCalendar } = useQuery({
+    queryKey: ['therapist-shifts-for-calendar', shiftRangeStart, shiftRangeEnd],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('therapist_shifts').select('*')
+        .gte('shift_date', shiftRangeStart)
+        .lt('shift_date', shiftRangeEnd)
+        .order('shift_date', { ascending: true })
+        .order('start_minute', { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+    placeholderData: keepPreviousData,
+  });
+
+  const addShift = useMutation({
+    mutationFn: async ({ therapistId, date, startMinute, endMinute, breakStartMinute, breakEndMinute, notes }: { therapistId: string; date: string; startMinute: number; endMinute: number; breakStartMinute?: number | null; breakEndMinute?: number | null; notes?: string }) => {
+      const vErr = validateForm(therapistShiftSchema, { therapistId, date, startMinute, endMinute, breakStartMinute: breakStartMinute ?? null, breakEndMinute: breakEndMinute ?? null, notes: notes || '' });
+      if (vErr) throw new Error(vErr);
+      // Day off always takes precedence — never let a shift be added on a day the therapist is off.
+      if ((unavailabilities || []).some((u: any) => u.therapist_id === therapistId && u.unavailable_date === date)) {
+        throw new Error(t('Nhân viên đang nghỉ ngày này'));
+      }
+      // Same-day conflicts must be checked against a query scoped to the date
+      // being written, not whichever range happens to be loaded — fetch fresh
+      // to avoid a false negative if that date falls outside every cached range.
+      const { data: sameDay, error: sameDayError } = await supabase.from('therapist_shifts')
+        .select('id, start_minute, end_minute')
+        .eq('therapist_id', therapistId).eq('shift_date', date);
+      if (sameDayError) throw sameDayError;
+      const conflict = findShiftConflict({ start_minute: startMinute, end_minute: endMinute }, sameDay || []);
+      if (conflict) throw new Error(t('Ca làm trùng giờ với ca đã có'));
+      const { error } = await supabase.from('therapist_shifts').insert({
+        therapist_id: therapistId, shift_date: date, start_minute: startMinute, end_minute: endMinute,
+        break_start_minute: breakStartMinute ?? null, break_end_minute: breakEndMinute ?? null,
+        notes: notes || null, tenant_id: TENANT_ID,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      logActivity('add_shift', 'Added therapist shift');
+      queryClient.invalidateQueries({ queryKey: ['therapist-shifts'] });
+      queryClient.invalidateQueries({ queryKey: ['therapist-shifts-for-calendar'] });
+      toast({ title: t('Đã thêm ca làm') });
+    },
+    onError: (e: any) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+  });
+
+  const updateShift = useMutation({
+    mutationFn: async ({ id, therapistId, date, startMinute, endMinute, breakStartMinute, breakEndMinute, notes }: { id: string; therapistId: string; date: string; startMinute: number; endMinute: number; breakStartMinute?: number | null; breakEndMinute?: number | null; notes?: string }) => {
+      const vErr = validateForm(therapistShiftSchema, { therapistId, date, startMinute, endMinute, breakStartMinute: breakStartMinute ?? null, breakEndMinute: breakEndMinute ?? null, notes: notes || '' });
+      if (vErr) throw new Error(vErr);
+      const { data: sameDay, error: sameDayError } = await supabase.from('therapist_shifts')
+        .select('id, start_minute, end_minute')
+        .eq('therapist_id', therapistId).eq('shift_date', date);
+      if (sameDayError) throw sameDayError;
+      const conflict = findShiftConflict({ start_minute: startMinute, end_minute: endMinute }, sameDay || [], id);
+      if (conflict) throw new Error(t('Ca làm trùng giờ với ca đã có'));
+      const { error } = await supabase.from('therapist_shifts')
+        .update({
+          shift_date: date, start_minute: startMinute, end_minute: endMinute,
+          break_start_minute: breakStartMinute ?? null, break_end_minute: breakEndMinute ?? null,
+          notes: notes || null,
+        })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      logActivity('update_shift', 'Updated therapist shift');
+      queryClient.invalidateQueries({ queryKey: ['therapist-shifts'] });
+      queryClient.invalidateQueries({ queryKey: ['therapist-shifts-for-calendar'] });
+      toast({ title: t('Đã lưu ca làm') });
+    },
+    onError: (e: any) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+  });
+
+  const removeShift = useMutation({
+    mutationFn: async (id: string) => {
+      requireAdmin();
+      const { error } = await supabase.from('therapist_shifts').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, id) => {
+      logActivity('delete_shift', `ID: ${id}`);
+      queryClient.invalidateQueries({ queryKey: ['therapist-shifts'] });
+      queryClient.invalidateQueries({ queryKey: ['therapist-shifts-for-calendar'] });
+      toast({ title: t('Đã xoá ca làm') });
     },
   });
 
@@ -1931,7 +2181,11 @@ const AdminDashboard = () => {
       } as any);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['shop-holidays'] }); toast({ title: t('Đã thêm ngày nghỉ tiệm') }); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shop-holidays'] });
+      queryClient.invalidateQueries({ queryKey: ['shop-holidays-range'] });
+      toast({ title: t('Đã thêm ngày nghỉ tiệm') });
+    },
   });
 
   const removeHoliday = useMutation({
@@ -1940,7 +2194,11 @@ const AdminDashboard = () => {
       const { error } = await supabase.from('shop_holidays').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['shop-holidays'] }); toast({ title: t('Đã xoá ngày nghỉ tiệm') }); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shop-holidays'] });
+      queryClient.invalidateQueries({ queryKey: ['shop-holidays-range'] });
+      toast({ title: t('Đã xoá ngày nghỉ tiệm') });
+    },
   });
 
   const cancelBooking = useMutation({
@@ -2322,9 +2580,9 @@ const AdminDashboard = () => {
         email: payload.email || '',
       });
       if (vErr) throw new Error(vErr);
-      for (const row of therapistWeeklyHours) {
-        const rowErr = validateForm(therapistWeeklyHourSchema, row);
-        if (rowErr) throw new Error(rowErr);
+      for (const day of Object.keys(therapistWeeklyHours)) {
+        const dayErr = validateDayBlocks(therapistWeeklyHours[Number(day)]);
+        if (dayErr) throw new Error(dayErr);
       }
 
       let therapistId = editingTherapist?.id;
@@ -2338,13 +2596,17 @@ const AdminDashboard = () => {
       }
 
       // Weekly hours are fully replaced each save — simpler than diffing
-      // per-day rows, and this dialog is the only place they're edited.
+      // per-day block lists, since this dialog always holds the full
+      // 7-day map already.
       const { error: delError } = await supabase.from('therapist_weekly_hours').delete().eq('therapist_id', therapistId);
       if (delError) throw delError;
-      const { error: hoursError } = await supabase.from('therapist_weekly_hours').insert(
-        therapistWeeklyHours.map(row => ({ ...row, therapist_id: therapistId, tenant_id: TENANT_ID }))
-      );
-      if (hoursError) throw hoursError;
+      const flatRows = flattenBlocksByDay(therapistWeeklyHours);
+      if (flatRows.length > 0) {
+        const { error: hoursError } = await supabase.from('therapist_weekly_hours').insert(
+          flatRows.map(row => ({ ...row, therapist_id: therapistId, tenant_id: TENANT_ID }))
+        );
+        if (hoursError) throw hoursError;
+      }
     },
     onSuccess: () => {
       logActivity(editingTherapist ? 'update_therapist' : 'create_therapist', `Therapist: ${therapistName}`);
@@ -2427,12 +2689,8 @@ const AdminDashboard = () => {
     return (therapists || []).filter((th: any) => {
       if (th.id === excludeTherapistId || !th.is_active) return false;
       if (unavailableIds.has(th.id)) return false;
-      const dayHours = getTherapistDayHours(th, dayOfWeek);
-      if (!dayHours || !dayHours.is_working) return false;
-      if (startMins < dayHours.start_minute || endMins > dayHours.end_minute) return false;
-      if (dayHours.break_start_minute != null && dayHours.break_end_minute != null) {
-        if (startMins < dayHours.break_end_minute && endMins > dayHours.break_start_minute) return false;
-      }
+      const dayBlocks = getTherapistDayBlocks(th, dayOfWeek);
+      if (!fitsInAnyBlock(startMins, endMins, dayBlocks)) return false;
       return !dayBookings.some((b: any) => {
         if (b.therapist_id !== th.id) return false;
         const bStart = timeToMins(b.start_time);
@@ -2521,13 +2779,8 @@ const AdminDashboard = () => {
     setTherapistPhone(therapist?.phone || '');
     setTherapistEmail(therapist?.email || '');
     if (therapist) {
-      const existing: any[] = therapist.therapist_weekly_hours || [];
-      setTherapistWeeklyHours(DAYS_OF_WEEK.map(d => {
-        const row = existing.find(r => r.day_of_week === d.value);
-        return row
-          ? { day_of_week: d.value, is_working: row.is_working, start_minute: row.start_minute, end_minute: row.end_minute, break_start_minute: row.break_start_minute, break_end_minute: row.break_end_minute }
-          : { day_of_week: d.value, is_working: false, start_minute: 9 * 60, end_minute: 18 * 60, break_start_minute: null, break_end_minute: null };
-      }));
+      const existing: WeeklyShiftBlock[] = therapist.therapist_weekly_hours || [];
+      setTherapistWeeklyHours(groupBlocksByDay(existing));
     } else {
       setTherapistWeeklyHours(defaultWeeklyHours());
     }
@@ -2603,12 +2856,8 @@ const AdminDashboard = () => {
       for (const th of candidateTherapists) {
         if (unavailableTherapistIds.has(th.id)) continue;
         const dayOfWeek = bookingDate.getDay() === 0 ? 7 : bookingDate.getDay();
-        const dayHours = getTherapistDayHours(th, dayOfWeek);
-        if (!dayHours || !dayHours.is_working) continue;
-        if (startMins < dayHours.start_minute || endMins > dayHours.end_minute) continue;
-        if (dayHours.break_start_minute != null && dayHours.break_end_minute != null) {
-          if (startMins < dayHours.break_end_minute && endMins > dayHours.break_start_minute) continue;
-        }
+        const dayBlocks = getTherapistDayBlocks(th, dayOfWeek);
+        if (!fitsInAnyBlock(startMins, endMins, dayBlocks)) continue;
 
         // Check conflicts with existing bookings for this therapist
         const hasConflict = dayBookings.some(b => {
@@ -3120,7 +3369,11 @@ const AdminDashboard = () => {
                         return (
                           <div
                             key={g.id}
-                            className="group grid grid-cols-[1fr_auto_auto_auto] gap-6 items-center px-5 py-4 rounded-xl transition-colors hover:bg-[#F5F5F5]/60"
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => setSelectedCustomerDetail(g)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedCustomerDetail(g); } }}
+                            className="group grid grid-cols-[1fr_auto_auto_auto] gap-6 items-center px-5 py-4 rounded-xl transition-colors hover:bg-[#F5F5F5]/60 cursor-pointer"
                           >
                             {/* Avatar + name + phone stacked */}
                             <div className="flex items-center gap-3.5 min-w-0">
@@ -3172,7 +3425,14 @@ const AdminDashboard = () => {
                     {visibleCustomers.map(g => {
                       const tier = (g as any).membership_tiers;
                       return (
-                        <div key={g.id} className="bg-white rounded-xl border border-[#E5E5E5]/40 p-4 transition-colors hover:border-[#CCCCCC]">
+                        <div
+                          key={g.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setSelectedCustomerDetail(g)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedCustomerDetail(g); } }}
+                          className="bg-white rounded-xl border border-[#E5E5E5]/40 p-4 transition-colors hover:border-[#CCCCCC] cursor-pointer"
+                        >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3 min-w-0">
                               <div className="w-10 h-10 rounded-full bg-[#F0F0F0] flex items-center justify-center text-[13px] font-semibold text-[#737373] shrink-0">
@@ -3219,6 +3479,93 @@ const AdminDashboard = () => {
               )}
             </div>
           </TabsContent>
+
+          {/* Customer detail dialog — profile + paginated visit history */}
+          <Dialog open={!!selectedCustomerDetail} onOpenChange={(open) => !open && setSelectedCustomerDetail(null)}>
+            <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+              {selectedCustomerDetail && (() => {
+                const g = selectedCustomerDetail;
+                const tier = (g as any).membership_tiers;
+                return (
+                  <>
+                    <DialogHeader>
+                      <DialogTitle>{t('Chi tiết khách hàng')}</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 pt-2">
+                      <div className="flex items-center gap-3.5">
+                        <div className="w-12 h-12 rounded-full bg-[#F0F0F0] flex items-center justify-center text-[16px] font-semibold text-[#737373] shrink-0">
+                          {(g.customer_name || '?').charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[15px] font-semibold text-[#1B1B1B] truncate">{g.customer_name || '—'}</p>
+                          <p className="text-[13px] text-muted-foreground/60 font-mono mt-0.5">{g.customer_phone}</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="rounded-lg border border-border/50 p-3">
+                          <p className="text-[11px] text-muted-foreground uppercase tracking-wider">{t('Lần ghé')}</p>
+                          <p className="text-lg font-semibold mt-0.5 tabular-nums">{g.visit_count}</p>
+                        </div>
+                        <div className="rounded-lg border border-border/50 p-3">
+                          <p className="text-[11px] text-muted-foreground uppercase tracking-wider">{t('Hạng thành viên')}</p>
+                          {tier ? (
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50/80 text-amber-700/90 border border-amber-200/50">
+                                <Crown className="h-3 w-3" />
+                                {tier.name}
+                              </span>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground/40 mt-1">—</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">{t('Lịch sử ghé thăm')}</p>
+                        {customerVisitsLoading ? (
+                          <p className="text-sm text-muted-foreground text-center py-8">{t('Đang tải...')}</p>
+                        ) : visibleCustomerVisits.length === 0 ? (
+                          <p className="text-sm text-muted-foreground/60 text-center py-8">{t('Chưa có lịch sử ghé thăm')}</p>
+                        ) : (
+                          <div className="space-y-1.5">
+                            {visibleCustomerVisits.map((s: any) => {
+                              const serviceName = s.sale_items?.length
+                                ? s.sale_items.map((it: any) => it.service_name).join(', ')
+                                : (s.bookings?.services?.name || '—');
+                              return (
+                                <div key={s.id} className="flex items-center justify-between gap-3 rounded-lg border border-border/40 px-3 py-2.5">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium truncate">{serviceName}</p>
+                                    <p className="text-xs text-muted-foreground mt-0.5">{s.sale_date}</p>
+                                  </div>
+                                  <span className="text-sm font-medium tabular-nums shrink-0">{formatPrice(Number(s.amount))}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {totalCustomerVisits > CUSTOMER_VISITS_PAGE_SIZE && (
+                          <div className="flex items-center justify-between text-sm text-muted-foreground pt-3">
+                            <span>{customerVisitsPage * CUSTOMER_VISITS_PAGE_SIZE + 1}–{Math.min((customerVisitsPage + 1) * CUSTOMER_VISITS_PAGE_SIZE, totalCustomerVisits)} / {totalCustomerVisits}</span>
+                            <div className="flex gap-2">
+                              <Button variant="outline" size="sm" onClick={() => setCustomerVisitsPage(p => p - 1)} disabled={!hasPrevCustomerVisits}>
+                                <ChevronLeft className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => setCustomerVisitsPage(p => p + 1)} disabled={!hasNextCustomerVisits}>
+                                <ChevronRight className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+            </DialogContent>
+          </Dialog>
 
           {/* Bookings Tab */}
           <TabsContent value="bookings">
@@ -4596,7 +4943,7 @@ const AdminDashboard = () => {
 
           {/* Therapists Tab */}
           <TabsContent value="therapists">
-            <div className="space-y-8">
+            <div className="space-y-6">
               {/* Header */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
@@ -4607,7 +4954,7 @@ const AdminDashboard = () => {
                   <DialogTrigger asChild>
                     <Button size="sm" className="w-full sm:w-auto h-9 px-4" onClick={() => openTherapistEdit()}><Plus className="h-4 w-4 mr-1.5" /> {t('Thêm nhân viên')}</Button>
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-[520px] max-h-[85vh] overflow-y-auto">
+                  <DialogContent ref={therapistDialogScrollRef} className="sm:max-w-[520px] max-h-[85vh] overflow-y-auto">
                     <DialogHeader>
                       <DialogTitle className="text-[#1B1B1B]">{editingTherapist ? t('Sửa thông tin thợ') : t('Thêm thợ')}</DialogTitle>
                       <DialogDescription className="text-muted-foreground/60">{editingTherapist ? t('Chỉnh sửa thông tin thợ') : t('Thêm thợ mới vào hệ thống')}</DialogDescription>
@@ -4637,6 +4984,16 @@ const AdminDashboard = () => {
                           workingLabel={t('Làm việc')}
                           breakLabel={t('Nghỉ trưa')}
                           doneLabel={t('Xong')}
+                          addShiftLabel={t('+ Thêm ca')}
+                          copyToDaysLabel={t('Sao chép sang các ngày khác')}
+                          copyLabel={t('Sao chép')}
+                          shiftNumberLabel={(n) => t('Ca {n}').replace('{n}', String(n))}
+                          shiftCountLabel={(n) => t('{n} ca').replace('{n}', String(n))}
+                          totalHoursLabel={(h) => t('{h}h tổng').replace('{h}', h)}
+                          breakHoursLabel={(h) => t('{h}h nghỉ').replace('{h}', h)}
+                          shopOpenMinute={Number(openTime.split(':')[0]) * 60 + Number(openTime.split(':')[1] || 0)}
+                          shopCloseMinute={Number(closeTime.split(':')[0]) * 60 + Number(closeTime.split(':')[1] || 0)}
+                          collisionBoundary={therapistDialogScrollRef.current}
                         />
                       </div>
                       <Button className="w-full h-10 bg-[#006AFF] hover:bg-[#1B1B1B] text-white" onClick={() => saveTherapist.mutate()} disabled={!therapistName.trim() || saveTherapist.isPending}>
@@ -4647,542 +5004,336 @@ const AdminDashboard = () => {
                 </Dialog>
               </div>
 
-              {/* Scheduling section — Day off + Shop holidays merged */}
-              <div className="rounded-xl border border-[#E5E5E5]/40 bg-white overflow-hidden">
-                {/* Day off controls */}
-                <div className="p-5 sm:p-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-[13px] font-semibold text-[#1B1B1B]">{t('Ngày nghỉ nhân viên')}</p>
-                    <Button variant="outline" size="sm" className="h-9 text-sm rounded-full" onClick={() => { setUnavailTherapist('all'); setUnavailCalendarOpen(true); }}>
-                      <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
-                      {t('Xem lịch')}
-                    </Button>
-                  </div>
-                  {/* Staff day-off pills — one per staff, bounded by staff count regardless of how many days off exist */}
-                  {therapists && unavailabilities && therapists.some(th => unavailabilities.filter((u: any) => u.therapist_id === th.id && u.unavailable_date >= format(new Date(), 'yyyy-MM-dd')).length > 0) ? (
-                    <div className="flex flex-wrap gap-2">
-                      {therapists.map(th => {
-                        const todayStr = format(new Date(), 'yyyy-MM-dd');
-                        const count = unavailabilities.filter((u: any) => u.therapist_id === th.id && u.unavailable_date >= todayStr).length;
-                        if (!count) return null;
-                        return (
-                          <button
-                            key={th.id}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F5F5F5] border border-[#E5E5E5]/60 text-xs text-[#737373] hover:bg-[#F5F5F5] transition-colors"
-                            onClick={() => { setUnavailTherapist(th.id); setUnavailCalendarOpen(true); }}
-                          >
-                            <span className="font-medium">{th.name}</span>
-                            <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-[#F0F0F0] text-[10px] font-semibold text-[#1B1B1B]">{count}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">{t('Không có ngày nghỉ trong tháng này')}</p>
-                  )}
-                </div>
+              {/* Sub-tabs: plain Staff list vs. drag-and-drop Shift calendar */}
+              <Tabs value={staffAvailabilitySubTab} onValueChange={(v) => setStaffAvailabilitySubTab(v as 'staff' | 'shift')}>
+                <TabsList className="bg-[#F5F5F5]">
+                  <TabsTrigger value="staff">{t('Nhân viên')}</TabsTrigger>
+                  <TabsTrigger value="shift">{t('Ca làm')}</TabsTrigger>
+                </TabsList>
 
-                {/* Staff days-off calendar dialog */}
-                <Dialog open={unavailCalendarOpen} onOpenChange={(open) => { setUnavailCalendarOpen(open); if (!open) { setUnavailDate(undefined); setUnavailRangeMode(false); setUnavailRangeFrom(''); setUnavailRangeTo(''); } }}>
-                  <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
-                    <DialogHeader>
-                      <DialogTitle>{t('Ngày nghỉ nhân viên')}</DialogTitle>
-                      <DialogDescription>{t('Chọn ngày trên lịch để thêm ngày nghỉ cho nhân viên')}</DialogDescription>
-                    </DialogHeader>
-                    <div className="flex items-center justify-between gap-2">
-                      <Select value={unavailTherapist} onValueChange={(v) => { setUnavailTherapist(v); setUnavailDate(undefined); }}>
-                        <SelectTrigger className="w-full sm:w-[200px] h-9 text-sm rounded-full bg-[#F5F5F5] border-[#E5E5E5]/50"><SelectValue placeholder={t('Chọn thợ')} /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">{t('Tất cả thợ')}</SelectItem>
-                          {therapists?.map(th => <SelectItem key={th.id} value={th.id}>{th.name}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                      {unavailTherapist !== 'all' && (
-                        <Button size="sm" variant={unavailRangeMode ? 'default' : 'outline'} className="h-9 rounded-full text-xs shrink-0" onClick={() => setUnavailRangeMode(v => !v)}>
-                          {t('Chọn nhiều ngày')}
-                        </Button>
+                <TabsContent value="staff" className="space-y-6 pt-4">
+                  {/* Scheduling section — Day off + Shop holidays merged */}
+                  <div className="rounded-xl border border-[#E5E5E5]/40 bg-white overflow-hidden">
+                    {/* Day off controls */}
+                    <div className="p-5 sm:p-6">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-[13px] font-semibold text-[#1B1B1B]">{t('Ngày nghỉ nhân viên')}</p>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" className="h-9 text-xs rounded-full" disabled={copyLastWeekDaysOff.isPending} onClick={() => copyLastWeekDaysOff.mutate()}>
+                            {copyLastWeekDaysOff.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
+                            {t('Sao chép tuần trước')}
+                          </Button>
+                          <Button variant="outline" size="sm" className="h-9 text-sm rounded-full" onClick={() => { setUnavailTherapist('all'); setUnavailCalendarOpen(true); }}>
+                            <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
+                            {t('Xem lịch')}
+                          </Button>
+                        </div>
+                      </div>
+                      {/* Staff day-off pills — one per staff, bounded by staff count regardless of how many days off exist */}
+                      {therapists && unavailabilities && therapists.some(th => unavailabilities.filter((u: any) => u.therapist_id === th.id && u.unavailable_date >= format(new Date(), 'yyyy-MM-dd')).length > 0) ? (
+                        <div className="flex flex-wrap gap-2">
+                          {therapists.map(th => {
+                            const todayStr = format(new Date(), 'yyyy-MM-dd');
+                            const count = unavailabilities.filter((u: any) => u.therapist_id === th.id && u.unavailable_date >= todayStr).length;
+                            if (!count) return null;
+                            return (
+                              <TooltipProvider key={th.id}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F5F5F5] border border-[#E5E5E5]/60 text-xs text-[#737373] hover:bg-[#F5F5F5] transition-colors"
+                                      onClick={() => { setUnavailTherapist(th.id); setUnavailCalendarOpen(true); }}
+                                    >
+                                      <span className="font-medium">{th.name}</span>
+                                      <span>{count} {t('ngày nghỉ đã đặt')}</span>
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>{t('Số ngày nghỉ đã được đặt kể từ hôm nay')}</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">{t('Không có ngày nghỉ trong tháng này')}</p>
                       )}
                     </div>
-                    {unavailTherapist && unavailTherapist !== 'all' && unavailRangeMode && (
-                      <div className="flex flex-col gap-2 p-3 bg-[#F5F5F5] rounded-xl border border-[#E5E5E5]/60">
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <span className="text-[10px] text-muted-foreground">{t('Từ ngày')}</span>
-                            <Input type="date" value={unavailRangeFrom} onChange={e => setUnavailRangeFrom(e.target.value)} className="mt-0.5 bg-white border-[#E5E5E5]/60 h-9" />
-                          </div>
-                          <div>
-                            <span className="text-[10px] text-muted-foreground">{t('Đến ngày')}</span>
-                            <Input type="date" value={unavailRangeTo} onChange={e => setUnavailRangeTo(e.target.value)} className="mt-0.5 bg-white border-[#E5E5E5]/60 h-9" />
-                          </div>
-                        </div>
-                        <Button
-                          size="sm" className="h-9 w-fit rounded-full"
-                          disabled={!unavailRangeFrom || !unavailRangeTo || addUnavailabilityRange.isPending}
-                          onClick={() => {
-                            addUnavailabilityRange.mutate({ therapistId: unavailTherapist, from: unavailRangeFrom, to: unavailRangeTo }, {
-                              onSuccess: () => { setUnavailRangeFrom(''); setUnavailRangeTo(''); },
-                            });
-                          }}
-                        >
-                          {addUnavailabilityRange.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Plus className="h-3.5 w-3.5 mr-1" />} {t('Thêm ngày nghỉ')}
+
+                    <StaffScheduleDialog
+                      open={unavailCalendarOpen}
+                      onOpenChange={setUnavailCalendarOpen}
+                      mode="all-staff"
+                      initialStaffFilter={unavailTherapist}
+                      therapists={therapists || []}
+                      unavailabilities={unavailabilitiesInRange || []}
+                      shopHolidays={shopHolidaysInRange || []}
+                      isAdmin={isAdmin}
+                      onDatesSet={handleScheduleDatesSet}
+                      openConfirm={openConfirm}
+                      addUnavailability={addUnavailability}
+                      removeUnavailability={removeUnavailability}
+                      addUnavailabilityRange={addUnavailabilityRange}
+                      addHoliday={addHoliday}
+                      removeHoliday={removeHoliday}
+                    />
+
+                    {/* Divider */}
+                    <div className="border-t border-[#E5E5E5]/30" />
+
+                    {/* Shop holidays */}
+                    <div className="p-5 sm:p-6">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-[13px] font-semibold text-[#1B1B1B]">{t('Ngày nghỉ tiệm / Đóng cửa sớm')}</p>
+                        <Button variant="outline" size="sm" className="h-9 text-sm rounded-full" onClick={() => setHolidayCalendarOpen(true)}>
+                          <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
+                          {t('Xem lịch')}
                         </Button>
                       </div>
-                    )}
-                    <div className="fc-custom fc-mini shrink-0">
-                      <FullCalendar
-                        plugins={[dayGridPlugin, interactionPlugin]}
-                        initialView="dayGridMonth"
-                        headerToolbar={{ left: 'prev,next today', center: 'title', right: '' }}
-                        locale={lang === 'vi' ? 'vi' : 'en-au'}
-                        height="auto"
-                        dayMaxEvents={unavailTherapist === 'all' ? 3 : 1}
-                        selectable={false}
-                        dateClick={(info: DateClickArg) => unavailTherapist !== 'all' && setUnavailDate(info.date)}
-                        eventClick={(info: EventClickArg) => unavailTherapist !== 'all' && setUnavailDate(info.event.start || undefined)}
-                        dayCellClassNames={(arg) => {
-                          const ds = format(arg.date, 'yyyy-MM-dd');
-                          if (unavailDate && format(unavailDate, 'yyyy-MM-dd') === ds) return ['fc-day-selected'];
-                          return [];
-                        }}
-                        events={(unavailabilities || [])
-                          .filter((u: any) => unavailTherapist === 'all' || u.therapist_id === unavailTherapist)
-                          .map((u: any) => ({
-                            start: u.unavailable_date,
-                            allDay: true,
-                            display: 'list-item',
-                            title: unavailTherapist === 'all' ? (u.therapists?.name || t('Ngày nghỉ')) : (u.reason || t('Ngày nghỉ')),
-                            color: unavailTherapist === 'all'
-                              ? THERAPIST_COLORS[Math.max(0, therapists?.findIndex(th => th.id === u.therapist_id) ?? 0) % THERAPIST_COLORS.length]
-                              : '#ef4444',
-                          }))}
-                        buttonText={{ today: t('Hôm nay') }}
-                      />
-                    </div>
-
-                    {/* Scrollable region: interaction panel + upcoming list. Calendar above stays fully visible/clickable. */}
-                    <div className="flex-1 min-h-0 overflow-y-auto">
-                      {/* Selected day detail / interaction panel — hidden in "all staff" overview mode, which is view-only */}
-                      {unavailTherapist !== 'all' && (
-                        <div className="border-t border-[#E5E5E5]/30 pt-4">
-                          {!unavailTherapist ? (
-                            <p className="text-sm text-muted-foreground">{t('Chọn thợ')}</p>
-                          ) : !unavailDate ? (
-                            <p className="text-sm text-muted-foreground">{t('Chọn ngày trên lịch để thêm ngày nghỉ cho nhân viên')}</p>
-                          ) : (() => {
-                            const ds = format(unavailDate, 'yyyy-MM-dd');
-                            const existing = (unavailabilities || []).find((u: any) => u.therapist_id === unavailTherapist && u.unavailable_date === ds);
-                            return (
-                              <div className="flex flex-col gap-3">
-                                <p className="text-sm font-medium text-[#1B1B1B]">{format(unavailDate, 'dd/MM/yyyy')}</p>
-                                {existing ? (
-                                  <div className="flex items-center justify-between py-2.5 px-4 bg-red-50/60 rounded-full text-sm border border-red-100/50">
-                                    <span className="text-[13px] text-muted-foreground">{existing.reason || t('Ngày nghỉ')}</span>
-                                    <AdminOnlyButton variant="ghost" size="icon" className="h-7 w-7 rounded-full text-muted-foreground/40 hover:text-destructive" onClick={() => openConfirm(t('Xoá ngày nghỉ'), t('Xoá ngày nghỉ này?'), () => { removeUnavailability.mutate(existing.id); setUnavailDate(undefined); })}>
-                                      <X className="h-3.5 w-3.5" />
-                                    </AdminOnlyButton>
-                                  </div>
-                                ) : (
-                                  <Button size="sm" className="h-9 w-fit rounded-full" disabled={addUnavailability.isPending}
-                                    onClick={() => {
-                                      addUnavailability.mutate({ therapistId: unavailTherapist, date: ds });
-                                      setUnavailDate(undefined);
-                                    }}>
-                                    <Plus className="h-3.5 w-3.5 mr-1" /> {t('Thêm ngày nghỉ')}
-                                  </Button>
-                                )}
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      )}
-
-                      {/* Upcoming days off — scrollable list so staff with many entries can be reviewed/removed without flipping through months */}
-                      {unavailTherapist && (() => {
-                        const todayStr = format(new Date(), 'yyyy-MM-dd');
-                        const upcoming = (unavailabilities || [])
-                          .filter((u: any) => (unavailTherapist === 'all' || u.therapist_id === unavailTherapist) && u.unavailable_date >= todayStr)
-                          .sort((a: any, b: any) => a.unavailable_date.localeCompare(b.unavailable_date));
-                        if (!upcoming.length) return null;
+                      {(() => {
+                        const upcoming = (shopHolidays || [])
+                          .filter((h: any) => h.holiday_date >= format(new Date(), 'yyyy-MM-dd'))
+                          .sort((a: any, b: any) => a.holiday_date.localeCompare(b.holiday_date));
+                        if (!upcoming.length) return <p className="text-sm text-muted-foreground">{t('Chưa có ngày nghỉ tiệm nào')}</p>;
+                        const PREVIEW_LIMIT = 3;
+                        const preview = upcoming.slice(0, PREVIEW_LIMIT);
+                        const remaining = upcoming.length - preview.length;
                         return (
-                          <div className="border-t border-[#E5E5E5]/30 pt-4">
-                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                              {t('Ngày nghỉ')} ({upcoming.length})
-                            </p>
-                            <div className="space-y-1.5 pr-1">
-                              {upcoming.map((u: any) => (
-                                <div key={u.id} className="flex items-center justify-between py-2 px-4 bg-red-50/60 rounded-full text-sm border border-red-100/50">
-                                  <span className="text-[13px]">
-                                    <span className="font-medium text-[#1B1B1B]">{format(new Date(`${u.unavailable_date}T00:00:00`), 'dd/MM/yyyy')}</span>
-                                    {unavailTherapist === 'all' && <span className="text-muted-foreground ml-2">{u.therapists?.name}</span>}
-                                    {u.reason && <span className="text-muted-foreground ml-2">{u.reason}</span>}
+                          <div className="space-y-1.5">
+                            {preview.map((h: any) => (
+                              <div key={h.id} className="flex items-center justify-between py-2.5 px-4 bg-red-50/60 rounded-full text-sm border border-red-100/50">
+                                <span className="text-[13px]">
+                                  <span className="font-medium text-[#1B1B1B]">{h.holiday_date}</span>
+                                  <span className="text-muted-foreground ml-2">
+                                    {h.early_close_hour ? `${t('Đóng cửa lúc')} ${h.early_close_hour}:00` : t('Nghỉ cả ngày')}
                                   </span>
-                                  <AdminOnlyButton variant="ghost" size="icon" className="h-7 w-7 rounded-full text-muted-foreground/40 hover:text-destructive" onClick={() => openConfirm(t('Xoá ngày nghỉ'), t('Xoá ngày nghỉ này?'), () => { removeUnavailability.mutate(u.id); if (unavailDate && format(unavailDate, 'yyyy-MM-dd') === u.unavailable_date) setUnavailDate(undefined); })}>
-                                    <X className="h-3.5 w-3.5" />
-                                  </AdminOnlyButton>
-                                </div>
-                              ))}
-                            </div>
+                                </span>
+                                <AdminOnlyButton variant="ghost" size="icon" className="h-7 w-7 rounded-full text-muted-foreground/40 hover:text-destructive" onClick={() => openConfirm(t('Xoá ngày nghỉ'), t('Xoá ngày nghỉ tiệm này?'), () => removeHoliday.mutate(h.id))}>
+                                  <X className="h-3.5 w-3.5" />
+                                </AdminOnlyButton>
+                              </div>
+                            ))}
+                            {remaining > 0 && (
+                              <button
+                                className="w-full text-center text-xs text-muted-foreground hover:text-foreground py-1.5"
+                                onClick={() => setHolidayCalendarOpen(true)}
+                              >
+                                +{remaining} {t('Xem lịch')}
+                              </button>
+                            )}
                           </div>
                         );
                       })()}
                     </div>
-                  </DialogContent>
-                </Dialog>
-
-                {/* Divider */}
-                <div className="border-t border-[#E5E5E5]/30" />
-
-                {/* Shop holidays */}
-                <div className="p-5 sm:p-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-[13px] font-semibold text-[#1B1B1B]">{t('Ngày nghỉ tiệm / Đóng cửa sớm')}</p>
-                    <Button variant="outline" size="sm" className="h-9 text-sm rounded-full" onClick={() => setHolidayCalendarOpen(true)}>
-                      <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
-                      {t('Xem lịch')}
-                    </Button>
-                  </div>
-                  {(() => {
-                    const upcoming = (shopHolidays || [])
-                      .filter((h: any) => h.holiday_date >= format(new Date(), 'yyyy-MM-dd'))
-                      .sort((a: any, b: any) => a.holiday_date.localeCompare(b.holiday_date));
-                    if (!upcoming.length) return <p className="text-sm text-muted-foreground">{t('Chưa có ngày nghỉ tiệm nào')}</p>;
-                    const PREVIEW_LIMIT = 3;
-                    const preview = upcoming.slice(0, PREVIEW_LIMIT);
-                    const remaining = upcoming.length - preview.length;
-                    return (
-                      <div className="space-y-1.5">
-                        {preview.map((h: any) => (
-                          <div key={h.id} className="flex items-center justify-between py-2.5 px-4 bg-red-50/60 rounded-full text-sm border border-red-100/50">
-                            <span className="text-[13px]">
-                              <span className="font-medium text-[#1B1B1B]">{h.holiday_date}</span>
-                              <span className="text-muted-foreground ml-2">
-                                {h.early_close_hour ? `${t('Đóng cửa lúc')} ${h.early_close_hour}:00` : t('Nghỉ cả ngày')}
-                              </span>
-                            </span>
-                            <AdminOnlyButton variant="ghost" size="icon" className="h-7 w-7 rounded-full text-muted-foreground/40 hover:text-destructive" onClick={() => openConfirm(t('Xoá ngày nghỉ'), t('Xoá ngày nghỉ tiệm này?'), () => removeHoliday.mutate(h.id))}>
-                              <X className="h-3.5 w-3.5" />
-                            </AdminOnlyButton>
-                          </div>
-                        ))}
-                        {remaining > 0 && (
-                          <button
-                            className="w-full text-center text-xs text-muted-foreground hover:text-foreground py-1.5"
-                            onClick={() => setHolidayCalendarOpen(true)}
-                          >
-                            +{remaining} {t('Xem lịch')}
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-
-              {/* Shop holiday calendar dialog */}
-              <Dialog open={holidayCalendarOpen} onOpenChange={(open) => { setHolidayCalendarOpen(open); if (!open) { setHolidayDate(undefined); setEarlyCloseHour('none'); } }}>
-                <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
-                  <DialogHeader>
-                    <DialogTitle>{t('Ngày nghỉ tiệm / Đóng cửa sớm')}</DialogTitle>
-                    <DialogDescription>{t('Chọn ngày trên lịch để thêm ngày nghỉ')}</DialogDescription>
-                  </DialogHeader>
-                  <div className="fc-custom fc-mini shrink-0">
-                    <FullCalendar
-                      plugins={[dayGridPlugin, interactionPlugin]}
-                      initialView="dayGridMonth"
-                      headerToolbar={{ left: 'prev,next today', center: 'title', right: '' }}
-                      locale={lang === 'vi' ? 'vi' : 'en-au'}
-                      height="auto"
-                      dayMaxEvents={1}
-                      selectable={false}
-                      dateClick={(info: DateClickArg) => {
-                        const date = info.date;
-                        setHolidayDate(date);
-                        const ds = format(date, 'yyyy-MM-dd');
-                        const existing = (shopHolidays || []).find((h: any) => h.holiday_date === ds);
-                        setEarlyCloseHour(existing?.early_close_hour ? String(existing.early_close_hour) : 'none');
-                      }}
-                      eventClick={(info: EventClickArg) => {
-                        const date = info.event.start;
-                        if (!date) return;
-                        setHolidayDate(date);
-                        const ds = format(date, 'yyyy-MM-dd');
-                        const existing = (shopHolidays || []).find((h: any) => h.holiday_date === ds);
-                        setEarlyCloseHour(existing?.early_close_hour ? String(existing.early_close_hour) : 'none');
-                      }}
-                      dayCellClassNames={(arg) => {
-                        const ds = format(arg.date, 'yyyy-MM-dd');
-                        if (holidayDate && format(holidayDate, 'yyyy-MM-dd') === ds) return ['fc-day-selected'];
-                        return [];
-                      }}
-                      events={(shopHolidays || []).map((h: any) => ({
-                        start: h.holiday_date,
-                        allDay: true,
-                        display: 'list-item',
-                        title: h.early_close_hour ? `${t('Đóng cửa lúc')} ${h.early_close_hour}:00` : t('Nghỉ cả ngày'),
-                        color: h.early_close_hour ? '#f59e0b' : '#ef4444',
-                      }))}
-                      buttonText={{ today: t('Hôm nay') }}
-                    />
-                  </div>
-                  {/* Scrollable region: legend + interaction panel + upcoming list. Calendar above stays fully visible/clickable. */}
-                  <div className="flex-1 min-h-0 overflow-y-auto">
-                  {/* Legend */}
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground/70 pb-1">
-                    <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-red-500" />{t('Nghỉ cả ngày')}</span>
-                    <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-amber-500" />{t('Đóng cửa sớm')}</span>
                   </div>
 
-                  {/* Selected day detail / interaction panel */}
-                  <div className="border-t border-[#E5E5E5]/30 pt-4">
-                    {!holidayDate ? (
-                      <p className="text-sm text-muted-foreground">{t('Chọn ngày trên lịch để thêm ngày nghỉ')}</p>
-                    ) : (() => {
-                      const ds = format(holidayDate, 'yyyy-MM-dd');
-                      const existing = (shopHolidays || []).find((h: any) => h.holiday_date === ds);
-                      return (
-                        <div className="flex flex-col gap-3">
-                          <p className="text-sm font-medium text-[#1B1B1B]">{format(holidayDate, 'dd/MM/yyyy')}</p>
-                          {existing ? (
-                            <div className="flex items-center justify-between py-2.5 px-4 bg-red-50/60 rounded-full text-sm border border-red-100/50">
-                              <span className="text-[13px] text-muted-foreground">
-                                {existing.early_close_hour ? `${t('Đóng cửa lúc')} ${existing.early_close_hour}:00` : t('Nghỉ cả ngày')}
-                              </span>
-                              <AdminOnlyButton variant="ghost" size="icon" className="h-7 w-7 rounded-full text-muted-foreground/40 hover:text-destructive" onClick={() => openConfirm(t('Xoá ngày nghỉ'), t('Xoá ngày nghỉ tiệm này?'), () => { removeHoliday.mutate(existing.id); setHolidayDate(undefined); })}>
-                                <X className="h-3.5 w-3.5" />
-                              </AdminOnlyButton>
-                            </div>
-                          ) : (
-                            <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-muted-foreground/70 whitespace-nowrap">{t('Đóng cửa sớm lúc')}</span>
-                                <Select value={earlyCloseHour} onValueChange={setEarlyCloseHour}>
-                                  <SelectTrigger className="w-[100px] h-9 text-sm rounded-full bg-[#F5F5F5] border-[#E5E5E5]/50"><SelectValue placeholder={t('Không')} /></SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="none">{t('Nghỉ cả ngày')}</SelectItem>
-                                    {Array.from({ length: 13 }, (_, i) => i + 10).map(h => (
-                                      <SelectItem key={h} value={String(h)}>{h}:00</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <Button size="sm" className="h-9 rounded-full" disabled={addHoliday.isPending}
-                                onClick={() => {
-                                  addHoliday.mutate({
-                                    date: ds,
-                                    earlyCloseHour: earlyCloseHour !== 'none' ? parseInt(earlyCloseHour) : undefined,
-                                  });
-                                  setHolidayDate(undefined);
-                                  setEarlyCloseHour('none');
-                                }}>
-                                <Plus className="h-3.5 w-3.5 mr-1" /> {t('Thêm')}
-                              </Button>
-                            </div>
-                          )}
+                  <StaffScheduleDialog
+                    open={holidayCalendarOpen}
+                    onOpenChange={setHolidayCalendarOpen}
+                    mode="shop-holidays"
+                    therapists={therapists || []}
+                    unavailabilities={unavailabilitiesInRange || []}
+                    shopHolidays={shopHolidaysInRange || []}
+                    isAdmin={isAdmin}
+                    onDatesSet={handleScheduleDatesSet}
+                    openConfirm={openConfirm}
+                    addUnavailability={addUnavailability}
+                    removeUnavailability={removeUnavailability}
+                    addUnavailabilityRange={addUnavailabilityRange}
+                    addHoliday={addHoliday}
+                    removeHoliday={removeHoliday}
+                  />
+
+                  {/* Plain staff list — name/contact/status/day-off count, edit/delete/reactivate */}
+                  {!therapists?.length ? (
+                    <div className="text-center py-20 text-muted-foreground">
+                      <Users className="h-10 w-10 mx-auto mb-3 opacity-15" />
+                      <p className="text-sm font-medium">{t('Chưa có nhân viên')}</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Desktop rows */}
+                      <div className="hidden sm:block rounded-xl border border-[#E5E5E5]/50 bg-white overflow-hidden">
+                        <div className="grid grid-cols-[1fr_1fr_auto_auto_44px] gap-4 px-5 py-3 text-[11px] font-medium tracking-wider uppercase text-muted-foreground/50 border-b border-[#E5E5E5]/30 bg-[#F5F5F5]/50">
+                          <span>{t('Nhân viên')}</span>
+                          <span>{t('Giờ làm việc')}</span>
+                          <span className="w-24">{t('Trạng thái')}</span>
+                          <span className="w-16"></span>
+                          <span></span>
                         </div>
-                      );
-                    })()}
-                  </div>
+                        <div className="divide-y divide-[#E5E5E5]/20">
+                          {therapists.map(th => (
+                            <div
+                              key={th.id}
+                              className="group grid grid-cols-[1fr_1fr_auto_auto_44px] gap-4 items-center px-5 py-4 rounded-xl transition-colors hover:bg-[#F5F5F5]/60"
+                            >
+                              {/* Name + contact stacked */}
+                              <div className="flex items-center gap-3.5 min-w-0">
+                                <div className="w-10 h-10 rounded-full bg-[#F0F0F0] flex items-center justify-center text-[13px] font-semibold text-[#737373] shrink-0">
+                                  {(th.name || '?').charAt(0).toUpperCase()}
+                                </div>
+                                <div className="min-w-0">
+                                  <button
+                                    className="text-[14px] font-medium text-[#1B1B1B] truncate block text-left hover:text-[#006AFF] transition-colors"
+                                    onClick={() => { setViewingTherapist(th); setTherapistInfoDialog(true); }}
+                                  >{th.name}</button>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    {(th as any).email && <span className="text-[11px] text-muted-foreground/60 truncate">{(th as any).email}</span>}
+                                    {th.phone && <span className="text-[11px] text-muted-foreground/50 font-mono">{th.phone}</span>}
+                                  </div>
+                                </div>
+                              </div>
 
-                  {/* Upcoming holidays — scrollable list so shops with many entries can be reviewed/removed without flipping through months */}
-                  {(() => {
-                    const todayStr = format(new Date(), 'yyyy-MM-dd');
-                    const upcoming = (shopHolidays || [])
-                      .filter((h: any) => h.holiday_date >= todayStr)
-                      .sort((a: any, b: any) => a.holiday_date.localeCompare(b.holiday_date));
-                    if (!upcoming.length) return null;
-                    return (
-                      <div className="border-t border-[#E5E5E5]/30 pt-4">
-                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                          {t('Ngày nghỉ')} ({upcoming.length})
-                        </p>
-                        <div className="space-y-1.5 pr-1">
-                          {upcoming.map((h: any) => (
-                            <div key={h.id} className="flex items-center justify-between py-2 px-4 bg-red-50/60 rounded-full text-sm border border-red-100/50">
-                              <span className="text-[13px]">
-                                <span className="font-medium text-[#1B1B1B]">{h.holiday_date}</span>
-                                <span className="text-muted-foreground ml-2">
-                                  {h.early_close_hour ? `${t('Đóng cửa lúc')} ${h.early_close_hour}:00` : t('Nghỉ cả ngày')}
+                              {/* Working hours */}
+                              <div className="min-w-0">
+                                {(() => {
+                                  const distinctWorkingDays = new Set((th.therapist_weekly_hours || []).map((r: any) => r.day_of_week));
+                                  if (distinctWorkingDays.size === 0) return <p className="text-[13px] text-muted-foreground/50">{t('Chưa cài giờ làm việc')}</p>;
+                                  return <p className="text-[13px] text-[#555555]">{distinctWorkingDays.size} {t('ngày/tuần')}</p>;
+                                })()}
+                              </div>
+
+                              {/* Status badge */}
+                              <div className="w-24">
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium ${
+                                  th.is_active
+                                    ? 'bg-emerald-50 text-emerald-600'
+                                    : 'bg-gray-100 text-gray-400'
+                                }`}>
+                                  {th.is_active ? t('Hoạt động') : t('Tắt')}
                                 </span>
-                              </span>
-                              <AdminOnlyButton variant="ghost" size="icon" className="h-7 w-7 rounded-full text-muted-foreground/40 hover:text-destructive" onClick={() => openConfirm(t('Xoá ngày nghỉ'), t('Xoá ngày nghỉ tiệm này?'), () => { removeHoliday.mutate(h.id); if (holidayDate && format(holidayDate, 'yyyy-MM-dd') === h.holiday_date) setHolidayDate(undefined); })}>
-                                <X className="h-3.5 w-3.5" />
-                              </AdminOnlyButton>
+                              </div>
+
+                              {/* Day off count */}
+                              <div className="w-16 flex justify-center">
+                                {(() => {
+                                  const todayStr = format(new Date(), 'yyyy-MM-dd');
+                                  const count = (unavailabilities || []).filter((u: any) => u.therapist_id === th.id && u.unavailable_date >= todayStr).length;
+                                  return count > 0 ? (
+                                    <button
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50/80 text-amber-700/80 text-[10px] font-medium border border-amber-200/40 hover:bg-amber-100/60 transition-colors"
+                                      onClick={() => { setViewingTherapist(th); setTherapistInfoDialog(true); }}
+                                    >
+                                      <CalendarOff className="h-3 w-3" /> {count}
+                                    </button>
+                                  ) : null;
+                                })()}
+                              </div>
+
+                              {/* Actions — visible on hover */}
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/50 hover:text-[#1B1B1B]" onClick={() => openTherapistEdit(th)}>
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                {isAdmin && (
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/40 hover:text-muted-foreground">
+                                        <MoreHorizontal className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-36">
+                                      {th.is_active ? (
+                                        <DropdownMenuItem className="text-destructive text-xs" onClick={() => openDeleteTherapist(th)}>
+                                          <Trash2 className="h-3.5 w-3.5 mr-2" /> {t('Xóa')}
+                                        </DropdownMenuItem>
+                                      ) : (
+                                        <DropdownMenuItem className="text-xs" onClick={() => reactivateTherapist.mutate(th.id)}>
+                                          <Users className="h-3.5 w-3.5 mr-2" /> {t('Kích hoạt lại')}
+                                        </DropdownMenuItem>
+                                      )}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                )}
+                              </div>
                             </div>
                           ))}
                         </div>
                       </div>
-                    );
-                  })()}
-                  </div>
-                </DialogContent>
-              </Dialog>
 
-              {/* Staff list */}
-              {!therapists?.length ? (
-                <div className="text-center py-20 text-muted-foreground">
-                  <Users className="h-10 w-10 mx-auto mb-3 opacity-15" />
-                  <p className="text-sm font-medium">{t('Chưa có nhân viên')}</p>
-                </div>
-              ) : (
-                <>
-                  {/* Desktop rows */}
-                  <div className="hidden sm:block rounded-xl border border-[#E5E5E5]/50 bg-white overflow-hidden">
-                    <div className="grid grid-cols-[1fr_1fr_auto_auto_44px] gap-4 px-5 py-3 text-[11px] font-medium tracking-wider uppercase text-muted-foreground/50 border-b border-[#E5E5E5]/30 bg-[#F5F5F5]/50">
-                      <span>{t('Nhân viên')}</span>
-                      <span>{t('Giờ làm việc')}</span>
-                      <span className="w-24">{t('Trạng thái')}</span>
-                      <span className="w-16"></span>
-                      <span></span>
-                    </div>
-                    <div className="divide-y divide-[#E5E5E5]/20">
-                      {therapists.map(th => (
-                        <div
-                          key={th.id}
-                          className="group grid grid-cols-[1fr_1fr_auto_auto_44px] gap-4 items-center px-5 py-4 rounded-xl transition-colors hover:bg-[#F5F5F5]/60"
-                        >
-                          {/* Name + contact stacked */}
-                          <div className="flex items-center gap-3.5 min-w-0">
-                            <div className="w-10 h-10 rounded-full bg-[#F0F0F0] flex items-center justify-center text-[13px] font-semibold text-[#737373] shrink-0">
-                              {(th.name || '?').charAt(0).toUpperCase()}
+                      {/* Mobile cards */}
+                      <div className="sm:hidden space-y-2">
+                        {therapists.map(th => (
+                          <div key={th.id} className="bg-white rounded-xl border border-[#E5E5E5]/40 p-4 transition-colors hover:border-[#CCCCCC]">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-10 h-10 rounded-full bg-[#F0F0F0] flex items-center justify-center text-[13px] font-semibold text-[#737373] shrink-0">
+                                  {(th.name || '?').charAt(0).toUpperCase()}
+                                </div>
+                                <div className="min-w-0">
+                                  <button
+                                    className="text-[14px] font-medium text-[#1B1B1B] truncate block text-left"
+                                    onClick={() => { setViewingTherapist(th); setTherapistInfoDialog(true); }}
+                                  >{th.name}</button>
+                                  <p className="text-[11px] text-muted-foreground/60 mt-0.5">{new Set((th.therapist_weekly_hours || []).map((r: any) => r.day_of_week)).size} {t('ngày/tuần')}</p>
+                                </div>
+                              </div>
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium shrink-0 ${
+                                th.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-400'
+                              }`}>
+                                {th.is_active ? t('Hoạt động') : t('Tắt')}
+                              </span>
                             </div>
-                            <div className="min-w-0">
-                              <button
-                                className="text-[14px] font-medium text-[#1B1B1B] truncate block text-left hover:text-[#006AFF] transition-colors"
-                                onClick={() => { setViewingTherapist(th); setTherapistInfoDialog(true); }}
-                              >{th.name}</button>
-                              <div className="flex items-center gap-2 mt-0.5">
+                            <div className="flex items-center justify-between mt-3 ml-[52px]">
+                              <div className="flex items-center gap-2">
                                 {(th as any).email && <span className="text-[11px] text-muted-foreground/60 truncate">{(th as any).email}</span>}
                                 {th.phone && <span className="text-[11px] text-muted-foreground/50 font-mono">{th.phone}</span>}
                               </div>
+                              <div className="flex items-center gap-1">
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/50" onClick={() => openTherapistEdit(th)}>
+                                  <Pencil className="h-3 w-3" />
+                                </Button>
+                                {isAdmin && (
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/40">
+                                        <MoreHorizontal className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      {th.is_active ? (
+                                        <DropdownMenuItem className="text-destructive text-xs" onClick={() => openDeleteTherapist(th)}>
+                                          <Trash2 className="h-3.5 w-3.5 mr-2" /> {t('Xóa')}
+                                        </DropdownMenuItem>
+                                      ) : (
+                                        <DropdownMenuItem className="text-xs" onClick={() => reactivateTherapist.mutate(th.id)}>
+                                          <Users className="h-3.5 w-3.5 mr-2" /> {t('Kích hoạt lại')}
+                                        </DropdownMenuItem>
+                                      )}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                )}
+                              </div>
                             </div>
                           </div>
-
-                          {/* Working hours */}
-                          <div className="min-w-0">
-                            {(() => {
-                              const workingRows = (th.therapist_weekly_hours || []).filter((r: any) => r.is_working);
-                              if (!workingRows.length) return <p className="text-[13px] text-muted-foreground/50">{t('Chưa cài giờ làm việc')}</p>;
-                              return <p className="text-[13px] text-[#555555]">{workingRows.length} {t('ngày/tuần')}</p>;
-                            })()}
-                          </div>
-
-                          {/* Status badge */}
-                          <div className="w-24">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium ${
-                              th.is_active
-                                ? 'bg-emerald-50 text-emerald-600'
-                                : 'bg-gray-100 text-gray-400'
-                            }`}>
-                              {th.is_active ? t('Hoạt động') : t('Tắt')}
-                            </span>
-                          </div>
-
-                          {/* Day off count */}
-                          <div className="w-16 flex justify-center">
-                            {(() => {
-                              const todayStr = format(new Date(), 'yyyy-MM-dd');
-                              const count = (unavailabilities || []).filter((u: any) => u.therapist_id === th.id && u.unavailable_date >= todayStr).length;
-                              return count > 0 ? (
-                                <button
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50/80 text-amber-700/80 text-[10px] font-medium border border-amber-200/40 hover:bg-amber-100/60 transition-colors"
-                                  onClick={() => { setViewingTherapist(th); setTherapistInfoDialog(true); }}
-                                >
-                                  <CalendarOff className="h-3 w-3" /> {count}
-                                </button>
-                              ) : null;
-                            })()}
-                          </div>
-
-                          {/* Actions — visible on hover */}
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/50 hover:text-[#1B1B1B]" onClick={() => openTherapistEdit(th)}>
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            {isAdmin && (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/40 hover:text-muted-foreground">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-36">
-                                  {th.is_active ? (
-                                    <DropdownMenuItem className="text-destructive text-xs" onClick={() => openDeleteTherapist(th)}>
-                                      <Trash2 className="h-3.5 w-3.5 mr-2" /> {t('Xóa')}
-                                    </DropdownMenuItem>
-                                  ) : (
-                                    <DropdownMenuItem className="text-xs" onClick={() => reactivateTherapist.mutate(th.id)}>
-                                      <Users className="h-3.5 w-3.5 mr-2" /> {t('Kích hoạt lại')}
-                                    </DropdownMenuItem>
-                                  )}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Mobile cards */}
-                  <div className="sm:hidden space-y-2">
-                    {therapists.map(th => (
-                      <div key={th.id} className="bg-white rounded-xl border border-[#E5E5E5]/40 p-4 transition-colors hover:border-[#CCCCCC]">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-10 h-10 rounded-full bg-[#F0F0F0] flex items-center justify-center text-[13px] font-semibold text-[#737373] shrink-0">
-                              {(th.name || '?').charAt(0).toUpperCase()}
-                            </div>
-                            <div className="min-w-0">
-                              <button
-                                className="text-[14px] font-medium text-[#1B1B1B] truncate block text-left"
-                                onClick={() => { setViewingTherapist(th); setTherapistInfoDialog(true); }}
-                              >{th.name}</button>
-                              <p className="text-[11px] text-muted-foreground/60 mt-0.5">{(th.therapist_weekly_hours || []).filter((r: any) => r.is_working).length} {t('ngày/tuần')}</p>
-                            </div>
-                          </div>
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium shrink-0 ${
-                            th.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-400'
-                          }`}>
-                            {th.is_active ? t('Hoạt động') : t('Tắt')}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between mt-3 ml-[52px]">
-                          <div className="flex items-center gap-2">
-                            {(th as any).email && <span className="text-[11px] text-muted-foreground/60 truncate">{(th as any).email}</span>}
-                            {th.phone && <span className="text-[11px] text-muted-foreground/50 font-mono">{th.phone}</span>}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/50" onClick={() => openTherapistEdit(th)}>
-                              <Pencil className="h-3 w-3" />
-                            </Button>
-                            {isAdmin && (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/40">
-                                    <MoreHorizontal className="h-3.5 w-3.5" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  {th.is_active ? (
-                                    <DropdownMenuItem className="text-destructive text-xs" onClick={() => openDeleteTherapist(th)}>
-                                      <Trash2 className="h-3.5 w-3.5 mr-2" /> {t('Xóa')}
-                                    </DropdownMenuItem>
-                                  ) : (
-                                    <DropdownMenuItem className="text-xs" onClick={() => reactivateTherapist.mutate(th.id)}>
-                                      <Users className="h-3.5 w-3.5 mr-2" /> {t('Kích hoạt lại')}
-                                    </DropdownMenuItem>
-                                  )}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            )}
-                          </div>
-                        </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </>
-              )}
+                    </>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="shift" className="pt-4">
+                  {!therapists?.length ? (
+                    <div className="text-center py-20 text-muted-foreground">
+                      <Users className="h-10 w-10 mx-auto mb-3 opacity-15" />
+                      <p className="text-sm font-medium">{t('Chưa có nhân viên')}</p>
+                    </div>
+                  ) : (
+                    <ShiftCalendar
+                      therapists={therapists}
+                      selectedTherapistId={shiftTherapistId ?? therapists[0]?.id ?? null}
+                      onSelectTherapist={setShiftTherapistId}
+                      shifts={shiftsForCalendar || []}
+                      unavailabilities={unavailabilities || []}
+                      shopHolidays={shopHolidays || []}
+                      onDatesSet={handleShiftDatesSet}
+                      addShift={addShift}
+                      updateShift={updateShift}
+                      removeShift={removeShift}
+                      openConfirm={openConfirm}
+                    />
+                  )}
+                </TabsContent>
+              </Tabs>
             </div>
           </TabsContent>
 
@@ -5238,7 +5389,7 @@ const AdminDashboard = () => {
           </Dialog>
 
           {/* Therapist Info Dialog */}
-          <Dialog open={therapistInfoDialog} onOpenChange={(open) => { setTherapistInfoDialog(open); if (!open) { setViewingUnavailDate(undefined); setViewingUnavailRangeMode(false); setViewingUnavailRangeFrom(''); setViewingUnavailRangeTo(''); } }}>
+          <Dialog open={therapistInfoDialog} onOpenChange={setTherapistInfoDialog}>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>{viewingTherapist?.name}</DialogTitle>
@@ -5266,11 +5417,21 @@ const AdminDashboard = () => {
                     <p className="text-muted-foreground text-xs mb-1.5">{t('Giờ làm việc theo ngày')}</p>
                     <div className="space-y-1">
                       {DAYS_OF_WEEK.map(d => {
-                        const row = (viewingTherapist.therapist_weekly_hours || []).find((r: any) => r.day_of_week === d.value);
+                        const blocks = ((viewingTherapist.therapist_weekly_hours || []) as WeeklyShiftBlock[])
+                          .filter(r => r.day_of_week === d.value)
+                          .sort((a, b) => a.start_minute - b.start_minute);
                         return (
-                          <div key={d.value} className="flex items-center justify-between text-xs">
+                          <div key={d.value} className="flex items-start justify-between text-xs">
                             <span className="text-muted-foreground">{d.label}</span>
-                            <span>{row?.is_working ? `${formatMinutesHHMM(row.start_minute)} – ${formatMinutesHHMM(row.end_minute)}` : t('Nghỉ')}</span>
+                            {blocks.length === 0 ? (
+                              <span>{t('Nghỉ')}</span>
+                            ) : (
+                              <div className="text-right space-y-0.5">
+                                {blocks.map((b, i) => (
+                                  <div key={i}>{formatMinutesHHMM(b.start_minute)} – {formatMinutesHHMM(b.end_minute)}</div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -5278,126 +5439,23 @@ const AdminDashboard = () => {
                   </div>
                   <div className="border-t pt-3">
                     <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-medium">{t('Ngày nghỉ')}</p>
-                      <Button size="sm" variant={viewingUnavailRangeMode ? 'default' : 'outline'} className="h-8 rounded-full text-xs" onClick={() => setViewingUnavailRangeMode(v => !v)}>
-                        {t('Chọn nhiều ngày')}
+                      <p className="text-sm font-medium">{t('Ngày nghỉ & ca làm')}</p>
+                      <Button size="sm" variant="outline" className="h-8 rounded-full text-xs" onClick={() => setViewingTherapistScheduleOpen(true)}>
+                        <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
+                        {t('Xem lịch')}
                       </Button>
                     </div>
-                    {viewingUnavailRangeMode && (
-                      <div className="flex flex-col gap-2 p-3 mb-3 bg-[#F5F5F5] rounded-xl border border-[#E5E5E5]/60">
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <span className="text-[10px] text-muted-foreground">{t('Từ ngày')}</span>
-                            <Input type="date" value={viewingUnavailRangeFrom} onChange={e => setViewingUnavailRangeFrom(e.target.value)} className="mt-0.5 bg-white border-[#E5E5E5]/60 h-9" />
-                          </div>
-                          <div>
-                            <span className="text-[10px] text-muted-foreground">{t('Đến ngày')}</span>
-                            <Input type="date" value={viewingUnavailRangeTo} onChange={e => setViewingUnavailRangeTo(e.target.value)} className="mt-0.5 bg-white border-[#E5E5E5]/60 h-9" />
-                          </div>
-                        </div>
-                        <Button
-                          size="sm" className="h-9 w-fit rounded-full"
-                          disabled={!viewingUnavailRangeFrom || !viewingUnavailRangeTo || addUnavailabilityRange.isPending}
-                          onClick={() => {
-                            addUnavailabilityRange.mutate({ therapistId: viewingTherapist.id, from: viewingUnavailRangeFrom, to: viewingUnavailRangeTo }, {
-                              onSuccess: () => { setViewingUnavailRangeFrom(''); setViewingUnavailRangeTo(''); },
-                            });
-                          }}
-                        >
-                          {addUnavailabilityRange.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Plus className="h-3.5 w-3.5 mr-1" />} {t('Thêm ngày nghỉ')}
-                        </Button>
-                      </div>
-                    )}
-                    <div className="fc-custom fc-mini shrink-0">
-                      <FullCalendar
-                        plugins={[dayGridPlugin, interactionPlugin]}
-                        initialView="dayGridMonth"
-                        headerToolbar={{ left: 'prev,next today', center: 'title', right: '' }}
-                        locale={lang === 'vi' ? 'vi' : 'en-au'}
-                        height="auto"
-                        dayMaxEvents={1}
-                        selectable={false}
-                        dateClick={(info: DateClickArg) => setViewingUnavailDate(info.date)}
-                        eventClick={(info: EventClickArg) => setViewingUnavailDate(info.event.start || undefined)}
-                        dayCellClassNames={(arg) => {
-                          const ds = format(arg.date, 'yyyy-MM-dd');
-                          if (viewingUnavailDate && format(viewingUnavailDate, 'yyyy-MM-dd') === ds) return ['fc-day-selected'];
-                          return [];
-                        }}
-                        events={(unavailabilities || [])
-                          .filter((u: any) => u.therapist_id === viewingTherapist.id)
-                          .map((u: any) => ({
-                            start: u.unavailable_date,
-                            allDay: true,
-                            display: 'list-item',
-                            title: u.reason || t('Ngày nghỉ'),
-                            color: '#ef4444',
-                          }))}
-                        buttonText={{ today: t('Hôm nay') }}
-                      />
-                    </div>
-
-                    {/* Selected day detail / interaction panel */}
-                    <div className="border-t border-[#E5E5E5]/30 pt-4 mt-4">
-                      {!viewingUnavailDate ? (
-                        <p className="text-sm text-muted-foreground">{t('Chọn ngày trên lịch để thêm ngày nghỉ cho nhân viên')}</p>
-                      ) : (() => {
-                        const ds = format(viewingUnavailDate, 'yyyy-MM-dd');
-                        const existing = (unavailabilities || []).find((u: any) => u.therapist_id === viewingTherapist.id && u.unavailable_date === ds);
-                        return (
-                          <div className="flex flex-col gap-3">
-                            <p className="text-sm font-medium text-[#1B1B1B]">{format(viewingUnavailDate, 'dd/MM/yyyy')}</p>
-                            {existing ? (
-                              <div className="flex items-center justify-between py-2.5 px-4 bg-red-50/60 rounded-full text-sm border border-red-100/50">
-                                <span className="text-[13px] text-muted-foreground">{existing.reason || t('Ngày nghỉ')}</span>
-                                {isAdmin && (
-                                  <AdminOnlyButton variant="ghost" size="icon" className="h-7 w-7 rounded-full text-muted-foreground/40 hover:text-destructive" onClick={() => openConfirm(t('Xoá ngày nghỉ'), t('Xoá ngày nghỉ này?'), () => { removeUnavailability.mutate(existing.id); setViewingUnavailDate(undefined); })}>
-                                    <X className="h-3.5 w-3.5" />
-                                  </AdminOnlyButton>
-                                )}
-                              </div>
-                            ) : (
-                              <Button size="sm" className="h-9 w-fit rounded-full" disabled={addUnavailability.isPending}
-                                onClick={() => {
-                                  addUnavailability.mutate({ therapistId: viewingTherapist.id, date: ds });
-                                  setViewingUnavailDate(undefined);
-                                }}>
-                                <Plus className="h-3.5 w-3.5 mr-1" /> {t('Thêm ngày nghỉ')}
-                              </Button>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    {/* Upcoming days off — scrollable list so staff with many entries can be reviewed/removed without flipping through months */}
                     {(() => {
-                      const todayStr = format(new Date(), 'yyyy-MM-dd');
-                      const upcoming = (unavailabilities || [])
-                        .filter((u: any) => u.therapist_id === viewingTherapist.id && u.unavailable_date >= todayStr)
-                        .sort((a: any, b: any) => a.unavailable_date.localeCompare(b.unavailable_date));
-                      if (!upcoming.length) return null;
+                      const ownShifts = (shiftsInRange || []).filter((s: any) => s.therapist_id === viewingTherapist.id);
+                      const byDate = aggregateShiftHours(ownShifts);
+                      const totalMinutes = Object.values(byDate).reduce((sum, m) => sum + m, 0);
+                      if (!ownShifts.length) return <p className="text-xs text-muted-foreground">{t('Chưa có ca làm trong tháng này')}</p>;
                       return (
-                        <div className="border-t border-[#E5E5E5]/30 pt-4 mt-4">
-                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                            {t('Ngày nghỉ')} ({upcoming.length})
-                          </p>
-                          <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-1">
-                            {upcoming.map((u: any) => (
-                              <div key={u.id} className="flex items-center justify-between py-2 px-4 bg-red-50/60 rounded-full text-sm border border-red-100/50">
-                                <span className="text-[13px]">
-                                  <span className="font-medium text-[#1B1B1B]">{format(new Date(`${u.unavailable_date}T00:00:00`), 'dd/MM/yyyy')}</span>
-                                  {u.reason && <span className="text-muted-foreground ml-2">{u.reason}</span>}
-                                </span>
-                                {isAdmin && (
-                                  <AdminOnlyButton variant="ghost" size="icon" className="h-7 w-7 rounded-full text-muted-foreground/40 hover:text-destructive" onClick={() => openConfirm(t('Xoá ngày nghỉ'), t('Xoá ngày nghỉ này?'), () => { removeUnavailability.mutate(u.id); if (viewingUnavailDate && format(viewingUnavailDate, 'yyyy-MM-dd') === u.unavailable_date) setViewingUnavailDate(undefined); })}>
-                                    <X className="h-3.5 w-3.5" />
-                                  </AdminOnlyButton>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {t('Tổng giờ làm trong tháng')}: <span className="font-medium text-[#1B1B1B]">{(totalMinutes / 60).toFixed(1)}h</span>
+                          <span className="mx-1">·</span>
+                          {Object.keys(byDate).length} {t('ngày làm')}
+                        </p>
                       );
                     })()}
                   </div>
@@ -5405,6 +5463,26 @@ const AdminDashboard = () => {
               )}
             </DialogContent>
           </Dialog>
+
+          {viewingTherapist && (
+            <StaffScheduleDialog
+              open={viewingTherapistScheduleOpen}
+              onOpenChange={setViewingTherapistScheduleOpen}
+              mode="single-therapist"
+              therapistId={viewingTherapist.id}
+              therapists={therapists || []}
+              unavailabilities={unavailabilitiesInRange || []}
+              shopHolidays={shopHolidaysInRange || []}
+              isAdmin={isAdmin}
+              onDatesSet={handleScheduleDatesSet}
+              openConfirm={openConfirm}
+              addUnavailability={addUnavailability}
+              removeUnavailability={removeUnavailability}
+              addUnavailabilityRange={addUnavailabilityRange}
+              addHoliday={addHoliday}
+              removeHoliday={removeHoliday}
+            />
+          )}
 
           {/* Pricing Tab */}
           {isAdmin && (
@@ -6325,6 +6403,7 @@ const AdminDashboard = () => {
                           queryClient.invalidateQueries({ queryKey: ['membership-tiers'] });
                           queryClient.invalidateQueries({ queryKey: ['discount-codes'] });
                           queryClient.invalidateQueries({ queryKey: ['shop-holidays'] });
+                          queryClient.invalidateQueries({ queryKey: ['shop-holidays-range'] });
                           toast({ title: t('Nhập dữ liệu thành công') });
                         } catch (err: any) {
                           console.error('Business config import failed', err);
