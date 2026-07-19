@@ -42,7 +42,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Navigate, Link } from 'react-router-dom';
 import { useI18n, LanguageSwitcher } from '@/hooks/useI18n';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useLoadMore } from '@/hooks/useLoadMore';
 import DOMPurify from 'dompurify';
 import { SquareCardForm } from '@/components/SquareCardForm';
 import { AdminOnboarding } from '@/components/AdminOnboarding';
@@ -57,6 +56,7 @@ import { WeeklyShiftEditor } from '@/components/WeeklyShiftEditor';
 
 const CURRENCIES = ['VND', 'USD', 'EUR', 'AUD'] as const;
 const CUSTOMER_PAGE_SIZE = 20;
+const SALES_PAGE_SIZE = 20;
 
 const THERAPIST_COLORS = [
   '#3b82f6', '#f43f5e', '#10b981', '#f59e0b',
@@ -389,6 +389,7 @@ const AdminDashboard = () => {
   const [salesFilterDateFrom, setSalesFilterDateFrom] = useState('');
   const [salesFilterDateTo, setSalesFilterDateTo] = useState('');
   const [salesFilterSearch, setSalesFilterSearch] = useState('');
+  const [salesPage, setSalesPage] = useState(0);
 
   // OpenAI settings state
   const [openaiApiKey, setOpenaiApiKey] = useState('');
@@ -549,17 +550,34 @@ const AdminDashboard = () => {
 
   const formatMinutesHHMM = (mins: number) => `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
 
-  // Sales
-  const { data: sales } = useQuery({
-    queryKey: ['admin-sales'],
+  // Sales — server-side paginated (same pattern as Customers/Gift Cards), with
+  // filters applied in the query itself instead of over a full client-side fetch.
+  const SALES_SELECT = '*, bookings(customer_name, customer_phone, booking_date, start_time, services(name)), is_refunded, sale_items(service_name, price, is_addon, item_type), therapists(name)';
+  const { data: salesPageData, isLoading: salesLoading } = useQuery({
+    queryKey: ['admin-sales', salesPage, salesFilterMethod, salesFilterDateFrom, salesFilterDateTo, salesFilterSearch],
     queryFn: async () => {
-      const { data, error } = await supabase.from('sales')
-        .select('*, bookings(customer_name, customer_phone, booking_date, start_time, services(name)), is_refunded, sale_items(service_name, price, is_addon, item_type), therapists(name)')
-        .order('created_at', { ascending: false });
+      let query = supabase.from('sales')
+        .select(SALES_SELECT, { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(salesPage * SALES_PAGE_SIZE, salesPage * SALES_PAGE_SIZE + SALES_PAGE_SIZE - 1);
+      if (salesFilterMethod !== 'all') query = query.eq('payment_method', salesFilterMethod);
+      if (salesFilterDateFrom) query = query.gte('sale_date', salesFilterDateFrom);
+      if (salesFilterDateTo) query = query.lte('sale_date', salesFilterDateTo);
+      if (salesFilterSearch.trim()) {
+        const s = salesFilterSearch.trim().replace(/[,()]/g, '');
+        if (s) query = query.or(`customer_name.ilike.%${s}%,customer_phone.ilike.%${s}%`);
+      }
+      const { data, error, count } = await query;
       if (error) throw error;
-      return data as any[];
+      return { rows: data as any[], total: count ?? 0 };
     },
   });
+  const visibleSales = salesPageData?.rows ?? [];
+  const totalSales = salesPageData?.total ?? 0;
+  const hasNextSales = (salesPage + 1) * SALES_PAGE_SIZE < totalSales;
+  const hasPrevSales = salesPage > 0;
+
+  useEffect(() => { setSalesPage(0); }, [salesFilterMethod, salesFilterDateFrom, salesFilterDateTo, salesFilterSearch]);
 
   const applyCoupon = async () => {
     const code = saleCouponCode.trim().toUpperCase();
@@ -1743,23 +1761,6 @@ const AdminDashboard = () => {
   const hasPrevCustomers = customerPage > 0;
 
   useEffect(() => { setCustomerPage(0); }, [customerSearch, customerTierFilter]);
-
-  const filteredSales = useMemo(() => (sales || []).filter((s: any) => {
-    if (salesFilterMethod !== 'all' && s.payment_method !== salesFilterMethod) return false;
-    if (salesFilterDateFrom && s.sale_date < salesFilterDateFrom) return false;
-    if (salesFilterDateTo && s.sale_date > salesFilterDateTo) return false;
-    if (salesFilterSearch) {
-      const q = salesFilterSearch.toLowerCase();
-      const name = (s.customer_name || s.bookings?.customer_name || '').toLowerCase();
-      const phone = (s.customer_phone || s.bookings?.customer_phone || '').toLowerCase();
-      const note = (s.notes || '').toLowerCase();
-      if (!name.includes(q) && !note.includes(q) && !phone.includes(q)) return false;
-    }
-    return true;
-  }), [sales, salesFilterMethod, salesFilterDateFrom, salesFilterDateTo, salesFilterSearch]);
-
-  // Progressive rendering for large lists (customers use server-side pagination instead — see customersPage above)
-  const { visibleItems: visibleSales, hasMore: hasMoreSales, sentinelRef: salesSentinelRef } = useLoadMore(filteredSales);
 
   // Filtered active services for POS service picker
   const filteredActiveServices = useMemo(() => (services || []).filter(s => s.is_active).filter(s => {
@@ -3972,10 +3973,10 @@ const AdminDashboard = () => {
               </div>
 
               {/* Payment list */}
-              {filteredSales.length === 0 ? (
+              {visibleSales.length === 0 ? (
                   <div className="text-center py-20 text-muted-foreground">
                     <DollarSign className="h-10 w-10 mx-auto mb-3 opacity-20" />
-                    <p className="text-sm font-medium">{sales?.length ? t('Không tìm thấy kết quả') : t('Chưa có thanh toán')}</p>
+                    <p className="text-sm font-medium">{totalSales > 0 ? t('Không tìm thấy kết quả') : t('Chưa có thanh toán')}</p>
                     <p className="text-xs text-muted-foreground/60 mt-1">{t('Tạo thanh toán đầu tiên để bắt đầu')}</p>
                   </div>
               ) : (
@@ -4151,7 +4152,19 @@ const AdminDashboard = () => {
                         })}
                       </div>
                     </div>
-                    {hasMoreSales && <div ref={salesSentinelRef} className="py-4 text-center text-xs text-muted-foreground/50"><Loader2 className="h-4 w-4 animate-spin inline mr-1.5" />{t('Đang tải thêm...')}</div>}
+                    {totalSales > SALES_PAGE_SIZE && (
+                      <div className="flex items-center justify-between text-sm text-muted-foreground pt-3">
+                        <span>{salesPage * SALES_PAGE_SIZE + 1}–{Math.min((salesPage + 1) * SALES_PAGE_SIZE, totalSales)} / {totalSales}</span>
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" onClick={() => setSalesPage(p => p - 1)} disabled={!hasPrevSales}>
+                            <ChevronLeft className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => setSalesPage(p => p + 1)} disabled={!hasNextSales}>
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </>
               )}
             </div>
@@ -6201,10 +6214,17 @@ const AdminDashboard = () => {
 
                       setIsExporting(true);
                       try {
+                        const { data: exportSales, error: exportSalesError } = await supabase
+                          .from('sales')
+                          .select(SALES_SELECT)
+                          .gte('sale_date', format(from, 'yyyy-MM-dd'))
+                          .lte('sale_date', format(to, 'yyyy-MM-dd'))
+                          .order('created_at', { ascending: false });
+                        if (exportSalesError) throw exportSalesError;
                         const { exportBusinessReport, downloadWorkbook } = await import('@/lib/excelExport');
                         const workbook = exportBusinessReport({
                           spaName,
-                          sales: sales || [],
+                          sales: (exportSales || []) as any,
                           bookings: (bookings || []) as any,
                           services: services || [],
                           products: products || [],
