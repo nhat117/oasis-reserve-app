@@ -105,6 +105,8 @@ export const ALL_I18N_KEYS: string[] = [
   "Hero trang chủ",
   "Hiển thị \"Đóng cửa\" ngày lễ",
   "Hiển thị & Giao diện",
+  "Hiện nhân viên đã xoá",
+  "Ẩn nhân viên đã xoá",
   "Hoàn thành",
   "Hoàn thành các bước bên dưới",
   "Hoạt động",

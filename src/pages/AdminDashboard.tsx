@@ -53,6 +53,7 @@ import { BranchesManager } from '@/components/settings/BranchesManager';
 import { GiftCardsPanel } from '@/components/gift-cards/GiftCardsPanel';
 import { DiscountCodesPanel } from '@/components/gift-cards/DiscountCodesPanel';
 import { WeeklyShiftEditor } from '@/components/WeeklyShiftEditor';
+import { DayShiftEditor } from '@/components/DayShiftEditor';
 import { StaffScheduleDialog } from '@/components/StaffScheduleDialog';
 import { ShiftCalendar } from '@/components/ShiftCalendar';
 
@@ -233,6 +234,11 @@ const AdminDashboard = () => {
 
   // Therapist form state
   const [staffAvailabilitySubTab, setStaffAvailabilitySubTab] = useState<'staff' | 'shift'>('staff');
+  // Deleted staff with booking/sales history are soft-hidden (is_active =
+  // false) rather than removed, so their past records stay intact — but
+  // they shouldn't clutter the everyday staff list. Hidden behind a toggle
+  // instead of always shown.
+  const [showHiddenStaff, setShowHiddenStaff] = useState(false);
   const [therapistDialog, setTherapistDialog] = useState(false);
   const [therapistInfoDialog, setTherapistInfoDialog] = useState(false);
   const [viewingTherapist, setViewingTherapist] = useState<any>(null);
@@ -245,6 +251,14 @@ const AdminDashboard = () => {
   const [therapistPhone, setTherapistPhone] = useState('');
   const [therapistEmail, setTherapistEmail] = useState('');
   const [therapistWeeklyHours, setTherapistWeeklyHours] = useState<DayBlocksMap>({ 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [] });
+  // Which day's schedule the Edit Staff modal is currently showing in place
+  // of the staff details form — null means the details form is showing.
+  // This is in-place "page" navigation within the same modal, not a nested
+  // dialog/popover. dayEditSnapshot holds that day's blocks as they were
+  // when navigated into, so the bottom "Cancel" action can revert just that
+  // day without affecting the rest of therapistWeeklyHours.
+  const [selectedEditDay, setSelectedEditDay] = useState<number | null>(null);
+  const [dayEditSnapshot, setDayEditSnapshot] = useState<WeeklyShiftBlock[]>([]);
   const therapistDialogScrollRef = useRef<HTMLDivElement>(null);
   const [unavailTherapist, setUnavailTherapist] = useState('');
   const [unavailCalendarOpen, setUnavailCalendarOpen] = useState(false);
@@ -2784,7 +2798,24 @@ const AdminDashboard = () => {
     } else {
       setTherapistWeeklyHours(defaultWeeklyHours());
     }
+    setSelectedEditDay(null);
     setTherapistDialog(true);
+  };
+
+  const openDaySchedule = (dayOfWeek: number) => {
+    setDayEditSnapshot(therapistWeeklyHours[dayOfWeek] || []);
+    setSelectedEditDay(dayOfWeek);
+  };
+
+  const closeDaySchedule = () => {
+    setSelectedEditDay(null);
+  };
+
+  const cancelDaySchedule = () => {
+    if (selectedEditDay !== null) {
+      setTherapistWeeklyHours(prev => ({ ...prev, [selectedEditDay]: dayEditSnapshot }));
+    }
+    setSelectedEditDay(null);
   };
 
   const statusBadge = (status: string) => {
@@ -4950,56 +4981,89 @@ const AdminDashboard = () => {
                   <h2 className="text-xl font-semibold text-[#1B1B1B] tracking-tight">{t('Nhân viên & Lịch nghỉ')}</h2>
                   <p className="text-sm text-muted-foreground/70 mt-0.5">{therapists?.length || 0} {t('nhân viên')}</p>
                 </div>
-                <Dialog open={therapistDialog} onOpenChange={setTherapistDialog}>
+                <Dialog open={therapistDialog} onOpenChange={(open) => { setTherapistDialog(open); if (!open) setSelectedEditDay(null); }}>
                   <DialogTrigger asChild>
                     <Button size="sm" className="w-full sm:w-auto h-9 px-4" onClick={() => openTherapistEdit()}><Plus className="h-4 w-4 mr-1.5" /> {t('Thêm nhân viên')}</Button>
                   </DialogTrigger>
                   <DialogContent ref={therapistDialogScrollRef} className="sm:max-w-[520px] max-h-[85vh] overflow-y-auto">
-                    <DialogHeader>
-                      <DialogTitle className="text-[#1B1B1B]">{editingTherapist ? t('Sửa thông tin thợ') : t('Thêm thợ')}</DialogTitle>
-                      <DialogDescription className="text-muted-foreground/60">{editingTherapist ? t('Chỉnh sửa thông tin thợ') : t('Thêm thợ mới vào hệ thống')}</DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-5 pt-1">
-                      <div className="space-y-4">
-                        <div>
-                          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Tên')}</Label>
-                          <Input value={therapistName} onChange={e => setTherapistName(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" placeholder={t('Họ và tên')} />
-                        </div>
-                        <div>
-                          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Email')}</Label>
-                          <Input type="email" value={therapistEmail} onChange={e => setTherapistEmail(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" placeholder="staff@example.com" />
-                        </div>
-                        <div>
-                          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('SĐT')}</Label>
-                          <Input value={therapistPhone} onChange={e => setTherapistPhone(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" placeholder="04xx xxx xxx" />
+                    {selectedEditDay === null ? (
+                      <div key="details" className="animate-in fade-in slide-in-from-left-4 duration-200">
+                        <DialogHeader>
+                          <DialogTitle className="text-[#1B1B1B]">{editingTherapist ? t('Sửa thông tin thợ') : t('Thêm thợ')}</DialogTitle>
+                          <DialogDescription className="text-muted-foreground/60">{editingTherapist ? t('Chỉnh sửa thông tin thợ') : t('Thêm thợ mới vào hệ thống')}</DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-5 pt-1">
+                          <div className="space-y-4">
+                            <div>
+                              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Tên')}</Label>
+                              <Input value={therapistName} onChange={e => setTherapistName(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" placeholder={t('Họ và tên')} />
+                            </div>
+                            <div>
+                              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Email')}</Label>
+                              <Input type="email" value={therapistEmail} onChange={e => setTherapistEmail(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" placeholder="staff@example.com" />
+                            </div>
+                            <div>
+                              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('SĐT')}</Label>
+                              <Input value={therapistPhone} onChange={e => setTherapistPhone(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" placeholder="04xx xxx xxx" />
+                            </div>
+                          </div>
+                          <div className="border-t border-[#E5E5E5]/30 pt-4">
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">{t('Giờ làm việc theo ngày')}</p>
+                            <WeeklyShiftEditor
+                              value={therapistWeeklyHours}
+                              onSelectDay={openDaySchedule}
+                              dayLabels={DAYS_OF_WEEK.map(d => d.label)}
+                              offLabel={t('Nghỉ')}
+                              breakLabel={t('Nghỉ trưa')}
+                            />
+                          </div>
+                          <Button className="w-full h-10 bg-[#006AFF] hover:bg-[#1B1B1B] text-white" onClick={() => saveTherapist.mutate()} disabled={!therapistName.trim() || saveTherapist.isPending}>
+                            {saveTherapist.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : (editingTherapist ? t('Cập nhật') : t('Thêm mới'))}
+                          </Button>
                         </div>
                       </div>
-                      <div className="border-t border-[#E5E5E5]/30 pt-4">
-                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">{t('Giờ làm việc theo ngày')}</p>
-                        <WeeklyShiftEditor
-                          value={therapistWeeklyHours}
-                          onChange={setTherapistWeeklyHours}
-                          dayLabels={DAYS_OF_WEEK.map(d => d.label)}
-                          offLabel={t('Nghỉ')}
-                          workingLabel={t('Làm việc')}
-                          breakLabel={t('Nghỉ trưa')}
-                          doneLabel={t('Xong')}
-                          addShiftLabel={t('+ Thêm ca')}
-                          copyToDaysLabel={t('Sao chép sang các ngày khác')}
-                          copyLabel={t('Sao chép')}
-                          shiftNumberLabel={(n) => t('Ca {n}').replace('{n}', String(n))}
-                          shiftCountLabel={(n) => t('{n} ca').replace('{n}', String(n))}
-                          totalHoursLabel={(h) => t('{h}h tổng').replace('{h}', h)}
-                          breakHoursLabel={(h) => t('{h}h nghỉ').replace('{h}', h)}
-                          shopOpenMinute={Number(openTime.split(':')[0]) * 60 + Number(openTime.split(':')[1] || 0)}
-                          shopCloseMinute={Number(closeTime.split(':')[0]) * 60 + Number(closeTime.split(':')[1] || 0)}
-                          collisionBoundary={therapistDialogScrollRef.current}
-                        />
+                    ) : (
+                      <div key="day" className="animate-in fade-in slide-in-from-right-4 duration-200">
+                        <DialogHeader className="sr-only">
+                          <DialogTitle>{DAYS_OF_WEEK[selectedEditDay - 1].label}</DialogTitle>
+                          <DialogDescription>{t('Lịch làm việc theo ngày')}</DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-5 pt-1">
+                          <DayShiftEditor
+                            title={`${DAYS_OF_WEEK[selectedEditDay - 1].label} ${t('Lịch làm việc')}`}
+                            dayOfWeek={selectedEditDay}
+                            blocks={therapistWeeklyHours[selectedEditDay] || []}
+                            onChangeBlocks={(next) => setTherapistWeeklyHours(prev => ({ ...prev, [selectedEditDay]: next }))}
+                            backLabel={t('Quay lại')}
+                            onBack={closeDaySchedule}
+                            offLabel={t('Nghỉ')}
+                            breakLabel={t('Nghỉ trưa')}
+                            addShiftLabel={t('+ Thêm ca')}
+                            copyToDaysLabel={t('Sao chép sang các ngày khác')}
+                            copyToDayShortLabels={DAYS_OF_WEEK.map(d => d.label)}
+                            onCopyToDays={(targets) => {
+                              const sourceBlocks = therapistWeeklyHours[selectedEditDay] || [];
+                              setTherapistWeeklyHours(prev => {
+                                const next = { ...prev };
+                                for (const day of targets) {
+                                  next[day] = sourceBlocks.map(b => ({ start_minute: b.start_minute, end_minute: b.end_minute, day_of_week: day }));
+                                }
+                                return next;
+                              });
+                            }}
+                            copyLabel={t('Sao chép')}
+                            shiftNumberLabel={(n) => t('Ca {n}').replace('{n}', String(n))}
+                            shiftCountLabel={(n) => t('{n} ca').replace('{n}', String(n))}
+                            totalHoursLabel={(h) => t('{h}h tổng').replace('{h}', h)}
+                            breakHoursLabel={(h) => t('{h}h nghỉ').replace('{h}', h)}
+                          />
+                          <div className="flex gap-2 border-t border-[#E5E5E5]/30 pt-4">
+                            <Button variant="outline" className="flex-1 h-10" onClick={cancelDaySchedule}>{t('Hủy')}</Button>
+                            <Button className="flex-1 h-10 bg-[#006AFF] hover:bg-[#1B1B1B] text-white" onClick={closeDaySchedule}>{t('Lưu')}</Button>
+                          </div>
+                        </div>
                       </div>
-                      <Button className="w-full h-10 bg-[#006AFF] hover:bg-[#1B1B1B] text-white" onClick={() => saveTherapist.mutate()} disabled={!therapistName.trim() || saveTherapist.isPending}>
-                        {saveTherapist.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : (editingTherapist ? t('Cập nhật') : t('Thêm mới'))}
-                      </Button>
-                    </div>
+                    )}
                   </DialogContent>
                 </Dialog>
               </div>
@@ -5143,14 +5207,29 @@ const AdminDashboard = () => {
                     removeHoliday={removeHoliday}
                   />
 
-                  {/* Plain staff list — name/contact/status/day-off count, edit/delete/reactivate */}
-                  {!therapists?.length ? (
-                    <div className="text-center py-20 text-muted-foreground">
-                      <Users className="h-10 w-10 mx-auto mb-3 opacity-15" />
-                      <p className="text-sm font-medium">{t('Chưa có nhân viên')}</p>
-                    </div>
-                  ) : (
+                  {/* Plain staff list — name/contact/status/day-off count, edit/delete/reactivate.
+                      Hidden (soft-deleted) staff are excluded by default so they don't clutter
+                      the everyday list; a toggle reveals them when needed (e.g. to reactivate). */}
+                  {(() => {
+                    const hiddenCount = (therapists || []).filter(th => !th.is_active).length;
+                    const visibleTherapists = showHiddenStaff ? (therapists || []) : (therapists || []).filter(th => th.is_active);
+                    if (!therapists?.length) {
+                      return (
+                        <div className="text-center py-20 text-muted-foreground">
+                          <Users className="h-10 w-10 mx-auto mb-3 opacity-15" />
+                          <p className="text-sm font-medium">{t('Chưa có nhân viên')}</p>
+                        </div>
+                      );
+                    }
+                    return (
                     <>
+                      {hiddenCount > 0 && (
+                        <div className="flex justify-end">
+                          <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground" onClick={() => setShowHiddenStaff(v => !v)}>
+                            {showHiddenStaff ? t('Ẩn nhân viên đã xoá') : `${t('Hiện nhân viên đã xoá')} (${hiddenCount})`}
+                          </Button>
+                        </div>
+                      )}
                       {/* Desktop rows */}
                       <div className="hidden sm:block rounded-xl border border-[#E5E5E5]/50 bg-white overflow-hidden">
                         <div className="grid grid-cols-[1fr_1fr_auto_auto_44px] gap-4 px-5 py-3 text-[11px] font-medium tracking-wider uppercase text-muted-foreground/50 border-b border-[#E5E5E5]/30 bg-[#F5F5F5]/50">
@@ -5161,7 +5240,7 @@ const AdminDashboard = () => {
                           <span></span>
                         </div>
                         <div className="divide-y divide-[#E5E5E5]/20">
-                          {therapists.map(th => (
+                          {visibleTherapists.map(th => (
                             <div
                               key={th.id}
                               className="group grid grid-cols-[1fr_1fr_auto_auto_44px] gap-4 items-center px-5 py-4 rounded-xl transition-colors hover:bg-[#F5F5F5]/60"
@@ -5252,7 +5331,7 @@ const AdminDashboard = () => {
 
                       {/* Mobile cards */}
                       <div className="sm:hidden space-y-2">
-                        {therapists.map(th => (
+                        {visibleTherapists.map(th => (
                           <div key={th.id} className="bg-white rounded-xl border border-[#E5E5E5]/40 p-4 transition-colors hover:border-[#CCCCCC]">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-3 min-w-0">
@@ -5308,7 +5387,8 @@ const AdminDashboard = () => {
                         ))}
                       </div>
                     </>
-                  )}
+                    );
+                  })()}
                 </TabsContent>
 
                 <TabsContent value="shift" className="pt-4">

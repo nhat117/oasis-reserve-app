@@ -7,19 +7,18 @@ const DAY_SHORT_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 const renderDay = (blocks: WeeklyShiftBlock[], overrides: Partial<Record<string, unknown>> = {}) => {
   const onChangeBlocks = vi.fn();
-  const onDone = vi.fn();
+  const onBack = vi.fn();
   const onCopyToDays = vi.fn();
   render(
     <DayShiftEditor
-      label="Monday"
+      title="Monday Schedule"
       dayOfWeek={1}
       blocks={blocks}
       onChangeBlocks={onChangeBlocks}
-      onDone={onDone}
+      backLabel="Back"
+      onBack={onBack}
       offLabel="Off"
-      workingLabel="Working"
       breakLabel="Break"
-      doneLabel="Done"
       addShiftLabel="+ Add shift"
       copyToDaysLabel="Copy to days"
       copyToDayShortLabels={DAY_SHORT_LABELS}
@@ -32,12 +31,13 @@ const renderDay = (blocks: WeeklyShiftBlock[], overrides: Partial<Record<string,
       {...overrides}
     />,
   );
-  return { onChangeBlocks, onDone, onCopyToDays };
+  return { onChangeBlocks, onBack, onCopyToDays };
 };
 
 describe('DayShiftEditor', () => {
-  it('shows Off and the switch unchecked for an empty day', () => {
+  it('shows the title and the switch unchecked for an empty (off) day', () => {
     renderDay([]);
+    expect(screen.getByText('Monday Schedule')).toBeInTheDocument();
     expect(screen.getByText('Off')).toBeInTheDocument();
     expect(screen.getByRole('switch')).not.toBeChecked();
   });
@@ -124,9 +124,9 @@ describe('DayShiftEditor', () => {
     expect(screen.getByText('Copy').closest('button')).toBeDisabled();
   });
 
-  it('clicking Done calls onDone', () => {
-    const { onDone } = renderDay([]);
-    fireEvent.click(screen.getByText('Done'));
-    expect(onDone).toHaveBeenCalledTimes(1);
+  it('clicking Back calls onBack', () => {
+    const { onBack } = renderDay([]);
+    fireEvent.click(screen.getByText('Back'));
+    expect(onBack).toHaveBeenCalledTimes(1);
   });
 });

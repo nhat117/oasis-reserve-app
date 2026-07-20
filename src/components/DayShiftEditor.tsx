@@ -3,22 +3,21 @@ import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Trash2, Coffee, Plus } from 'lucide-react';
+import { ArrowLeft, Trash2, Coffee, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   WeeklyShiftBlock, sortBlocks, deriveBreaks, summarizeDay, defaultNewBlock, resolveOverlapsForDay, DAY_END_MINUTE,
 } from '@/lib/weeklyScheduleLogic';
 
 interface DayShiftEditorProps {
-  label: string; // the day name shown at the top, e.g. "Monday"
+  title: string; // e.g. "Tuesday Schedule"
   dayOfWeek: number; // 1=Mon..7=Sun — needed even when blocks is empty (day off)
   blocks: WeeklyShiftBlock[]; // this day's blocks, any order — sorted internally for display
   onChangeBlocks: (blocks: WeeklyShiftBlock[]) => void; // full replacement of this day's block list
-  onDone: () => void;
+  backLabel: string;
+  onBack: () => void; // returns to the staff details view — unsaved edits are preserved by the parent
   offLabel: string;
-  workingLabel: string;
   breakLabel: string;
-  doneLabel: string;
   addShiftLabel: string;
   copyToDaysLabel: string;
   copyToDayShortLabels: string[]; // 7 short day pills for "copy to" targets, index 0 = Monday
@@ -43,14 +42,15 @@ const timeInputToMinutes = (value: string) => {
 
 const formatHours = (mins: number) => (mins / 60).toFixed(1);
 
-// A day's block list, editable in a popover: toggle the day on/off, add/
-// remove/edit individual shift blocks, see derived breaks between them, and
-// copy this day's schedule onto other days. Replaces the old single work-
-// range + lunch-break flyout (ShiftEditFlyout) now that a day can have N
-// independent blocks.
+// In-place "day page" for a single day's schedule, shown inside the Edit
+// Staff modal in place of the staff details form (not a nested popover or
+// modal): toggle the day on/off, add/remove/edit individual shift blocks,
+// see derived breaks between them, and copy this day's schedule onto other
+// days. The Cancel/Save actions live in the parent modal's shared footer,
+// so this component only owns the Back navigation.
 export function DayShiftEditor({
-  label, dayOfWeek, blocks: rawBlocks, onChangeBlocks, onDone,
-  offLabel, workingLabel, breakLabel, doneLabel, addShiftLabel, copyToDaysLabel,
+  title, dayOfWeek, blocks: rawBlocks, onChangeBlocks, backLabel, onBack,
+  offLabel, breakLabel, addShiftLabel, copyToDaysLabel,
   copyToDayShortLabels, onCopyToDays, shiftCountLabel, totalHoursLabel, breakHoursLabel, shiftNumberLabel, copyLabel,
 }: DayShiftEditorProps) {
   const [selectedTargetDays, setSelectedTargetDays] = useState<number[]>([]);
@@ -100,15 +100,20 @@ export function DayShiftEditor({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-medium">{label}</span>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">{isWorking ? workingLabel : offLabel}</span>
-          <Switch checked={isWorking} onCheckedChange={handleToggleWorking} />
-        </div>
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-[#1B1B1B] transition-colors -ml-1 px-1 py-0.5 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#006AFF]/40"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          {backLabel}
+        </button>
+        <span className="text-sm font-medium text-[#1B1B1B]">{title}</span>
+        <Switch checked={isWorking} onCheckedChange={handleToggleWorking} />
       </div>
 
-      {isWorking && (
+      {isWorking ? (
         <>
           <p className="text-[11px] text-muted-foreground">
             {shiftCountLabel(summary.shiftCount)} · {totalHoursLabel(formatHours(summary.totalMinutes))}
@@ -194,11 +199,9 @@ export function DayShiftEditor({
             </Button>
           </div>
         </>
+      ) : (
+        <p className="text-[11px] text-muted-foreground py-2">{offLabel}</p>
       )}
-
-      <Button size="sm" className="w-full h-8 text-xs" onClick={onDone}>
-        {doneLabel}
-      </Button>
     </div>
   );
 }
