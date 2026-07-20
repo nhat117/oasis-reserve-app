@@ -5070,7 +5070,6 @@ const AdminDashboard = () => {
               <Tabs value={staffAvailabilitySubTab} onValueChange={(v) => setStaffAvailabilitySubTab(v as 'staff' | 'shift')}>
                 <TabsList className="bg-[#F5F5F5]">
                   <TabsTrigger value="staff">{t('Nhân viên')}</TabsTrigger>
-                  <TabsTrigger value="shift">{t('Ca làm')}</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="staff" className="space-y-6 pt-4">
