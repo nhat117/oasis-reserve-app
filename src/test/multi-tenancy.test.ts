@@ -45,8 +45,8 @@ describe('supabase client — x-tenant-id header', () => {
 // ──────────────────────────────────────────────────────────────────────
 
 describe('booking insert — tenant_id attachment', () => {
-  function buildBookingPayload(
-    base: Record<string, unknown>,
+  function buildBookingPayload<T extends Record<string, unknown>>(
+    base: T,
     tenantId: string,
   ) {
     return {

@@ -57,6 +57,7 @@ export const appointmentUpdated = {
     staff: {
       id: "staff_001",
       name: "Lisa",
+      first_name: "Lisa",
     },
   },
 };

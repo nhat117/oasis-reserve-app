@@ -92,7 +92,9 @@ export async function importBusinessConfig(backup: BusinessConfigBackup): Promis
     const rows = backup.tables[table];
     if (!rows || rows.length === 0) continue;
     const scopedRows = rows.map((row) => ({ ...row, tenant_id: TENANT_ID }));
-    const { error } = await supabase.from(table).upsert(scopedRows, { onConflict: 'id' });
+    // `table` is a runtime-computed union, so its Insert type can't be statically
+    // narrowed here — every row shape is already validated by BACKUP_TABLES/export.
+    const { error } = await supabase.from(table).upsert(scopedRows as any[], { onConflict: 'id' });
     if (error) throw new Error(`${table}: ${error.message}`);
     results.push({ table, count: scopedRows.length });
   }

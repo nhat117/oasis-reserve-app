@@ -24,9 +24,9 @@ const AdminLogin = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const handleBlur = (schema: typeof loginSchema | typeof forgotPasswordSchema, field: string, value: string) => {
+  const handleBlur = (schema: typeof loginSchema | typeof forgotPasswordSchema, field: string, value: string, schemaField: string = field) => {
     setTouched(prev => ({ ...prev, [field]: true }));
-    setFieldErrors(prev => ({ ...prev, [field]: validateField(schema, field, value) }));
+    setFieldErrors(prev => ({ ...prev, [field]: validateField(schema as any, schemaField, value) }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -94,7 +94,7 @@ const AdminLogin = () => {
                   type="email"
                   value={forgotEmail}
                   onChange={e => { setForgotEmail(e.target.value); if (touched.forgotEmail) setFieldErrors(prev => ({ ...prev, forgotEmail: validateField(forgotPasswordSchema, 'email', e.target.value) })); }}
-                  onBlur={() => handleBlur(forgotPasswordSchema, 'forgotEmail', forgotEmail)}
+                  onBlur={() => handleBlur(forgotPasswordSchema, 'forgotEmail', forgotEmail, 'email')}
                   required
                   className={`mt-1 ${touched.forgotEmail && fieldErrors.forgotEmail ? 'border-destructive focus-visible:ring-destructive' : ''}`}
                 />

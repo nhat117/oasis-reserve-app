@@ -170,12 +170,12 @@ export function AISettingsPanel() {
       }
 
       if (config?.id) {
-        const { error } = await supabase.from('ai_config').update(payload).eq('id', config.id);
+        const { error } = await supabase.from('ai_config').update(payload as any).eq('id', config.id);
         if (error) throw error;
       } else {
         if (!form.api_key.trim()) throw new Error('API key is required for initial setup');
         payload.api_key_encrypted = form.api_key.trim();
-        const { error } = await supabase.from('ai_config').insert(payload);
+        const { error } = await supabase.from('ai_config').insert(payload as any);
         if (error) throw error;
       }
     },

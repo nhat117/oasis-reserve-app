@@ -74,9 +74,9 @@ function createMockSupabase(tenantId: string) {
             return (row as any)[key] === val;
           });
         });
-        return { data: rows[0] || null, error: rows[0] ? null : { code: 'PGRST116' } };
+        return { data: (rows[0] as any) || null, error: rows[0] ? null : { code: 'PGRST116' } };
       },
-      then: (resolve: Function) => {
+      then: (resolve: (result: { data: unknown[]; error: null }) => unknown) => {
         queryLog.push({ table, filters: { ...filters }, method: currentMethod });
         const rows = (mockData[table] || []).filter((row: any) => {
           return Object.entries(filters).every(([key, val]) => {

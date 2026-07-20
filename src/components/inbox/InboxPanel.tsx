@@ -40,20 +40,29 @@ export function InboxPanel() {
         .eq('conversation_id', selectedConvoId)
         .order('created_at', { ascending: true });
       if (error) throw error;
-      return data || [];
+      // metadata is stored as jsonb (always an object or null in practice);
+      // the generated Json type is a wider union than MessageThread expects.
+      return (data || []) as unknown as Array<typeof data[number] & { metadata: Record<string, unknown> | null }>;
     },
     enabled: !!selectedConvoId,
   });
 
-  // Fetch staff members for assignment
+  // Fetch staff members for assignment — user_roles has no email column, so
+  // real emails come from Supabase Auth via the manage-admins edge function
+  // (same source AdminDashboard.tsx's account management uses).
   const { data: staffMembers = [] } = useQuery({
     queryKey: ['inbox-staff', TENANT_ID],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select('user_id, email, role');
-      if (error) throw error;
-      return data || [];
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return [];
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-admins`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Failed to load staff members');
+      const admins = result.admins as { id: string; email: string; role: string }[];
+      return admins.map(a => ({ user_id: a.id, email: a.email, role: a.role }));
     },
   });
 
