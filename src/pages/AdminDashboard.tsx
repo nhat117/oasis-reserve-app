@@ -238,7 +238,7 @@ const AdminDashboard = () => {
   // false) rather than removed, so their past records stay intact — but
   // they shouldn't clutter the everyday staff list. Hidden behind a toggle
   // instead of always shown.
-  const [showHiddenStaff, setShowHiddenStaff] = useState(false);
+  const [hiddenStaffDialog, setHiddenStaffDialog] = useState(false);
   const [therapistDialog, setTherapistDialog] = useState(false);
   const [therapistInfoDialog, setTherapistInfoDialog] = useState(false);
   const [viewingTherapist, setViewingTherapist] = useState<any>(null);
@@ -5013,8 +5013,6 @@ const AdminDashboard = () => {
                               value={therapistWeeklyHours}
                               onSelectDay={openDaySchedule}
                               dayLabels={DAYS_OF_WEEK.map(d => d.label)}
-                              offLabel={t('Nghỉ')}
-                              breakLabel={t('Nghỉ trưa')}
                             />
                           </div>
                           <Button className="w-full h-10 bg-[#006AFF] hover:bg-[#1B1B1B] text-white" onClick={() => saveTherapist.mutate()} disabled={!therapistName.trim() || saveTherapist.isPending}>
@@ -5207,12 +5205,13 @@ const AdminDashboard = () => {
                     removeHoliday={removeHoliday}
                   />
 
-                  {/* Plain staff list — name/contact/status/day-off count, edit/delete/reactivate.
-                      Hidden (soft-deleted) staff are excluded by default so they don't clutter
-                      the everyday list; a toggle reveals them when needed (e.g. to reactivate). */}
+                  {/* Plain staff list — name/contact/status/day-off count, edit/delete.
+                      Hidden (soft-deleted) staff never appear here — they live in a
+                      separate dialog (opened via the button below) where they can be
+                      reactivated, so they don't clutter the everyday list. */}
                   {(() => {
                     const hiddenCount = (therapists || []).filter(th => !th.is_active).length;
-                    const visibleTherapists = showHiddenStaff ? (therapists || []) : (therapists || []).filter(th => th.is_active);
+                    const visibleTherapists = (therapists || []).filter(th => th.is_active);
                     if (!therapists?.length) {
                       return (
                         <div className="text-center py-20 text-muted-foreground">
@@ -5225,8 +5224,8 @@ const AdminDashboard = () => {
                     <>
                       {hiddenCount > 0 && (
                         <div className="flex justify-end">
-                          <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground" onClick={() => setShowHiddenStaff(v => !v)}>
-                            {showHiddenStaff ? t('Ẩn nhân viên đã xoá') : `${t('Hiện nhân viên đã xoá')} (${hiddenCount})`}
+                          <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground" onClick={() => setHiddenStaffDialog(true)}>
+                            {`${t('Nhân viên đã xoá')} (${hiddenCount})`}
                           </Button>
                         </div>
                       )}
@@ -5273,12 +5272,8 @@ const AdminDashboard = () => {
 
                               {/* Status badge */}
                               <div className="w-24">
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium ${
-                                  th.is_active
-                                    ? 'bg-emerald-50 text-emerald-600'
-                                    : 'bg-gray-100 text-gray-400'
-                                }`}>
-                                  {th.is_active ? t('Hoạt động') : t('Tắt')}
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-600">
+                                  {t('Hoạt động')}
                                 </span>
                               </div>
 
@@ -5304,24 +5299,9 @@ const AdminDashboard = () => {
                                   <Pencil className="h-3.5 w-3.5" />
                                 </Button>
                                 {isAdmin && (
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/40 hover:text-muted-foreground">
-                                        <MoreHorizontal className="h-4 w-4" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-36">
-                                      {th.is_active ? (
-                                        <DropdownMenuItem className="text-destructive text-xs" onClick={() => openDeleteTherapist(th)}>
-                                          <Trash2 className="h-3.5 w-3.5 mr-2" /> {t('Xóa')}
-                                        </DropdownMenuItem>
-                                      ) : (
-                                        <DropdownMenuItem className="text-xs" onClick={() => reactivateTherapist.mutate(th.id)}>
-                                          <Users className="h-3.5 w-3.5 mr-2" /> {t('Kích hoạt lại')}
-                                        </DropdownMenuItem>
-                                      )}
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/40 hover:text-destructive" onClick={() => openDeleteTherapist(th)}>
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
                                 )}
                               </div>
                             </div>
@@ -5346,10 +5326,8 @@ const AdminDashboard = () => {
                                   <p className="text-[11px] text-muted-foreground/60 mt-0.5">{new Set((th.therapist_weekly_hours || []).map((r: any) => r.day_of_week)).size} {t('ngày/tuần')}</p>
                                 </div>
                               </div>
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium shrink-0 ${
-                                th.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-400'
-                              }`}>
-                                {th.is_active ? t('Hoạt động') : t('Tắt')}
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium shrink-0 bg-emerald-50 text-emerald-600">
+                                {t('Hoạt động')}
                               </span>
                             </div>
                             <div className="flex items-center justify-between mt-3 ml-[52px]">
@@ -5362,24 +5340,9 @@ const AdminDashboard = () => {
                                   <Pencil className="h-3 w-3" />
                                 </Button>
                                 {isAdmin && (
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/40">
-                                        <MoreHorizontal className="h-3.5 w-3.5" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                      {th.is_active ? (
-                                        <DropdownMenuItem className="text-destructive text-xs" onClick={() => openDeleteTherapist(th)}>
-                                          <Trash2 className="h-3.5 w-3.5 mr-2" /> {t('Xóa')}
-                                        </DropdownMenuItem>
-                                      ) : (
-                                        <DropdownMenuItem className="text-xs" onClick={() => reactivateTherapist.mutate(th.id)}>
-                                          <Users className="h-3.5 w-3.5 mr-2" /> {t('Kích hoạt lại')}
-                                        </DropdownMenuItem>
-                                      )}
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/40 hover:text-destructive" onClick={() => openDeleteTherapist(th)}>
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
                                 )}
                               </div>
                             </div>
@@ -5465,6 +5428,35 @@ const AdminDashboard = () => {
                   </Button>
                 </div>
               )}
+            </DialogContent>
+          </Dialog>
+
+          {/* Hidden (soft-deleted) staff — kept out of the main list so it
+              doesn't clutter day-to-day use, but reachable here to reactivate. */}
+          <Dialog open={hiddenStaffDialog} onOpenChange={setHiddenStaffDialog}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>{t('Nhân viên đã xoá')}</DialogTitle>
+                <DialogDescription>{t('Các nhân viên này đã bị xoá nhưng còn lịch sử nên được ẩn thay vì xoá hoàn toàn. Bạn có thể kích hoạt lại.')}</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+                {(therapists || []).filter(th => !th.is_active).map(th => (
+                  <div key={th.id} className="flex items-center justify-between gap-3 rounded-lg border border-[#E5E5E5]/60 p-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-full bg-[#F0F0F0] flex items-center justify-center text-[12px] font-semibold text-[#737373] shrink-0">
+                        {(th.name || '?').charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-[#1B1B1B] truncate">{th.name}</p>
+                        {th.phone && <p className="text-[11px] text-muted-foreground/60 font-mono">{th.phone}</p>}
+                      </div>
+                    </div>
+                    <Button size="sm" variant="outline" className="h-8 text-xs shrink-0" onClick={() => reactivateTherapist.mutate(th.id)} disabled={reactivateTherapist.isPending}>
+                      {t('Kích hoạt lại')}
+                    </Button>
+                  </div>
+                ))}
+              </div>
             </DialogContent>
           </Dialog>
 
