@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { supabase, TENANT_ID } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { getPushStatus, subscribeToPush, unsubscribeFromPush } from '@/lib/pushNotifications';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -19,7 +20,7 @@ import { LogoUpload as LogoUploadComponent } from '@/components/LogoUpload';
 import { Textarea } from '@/components/ui/textarea';
 import { TipTapEditor } from '@/components/TipTapEditor';
 import { BookingStats } from '@/components/BookingStats';
-import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone, CreditCard, Square, RotateCcw, BookOpen, ScrollText, Eye, Clock, Check, Bot, FileSpreadsheet, Printer, History, Bug, ShoppingBag, DatabaseBackup, Upload, Gift } from 'lucide-react';
+import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone, CreditCard, Square, RotateCcw, BookOpen, ScrollText, Eye, Clock, Check, Bot, FileSpreadsheet, Printer, History, Bug, ShoppingBag, DatabaseBackup, Upload, Gift, GripVertical } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ALL_I18N_KEYS } from '@/lib/i18n-keys';
 import { Switch } from '@/components/ui/switch';
@@ -146,12 +147,18 @@ const AdminDashboard = () => {
     if (onboardingDone === false && isAdmin) setShowOnboarding(true);
   }, [onboardingDone, isAdmin]);
 
-  // Real-time notification for new bookings
+  // Real-time in-app toast + query refresh for new bookings. SMS/email/push
+  // notify-new-booking used to also be invoked from here, but that only ever
+  // fired while an admin had this dashboard open in a browser tab — bookings
+  // made through the customer-facing site (the common case) never notified
+  // anyone. A DB trigger (notify_new_booking_trigger, migration 20260723000000)
+  // now calls notify-new-booking directly on every bookings INSERT, so it no
+  // longer needs to be invoked here — doing so as well would just double-send.
   useEffect(() => {
     if (!isStaff) return;
     const channel = supabase
       .channel('new-bookings')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bookings' }, async (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bookings' }, (payload) => {
         const b = payload.new as any;
         toast({
           title: t('Lịch hẹn mới!'),
@@ -160,11 +167,6 @@ const AdminDashboard = () => {
         queryClient.invalidateQueries({ queryKey: ['admin-bookings'] });
         queryClient.invalidateQueries({ queryKey: ['stats-bookings'] });
         queryClient.invalidateQueries({ queryKey: ['notifications'] });
-
-        // Trigger SMS notification to shop owner
-        try {
-          await supabase.functions.invoke('notify-new-booking', { body: { record: b } });
-        } catch (_) { /* silent — notification is best-effort */ }
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -231,6 +233,10 @@ const AdminDashboard = () => {
   const [serviceImageFile, setServiceImageFile] = useState<File | null>(null);
   const [serviceImagePreview, setServiceImagePreview] = useState<string | null>(null);
   const serviceImageRef = useRef<HTMLInputElement>(null);
+  // Drag-and-drop service reordering — id of the row currently being dragged,
+  // and id of the row currently under the pointer (drop target highlight).
+  const [draggedServiceId, setDraggedServiceId] = useState<string | null>(null);
+  const [dragOverServiceId, setDragOverServiceId] = useState<string | null>(null);
 
   // Therapist form state
   const [staffAvailabilitySubTab, setStaffAvailabilitySubTab] = useState<'staff' | 'shift'>('staff');
@@ -493,6 +499,9 @@ const AdminDashboard = () => {
   const [notifyPhone, setNotifyPhone] = useState('');
   const [notifyEmailEnabled, setNotifyEmailEnabled] = useState(false);
   const [notifyEmail, setNotifyEmail] = useState('');
+  // Push notification device registration status for this browser/device
+  const [pushStatus, setPushStatus] = useState<{ permission: NotificationPermission | 'unsupported'; subscribed: boolean }>({ permission: 'default', subscribed: false });
+  const [pushBusy, setPushBusy] = useState(false);
 
   // Membership & discount state
   const [membershipDialog, setMembershipDialog] = useState(false);
@@ -528,7 +537,7 @@ const AdminDashboard = () => {
   const { data: services } = useQuery({
     queryKey: ['admin-services'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('services').select('*').order('created_at');
+      const { data, error } = await supabase.from('services').select('*').order('sort_order');
       if (error) throw error;
       return data;
     },
@@ -551,6 +560,12 @@ const AdminDashboard = () => {
       return data;
     },
   });
+
+  // `therapists` includes soft-deleted (is_active=false) staff so the Staff
+  // tab can list/reactivate them — every other surface (dropdowns, calendars,
+  // scheduling) must read from this active-only view instead, or a deleted
+  // staff member keeps showing up everywhere except the management list.
+  const activeTherapists = useMemo(() => (therapists || []).filter(th => th.is_active), [therapists]);
 
   const DAYS_OF_WEEK = [
     { value: 1, label: t('Thứ 2') },
@@ -1579,6 +1594,32 @@ const AdminDashboard = () => {
     onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
 
+  // Push notification registration status for *this* browser/device — refreshed
+  // whenever the settings dialog opens, since permission can change outside the app.
+  useEffect(() => {
+    if (settingsModal !== 'notifications') return;
+    getPushStatus().then(setPushStatus);
+  }, [settingsModal]);
+
+  const handleTogglePush = async (enable: boolean) => {
+    if (!user) return;
+    setPushBusy(true);
+    try {
+      if (enable) {
+        const { error } = await subscribeToPush(user.id);
+        if (error) { toast({ title: t('Lỗi'), description: error, variant: 'destructive' }); return; }
+        toast({ title: t('Đã bật thông báo đẩy') });
+      } else {
+        const { error } = await unsubscribeFromPush();
+        if (error) { toast({ title: t('Lỗi'), description: error, variant: 'destructive' }); return; }
+        toast({ title: t('Đã tắt thông báo đẩy trên thiết bị này') });
+      }
+      setPushStatus(await getPushStatus());
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
   // Membership tiers
   const { data: membershipTiers } = useQuery({
     queryKey: ['membership-tiers'],
@@ -2529,6 +2570,40 @@ const AdminDashboard = () => {
     onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
   });
 
+  // Persists a full reordering of the service list — takes the new
+  // top-to-bottom id order and writes 1-based sort_order to every row so the
+  // drag result survives a refresh (customer-facing site already reads
+  // services ordered by sort_order).
+  const reorderServices = useMutation({
+    mutationFn: async (orderedIds: string[]) => {
+      if (!isAdmin) throw new Error('Admin only');
+      await Promise.all(
+        orderedIds.map((id, i) => supabase.from('services').update({ sort_order: i + 1 }).eq('id', id))
+      ).then(results => {
+        const failed = results.find(r => r.error);
+        if (failed?.error) throw failed.error;
+      });
+    },
+    onMutate: async (orderedIds: string[]) => {
+      await queryClient.cancelQueries({ queryKey: ['admin-services'] });
+      const previous = queryClient.getQueryData<any[]>(['admin-services']);
+      if (previous) {
+        const byId = new Map(previous.map(s => [s.id, s]));
+        queryClient.setQueryData(['admin-services'], orderedIds.map(id => byId.get(id)).filter(Boolean));
+      }
+      return { previous };
+    },
+    onError: (e: any, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(['admin-services'], context.previous);
+      toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' });
+    },
+    onSuccess: () => {
+      logActivity('reorder_services', 'Reordered services');
+      queryClient.invalidateQueries({ queryKey: ['admin-services'] });
+      queryClient.invalidateQueries({ queryKey: ['services'] });
+    },
+  });
+
   const saveProduct = useMutation({
     mutationFn: async () => {
       if (editingProduct) requireAdmin();
@@ -2839,8 +2914,8 @@ const AdminDashboard = () => {
 
     // Get candidate therapists
     const candidateTherapists = bookingTherapistId && bookingTherapistId !== 'random'
-      ? therapists?.filter(t => t.id === bookingTherapistId) || []
-      : therapists?.filter(t => t.is_active) || [];
+      ? activeTherapists.filter(t => t.id === bookingTherapistId)
+      : activeTherapists;
 
     // Check unavailability for the date
     const unavailableTherapistIds = new Set(
@@ -3612,7 +3687,7 @@ const AdminDashboard = () => {
                     <SelectTrigger className="w-[160px] h-9 text-sm bg-[#F5F5F5] border-[#E5E5E5]/50"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">{t('Tất cả thợ')}</SelectItem>
-                      {therapists?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                      {activeTherapists.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <Dialog open={bookingDialog} onOpenChange={(open) => { setBookingDialog(open); if (!open) resetBookingForm(); }}>
@@ -3671,7 +3746,7 @@ const AdminDashboard = () => {
                               <SelectTrigger className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60"><SelectValue placeholder={t('Chọn thợ')} /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="random">{t('Tự động (ai rảnh)')}</SelectItem>
-                                {therapists?.filter(t => t.is_active).map(t => (
+                                {activeTherapists.map(t => (
                                   <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                                 ))}
                               </SelectContent>
@@ -4063,7 +4138,7 @@ const AdminDashboard = () => {
                       <Select value={saleTherapistId} onValueChange={setSaleTherapistId}>
                         <SelectTrigger className="h-9 text-sm bg-[#F5F5F5] border-0"><SelectValue placeholder={t('Chọn thợ (tuỳ chọn)')} /></SelectTrigger>
                         <SelectContent>
-                          {therapists?.filter(th => th.is_active).map(th => (
+                          {activeTherapists.map(th => (
                             <SelectItem key={th.id} value={th.id}>{th.name}</SelectItem>
                           ))}
                         </SelectContent>
@@ -4795,8 +4870,38 @@ const AdminDashboard = () => {
                   {services.map(s => (
                     <div
                       key={s.id}
-                      className="group flex items-center justify-between px-5 py-4 transition-colors hover:bg-[#F5F5F5]/40"
+                      draggable={isAdmin}
+                      onDragStart={() => setDraggedServiceId(s.id)}
+                      onDragOver={(e) => { e.preventDefault(); if (s.id !== draggedServiceId) setDragOverServiceId(s.id); }}
+                      onDragLeave={() => setDragOverServiceId(prev => (prev === s.id ? null : prev))}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setDragOverServiceId(null);
+                        if (!draggedServiceId || draggedServiceId === s.id) { setDraggedServiceId(null); return; }
+                        const ids = services.map(svc => svc.id);
+                        const fromIdx = ids.indexOf(draggedServiceId);
+                        const toIdx = ids.indexOf(s.id);
+                        if (fromIdx === -1 || toIdx === -1) { setDraggedServiceId(null); return; }
+                        const reordered = [...ids];
+                        reordered.splice(fromIdx, 1);
+                        reordered.splice(toIdx, 0, draggedServiceId);
+                        setDraggedServiceId(null);
+                        reorderServices.mutate(reordered);
+                      }}
+                      onDragEnd={() => { setDraggedServiceId(null); setDragOverServiceId(null); }}
+                      className={cn(
+                        "group flex items-center justify-between px-5 py-4 transition-colors hover:bg-[#F5F5F5]/40",
+                        draggedServiceId === s.id && "opacity-40",
+                        dragOverServiceId === s.id && "bg-[#006AFF]/5 outline outline-2 outline-[#006AFF]/30 -outline-offset-2",
+                      )}
                     >
+                      {/* Drag handle — admin only, mirrors delete's isAdmin gating */}
+                      {isAdmin && (
+                        <div className="mr-2 text-muted-foreground/30 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing shrink-0" title={t('Kéo để sắp xếp')}>
+                          <GripVertical className="h-4 w-4" />
+                        </div>
+                      )}
+
                       {/* Left: name + details */}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2.5">
@@ -5091,9 +5196,9 @@ const AdminDashboard = () => {
                         </div>
                       </div>
                       {/* Staff day-off pills — one per staff, bounded by staff count regardless of how many days off exist */}
-                      {therapists && unavailabilities && therapists.some(th => unavailabilities.filter((u: any) => u.therapist_id === th.id && u.unavailable_date >= format(new Date(), 'yyyy-MM-dd')).length > 0) ? (
+                      {unavailabilities && activeTherapists.some(th => unavailabilities.filter((u: any) => u.therapist_id === th.id && u.unavailable_date >= format(new Date(), 'yyyy-MM-dd')).length > 0) ? (
                         <div className="flex flex-wrap gap-2">
-                          {therapists.map(th => {
+                          {activeTherapists.map(th => {
                             const todayStr = format(new Date(), 'yyyy-MM-dd');
                             const count = unavailabilities.filter((u: any) => u.therapist_id === th.id && u.unavailable_date >= todayStr).length;
                             if (!count) return null;
@@ -5125,7 +5230,7 @@ const AdminDashboard = () => {
                       onOpenChange={setUnavailCalendarOpen}
                       mode="all-staff"
                       initialStaffFilter={unavailTherapist}
-                      therapists={therapists || []}
+                      therapists={activeTherapists}
                       unavailabilities={unavailabilitiesInRange || []}
                       shopHolidays={shopHolidaysInRange || []}
                       isAdmin={isAdmin}
@@ -5191,7 +5296,7 @@ const AdminDashboard = () => {
                     open={holidayCalendarOpen}
                     onOpenChange={setHolidayCalendarOpen}
                     mode="shop-holidays"
-                    therapists={therapists || []}
+                    therapists={activeTherapists}
                     unavailabilities={unavailabilitiesInRange || []}
                     shopHolidays={shopHolidaysInRange || []}
                     isAdmin={isAdmin}
@@ -5354,15 +5459,15 @@ const AdminDashboard = () => {
                 </TabsContent>
 
                 <TabsContent value="shift" className="pt-4">
-                  {!therapists?.length ? (
+                  {!activeTherapists.length ? (
                     <div className="text-center py-20 text-muted-foreground">
                       <Users className="h-10 w-10 mx-auto mb-3 opacity-15" />
                       <p className="text-sm font-medium">{t('Chưa có nhân viên')}</p>
                     </div>
                   ) : (
                     <ShiftCalendar
-                      therapists={therapists}
-                      selectedTherapistId={shiftTherapistId ?? therapists[0]?.id ?? null}
+                      therapists={activeTherapists}
+                      selectedTherapistId={shiftTherapistId ?? activeTherapists[0]?.id ?? null}
                       onSelectTherapist={setShiftTherapistId}
                       shifts={shiftsForCalendar || []}
                       unavailabilities={unavailabilities || []}
@@ -5541,7 +5646,7 @@ const AdminDashboard = () => {
               onOpenChange={setViewingTherapistScheduleOpen}
               mode="single-therapist"
               therapistId={viewingTherapist.id}
-              therapists={therapists || []}
+              therapists={activeTherapists}
               unavailabilities={unavailabilitiesInRange || []}
               shopHolidays={shopHolidaysInRange || []}
               isAdmin={isAdmin}
@@ -7224,6 +7329,23 @@ const AdminDashboard = () => {
                         <p className="text-xs text-muted-foreground mt-1">{t('Email chủ tiệm nhận thông báo khi có lịch hẹn mới. Cần cấu hình Resend trong Cài đặt email.')}</p>
                       </div>
                     )}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm">{t('Thông báo đẩy trên điện thoại')}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {pushStatus.permission === 'unsupported'
+                            ? t('Trình duyệt này không hỗ trợ thông báo đẩy')
+                            : pushStatus.permission === 'denied'
+                              ? t('Đã chặn quyền thông báo — vui lòng cho phép trong cài đặt trình duyệt')
+                              : t('Nhận thông báo đẩy trên thiết bị này khi có lịch hẹn mới. Cũng gửi email đến địa chỉ ở trên nếu email chưa được bật riêng.')}
+                        </p>
+                      </div>
+                      <Switch
+                        checked={pushStatus.subscribed}
+                        disabled={pushBusy || pushStatus.permission === 'unsupported' || pushStatus.permission === 'denied'}
+                        onCheckedChange={handleTogglePush}
+                      />
+                    </div>
                   </div>
 
                   <Button size="sm" onClick={() => { saveReminderSettings.mutate(); setSettingsModal(null); }} disabled={saveReminderSettings.isPending}>

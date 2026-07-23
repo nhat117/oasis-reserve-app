@@ -289,3 +289,103 @@ describe('Admin role validation', () => {
     expect(hasPermission(null, ['admin', 'employee'])).toBe(false);
   });
 });
+
+// ─── Push Notification Logic (mirrors notify-new-booking / send-push-notification) ───
+//
+// Regression coverage for the "push notifications don't work" bug: there was
+// no device registry, no send path, and no channel wired into the booking
+// notification flow at all. These tests cover the pure decision logic added
+// to close that gap — whether push fires alongside SMS/email, and which
+// failed subscriptions get pruned as stale so delivery attempts don't keep
+// hitting dead endpoints forever.
+
+/** Mirrors notify-new-booking's pushEnabled default: on unless explicitly disabled. */
+function isPushEnabled(settingValue: string | undefined): boolean {
+  return settingValue !== 'false';
+}
+
+describe('notify-new-booking: push channel enablement', () => {
+  it('defaults to enabled when the setting has never been saved', () => {
+    expect(isPushEnabled(undefined)).toBe(true);
+  });
+
+  it('stays enabled when explicitly set to true', () => {
+    expect(isPushEnabled('true')).toBe(true);
+  });
+
+  it('is disabled only when explicitly set to false', () => {
+    expect(isPushEnabled('false')).toBe(false);
+  });
+});
+
+interface PushSendResult {
+  id: string;
+  statusCode?: number;
+  error?: boolean;
+}
+
+/** Mirrors send-push-notification's stale-subscription cleanup: only 404/410 responses get pruned. */
+function findStaleSubscriptionIds(results: PushSendResult[]): string[] {
+  return results.filter((r) => r.error && (r.statusCode === 404 || r.statusCode === 410)).map((r) => r.id);
+}
+
+describe('send-push-notification: stale subscription cleanup', () => {
+  it('prunes subscriptions that returned 410 Gone', () => {
+    const results: PushSendResult[] = [{ id: 'a', error: true, statusCode: 410 }];
+    expect(findStaleSubscriptionIds(results)).toEqual(['a']);
+  });
+
+  it('prunes subscriptions that returned 404 Not Found', () => {
+    const results: PushSendResult[] = [{ id: 'a', error: true, statusCode: 404 }];
+    expect(findStaleSubscriptionIds(results)).toEqual(['a']);
+  });
+
+  it('does not prune a transient failure like 500 or 429', () => {
+    const results: PushSendResult[] = [
+      { id: 'a', error: true, statusCode: 500 },
+      { id: 'b', error: true, statusCode: 429 },
+    ];
+    expect(findStaleSubscriptionIds(results)).toEqual([]);
+  });
+
+  it('does not prune successful sends', () => {
+    const results: PushSendResult[] = [{ id: 'a', error: false, statusCode: 201 }];
+    expect(findStaleSubscriptionIds(results)).toEqual([]);
+  });
+
+  it('handles a mixed batch, pruning only the dead ones', () => {
+    const results: PushSendResult[] = [
+      { id: 'ok', error: false },
+      { id: 'gone', error: true, statusCode: 410 },
+      { id: 'notfound', error: true, statusCode: 404 },
+      { id: 'flaky', error: true, statusCode: 503 },
+    ];
+    expect(findStaleSubscriptionIds(results).sort()).toEqual(['gone', 'notfound']);
+  });
+});
+
+// ─── Push-triggered owner email (mirrors notify-new-booking's sendOwnerEmail gating) ───
+//
+// Push notifications are also emailed to the same notify_email address the
+// owner already configured for booking emails. If both the Email toggle and
+// the Push toggle are on, the owner should get exactly one email — not two.
+
+/** Mirrors notify-new-booking: push only sends its own email when the Email toggle is off. */
+function shouldPushSendEmail(emailEnabled: boolean, pushEnabled: boolean): boolean {
+  return pushEnabled && !emailEnabled;
+}
+
+describe('notify-new-booking: push does not duplicate the owner email', () => {
+  it('push sends the email when the Email toggle is off', () => {
+    expect(shouldPushSendEmail(false, true)).toBe(true);
+  });
+
+  it('push does NOT send a second email when the Email toggle is already on', () => {
+    expect(shouldPushSendEmail(true, true)).toBe(false);
+  });
+
+  it('push sends nothing when push itself is disabled', () => {
+    expect(shouldPushSendEmail(false, false)).toBe(false);
+    expect(shouldPushSendEmail(true, false)).toBe(false);
+  });
+});

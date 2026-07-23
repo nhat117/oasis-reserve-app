@@ -983,6 +983,112 @@ describe('AI Chat Tool: LLM system prompt injection for circle prevention', () =
   });
 });
 
+// ─── create_booking therapist validation (mirrors toolCreateBooking) ─
+//
+// Regression coverage for a bug where requesting a *specific* therapist
+// (args.therapist_id) skipped all availability checks and booked them
+// regardless of their weekly schedule/day-off/conflicts. Round-robin
+// (no therapist_id) already validated correctly — the specific-therapist
+// branch now runs the same fitsInAnyBlock + unavailability + conflict
+// checks before confirming.
+
+interface ScheduleTherapist {
+  id: string;
+  name: string;
+  therapist_weekly_hours: { day_of_week: number; start_minute: number; end_minute: number }[];
+}
+
+function getScheduleDayBlocks(t: ScheduleTherapist, dayOfWeek: number) {
+  return t.therapist_weekly_hours.filter((r) => r.day_of_week === dayOfWeek);
+}
+
+function fitsInBlocks(startMin: number, endMin: number, blocks: { start_minute: number; end_minute: number }[]): boolean {
+  return blocks.some((b) => startMin >= b.start_minute && endMin <= b.end_minute);
+}
+
+function makeAllDayHours(days: number[], startHour = 9, endHour = 18) {
+  return days.map((d) => ({ day_of_week: d, start_minute: startHour * 60, end_minute: endHour * 60 }));
+}
+
+/** Mirrors toolCreateBooking's specific-therapist branch: validate before assigning. */
+function resolveSpecificTherapist(
+  requestedId: string,
+  dow: number,
+  slotStartMin: number,
+  slotEndMin: number,
+  therapists: ScheduleTherapist[],
+  unavailableIds: Set<string>,
+  dayBookings: { therapist_id: string; start_time: string; end_time: string }[],
+): { therapistId: string } | { error: string } {
+  const requested = therapists.find((t) => t.id === requestedId);
+  if (!requested) return { error: 'Therapist not found.' };
+  if (unavailableIds.has(requested.id)) return { error: `${requested.name} is not available.` };
+  if (!fitsInBlocks(slotStartMin, slotEndMin, getScheduleDayBlocks(requested, dow))) {
+    return { error: `${requested.name} does not work at this time.` };
+  }
+  const BUFFER = 15;
+  const hasConflict = dayBookings.some((b) => {
+    if (b.therapist_id !== requested.id) return false;
+    const [bsh, bsm] = b.start_time.split(':').map(Number);
+    const [beh, bem] = b.end_time.split(':').map(Number);
+    const bStart = bsh * 60 + bsm;
+    const bEnd = beh * 60 + bem;
+    return slotStartMin < bEnd + BUFFER && slotEndMin > bStart - BUFFER;
+  });
+  if (hasConflict) return { error: `${requested.name} is already booked at this time.` };
+  return { therapistId: requested.id };
+}
+
+describe('AI Chat Tool: create_booking validates a specifically-requested therapist', () => {
+  // Wednesday = day_of_week 3. Clara only works Sunday (7).
+  const clara: ScheduleTherapist = { id: 'clara', name: 'Clara', therapist_weekly_hours: makeAllDayHours([7]) };
+  const renee: ScheduleTherapist = { id: 'renee', name: 'Renee', therapist_weekly_hours: makeAllDayHours([1, 2, 3, 4, 5, 6]) };
+  const heather: ScheduleTherapist = { id: 'heather', name: 'Heather', therapist_weekly_hours: makeAllDayHours([1, 2, 3, 4, 5, 6]) };
+  const cindy: ScheduleTherapist = { id: 'cindy', name: 'Cindy', therapist_weekly_hours: makeAllDayHours([1, 2, 3, 4, 5, 6]) };
+  const ruby: ScheduleTherapist = { id: 'ruby', name: 'Ruby', therapist_weekly_hours: makeAllDayHours([1, 2, 3, 4, 5, 6]) };
+  const vivien: ScheduleTherapist = { id: 'vivien', name: 'Vivien', therapist_weekly_hours: makeAllDayHours([1, 2, 3, 4, 5, 6]) };
+  const hannah: ScheduleTherapist = { id: 'hannah', name: 'Hannah', therapist_weekly_hours: makeAllDayHours([7]) }; // Sunday only, like Clara
+
+  const allStaff = [clara, renee, heather, cindy, ruby, vivien, hannah];
+  const wednesday = 3;
+  const slot = { start: 10 * 60, end: 11 * 60 }; // 10:00-11:00
+
+  it('rejects booking Clara on Wednesday even when explicitly requested', () => {
+    const result = resolveSpecificTherapist('clara', wednesday, slot.start, slot.end, allStaff, new Set(), []);
+    expect('error' in result).toBe(true);
+  });
+
+  it('rejects booking Hannah on Wednesday even when explicitly requested', () => {
+    const result = resolveSpecificTherapist('hannah', wednesday, slot.start, slot.end, allStaff, new Set(), []);
+    expect('error' in result).toBe(true);
+  });
+
+  it('allows booking each Wednesday-working staff member when explicitly requested', () => {
+    for (const staff of [renee, heather, cindy, ruby, vivien]) {
+      const result = resolveSpecificTherapist(staff.id, wednesday, slot.start, slot.end, allStaff, new Set(), []);
+      expect(result).toEqual({ therapistId: staff.id });
+    }
+  });
+
+  it('rejects a requested therapist marked unavailable that day even if their weekly hours cover it', () => {
+    const result = resolveSpecificTherapist('renee', wednesday, slot.start, slot.end, allStaff, new Set(['renee']), []);
+    expect('error' in result).toBe(true);
+  });
+
+  it('rejects a requested therapist with a conflicting booking', () => {
+    const dayBookings = [{ therapist_id: 'renee', start_time: '10:00', end_time: '11:00' }];
+    const result = resolveSpecificTherapist('renee', wednesday, slot.start, slot.end, allStaff, new Set(), dayBookings);
+    expect('error' in result).toBe(true);
+  });
+
+  it('round-robin candidate pool on Wednesday excludes Clara and Hannah', () => {
+    const available = allStaff.filter((t) => fitsInBlocks(slot.start, slot.end, getScheduleDayBlocks(t, wednesday)));
+    expect(available.map((t) => t.id).sort()).toEqual(['cindy', 'heather', 'renee', 'ruby', 'vivien'].sort());
+    expect(available.some((t) => t.id === 'clara')).toBe(false);
+    expect(available.some((t) => t.id === 'hannah')).toBe(false);
+  });
+});
+
 describe('AI Chat Tool: booking mode routing', () => {
   it('selects local mode by default', () => {
     const config = { booking_mode: 'local' };

@@ -856,11 +856,53 @@ async function toolCreateBooking(
   const endM = endTotalMin % 60;
   const endTimeStr = `${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}`;
 
-  // Determine therapist (specific or round-robin)
+  // Determine therapist (specific or round-robin) — a specific request is
+  // validated against the same day-blocks/unavailability/conflict checks as
+  // round-robin, never assigned blindly, or the AI could book a customer
+  // with a therapist who is unavailable that day (e.g. "book me with Hannah
+  // on Wednesday" when Hannah doesn't work Wednesdays).
   let therapistId: string;
 
+  const dayOfWeek = new Date(dateStr + "T00:00:00").getDay();
+  const dow = dayOfWeek === 0 ? 7 : dayOfWeek;
+  const slotStartMin = startH * 60 + startM;
+
+  const { data: unavailList } = await supabase
+    .from("therapist_unavailability")
+    .select("therapist_id")
+    .eq("tenant_id", tenantId)
+    .eq("unavailable_date", dateStr);
+  const unavailableIds = new Set((unavailList || []).map((u: { therapist_id: string }) => u.therapist_id));
+
   if (specificTherapistId) {
-    therapistId = specificTherapistId;
+    const requested = therapists.find((t) => t.id === specificTherapistId);
+    if (!requested) return { error: "Therapist not found." };
+    if (unavailableIds.has(requested.id)) {
+      return { error: `${requested.name} is not available on ${dateStr}. Please choose a different time or therapist.` };
+    }
+    if (!fitsInAnyBlock(slotStartMin, endTotalMin, getDayBlocks(requested, dow))) {
+      return { error: `${requested.name} does not work at this time on ${dateStr}. Please choose a different time or therapist.` };
+    }
+
+    const { data: dayBookings } = await supabase
+      .from("bookings")
+      .select("therapist_id, start_time, end_time")
+      .eq("tenant_id", tenantId)
+      .eq("booking_date", dateStr)
+      .neq("status", "cancelled");
+    const hasConflict = (dayBookings || []).some((b: { therapist_id: string; start_time: string; end_time: string }) => {
+      if (b.therapist_id !== requested.id) return false;
+      const bParts = b.start_time.split(":");
+      const bStartMin = parseInt(bParts[0]) * 60 + parseInt(bParts[1]);
+      const beParts = b.end_time.split(":");
+      const bEndMin = parseInt(beParts[0]) * 60 + parseInt(beParts[1]);
+      return slotStartMin < bEndMin + BUFFER_MINUTES && endTotalMin > bStartMin - BUFFER_MINUTES;
+    });
+    if (hasConflict) {
+      return { error: `${requested.name} is already booked at this time. Please choose a different time or therapist.` };
+    }
+
+    therapistId = requested.id;
   } else {
     // Round-robin: pick therapist with fewest bookings today
     const { data: todayBookings } = await supabase
@@ -875,18 +917,6 @@ async function toolCreateBooking(
       bookingCounts[b.therapist_id] = (bookingCounts[b.therapist_id] || 0) + 1;
     });
 
-    // Get available therapists for this slot
-    const dayOfWeek = new Date(dateStr + "T00:00:00").getDay();
-    const dow = dayOfWeek === 0 ? 7 : dayOfWeek;
-
-    const { data: unavailList } = await supabase
-      .from("therapist_unavailability")
-      .select("therapist_id")
-      .eq("tenant_id", tenantId)
-      .eq("unavailable_date", dateStr);
-    const unavailableIds = new Set((unavailList || []).map((u: { therapist_id: string }) => u.therapist_id));
-
-    const slotStartMin = startH * 60 + startM;
     const available = therapists
       .filter((t) => fitsInAnyBlock(slotStartMin, endTotalMin, getDayBlocks(t, dow)) && !unavailableIds.has(t.id))
       .sort((a, b) => (bookingCounts[a.id] || 0) - (bookingCounts[b.id] || 0));
@@ -922,26 +952,9 @@ async function toolCreateBooking(
     return { error: "Failed to create booking. Please try again or contact staff." };
   }
 
-  // Trigger booking notification (fire-and-forget)
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  fetch(`${supabaseUrl}/functions/v1/notify-new-booking`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${supabaseKey}`,
-    },
-    body: JSON.stringify({
-      id: bookingId,
-      customer_name: customerName.trim(),
-      customer_phone: customerPhone.trim(),
-      booking_date: dateStr,
-      start_time: timeStr + ":00",
-      service_id: serviceId,
-      therapist_id: therapistId,
-      tenant_id: tenantId,
-    }),
-  }).catch((err) => console.error("Failed to send booking notification:", err));
+  // notify-new-booking (SMS/email/push) now fires automatically via a DB
+  // trigger on bookings INSERT (notify_new_booking_trigger, migration
+  // 20260723000000) — calling it here too would double-send.
 
   return {
     success: true,
