@@ -17,7 +17,9 @@ import { useI18n } from '@/hooks/useI18n';
 import Header from '@/components/Header';
 import { bookingCustomerSchema, validateField, escapeHtml } from '@/lib/validation';
 import { SquareCardForm } from '@/components/SquareCardForm';
+import { TurnstileWidget } from '@/components/TurnstileWidget';
 import { WeeklyShiftBlock, fitsInAnyBlock } from '@/lib/weeklyScheduleLogic';
+import { applyStaffDisplayOrder } from '@/lib/staffOrdering';
 
 const Booking = () => {
   const [searchParams] = useSearchParams();
@@ -43,6 +45,7 @@ const Booking = () => {
   const [squarePaymentProcessing, setSquarePaymentProcessing] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [turnstileToken, setTurnstileToken] = useState('');
 
   const handleBlur = useCallback((field: 'customerName' | 'customerPhone' | 'customerEmail', value: string) => {
     setTouched(prev => ({ ...prev, [field]: true }));
@@ -99,7 +102,10 @@ const Booking = () => {
   const { data: therapists } = useQuery({
     queryKey: ['therapists'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('therapists').select('*, therapist_weekly_hours(*)').eq('is_active', true);
+      // Order comes from the admin-managed display_order — see staffOrdering.ts.
+      const { data, error } = await applyStaffDisplayOrder(
+        supabase.from('therapists').select('*, therapist_weekly_hours(*)').eq('is_active', true)
+      );
       if (error) throw error;
       return data;
     },
@@ -266,6 +272,10 @@ const Booking = () => {
 
   const handleSubmit = async () => {
     if (!currentService || !selectedDate || !selectedTime) return;
+    if (!turnstileToken) {
+      toast({ title: t('Lỗi'), description: t('Vui lòng hoàn thành xác minh trước khi đặt lịch.'), variant: 'destructive' });
+      return;
+    }
     setIsSubmitting(true);
 
     const startTime = selectedTime + ':00';
@@ -300,30 +310,31 @@ const Booking = () => {
       setAssignedTherapistName(th?.name || '');
     }
 
-    const bookingId = crypto.randomUUID();
     const bookingDateStr = format(selectedDate, 'yyyy-MM-dd');
     const therapistName = therapists?.find(t => t.id === therapistId)?.name || '';
 
     const addOnNames = addOnServices.map(s => s.name).join(', ');
     const notesText = addOnNames ? `Add-ons: ${addOnNames}` : null;
 
-    const { error } = await supabase.from('bookings').insert({
-      id: bookingId,
-      service_id: selectedService,
-      therapist_id: therapistId,
-      customer_name: customerName.trim(),
-      customer_phone: customerPhone.trim(),
-      customer_email: customerEmail.trim(),
-      booking_date: bookingDateStr,
-      start_time: startTime,
-      end_time: endTime,
-      status: 'confirmed',
-      notes: notesText,
-      ...(TENANT_ID ? { tenant_id: TENANT_ID } : {}),
+    const { data: createData, error } = await supabase.functions.invoke('create-booking', {
+      body: {
+        service_id: selectedService,
+        therapist_id: therapistId,
+        customer_name: customerName.trim(),
+        customer_phone: customerPhone.trim(),
+        customer_email: customerEmail.trim(),
+        booking_date: bookingDateStr,
+        start_time: startTime,
+        end_time: endTime,
+        notes: notesText,
+        turnstile_token: turnstileToken,
+        ...(TENANT_ID ? { tenant_id: TENANT_ID } : {}),
+      },
     });
 
     setIsSubmitting(false);
-    if (error) {
+    const bookingId = createData?.booking_id;
+    if (error || !bookingId) {
       toast({ title: t('Lỗi'), description: t('Không thể đặt lịch. Vui lòng thử lại.'), variant: 'destructive' });
     } else {
       // Payment priority: Square online > Stripe > free confirmation
@@ -894,6 +905,9 @@ const Booking = () => {
               <div className="h-px bg-border/40" />
               <p className="flex justify-between"><span className="text-muted-foreground">{t('Giá')}</span> <span className="font-medium">{formatPrice(totalPrice)}</span></p>
             </div>
+            <div className="flex justify-center">
+              <TurnstileWidget onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
+            </div>
             <div className="flex gap-3">
               <Button variant="outline" onClick={() => setStep(3)} className="rounded-none text-xs tracking-[0.15em] uppercase h-10 border-border/60">
                 {t('Quay lại')}
@@ -901,7 +915,7 @@ const Booking = () => {
               <Button
                 className="flex-1 rounded-none text-xs tracking-[0.15em] uppercase h-10"
                 onClick={handleSubmit}
-                disabled={isSubmitting}
+                disabled={isSubmitting || !turnstileToken}
               >
                 {isSubmitting ? t('Đang xử lý...') : t('Xác nhận đặt lịch')}
               </Button>

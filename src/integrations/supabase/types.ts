@@ -1550,6 +1550,50 @@ export type Database = {
           },
         ]
       }
+      push_subscriptions: {
+        Row: {
+          auth_key: string
+          created_at: string
+          endpoint: string
+          id: string
+          last_used_at: string
+          p256dh: string
+          tenant_id: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          auth_key: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          last_used_at?: string
+          p256dh: string
+          tenant_id?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          auth_key?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          last_used_at?: string
+          p256dh?: string
+          tenant_id?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rate_limits: {
         Row: {
           created_at: string
@@ -2066,6 +2110,7 @@ export type Database = {
           break_end: number | null
           break_start: number | null
           created_at: string
+          display_order: number
           email: string | null
           end_hour: number
           id: string
@@ -2081,6 +2126,7 @@ export type Database = {
           break_end?: number | null
           break_start?: number | null
           created_at?: string
+          display_order?: number
           email?: string | null
           end_hour?: number
           id?: string
@@ -2096,6 +2142,7 @@ export type Database = {
           break_end?: number | null
           break_start?: number | null
           created_at?: string
+          display_order?: number
           email?: string | null
           end_hour?: number
           id?: string

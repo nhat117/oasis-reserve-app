@@ -20,7 +20,7 @@ import { LogoUpload as LogoUploadComponent } from '@/components/LogoUpload';
 import { Textarea } from '@/components/ui/textarea';
 import { TipTapEditor } from '@/components/TipTapEditor';
 import { BookingStats } from '@/components/BookingStats';
-import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone, CreditCard, Square, RotateCcw, BookOpen, ScrollText, Eye, Clock, Check, Bot, FileSpreadsheet, Printer, History, Bug, ShoppingBag, DatabaseBackup, Upload, Gift, GripVertical } from 'lucide-react';
+import { Leaf, LogOut, Plus, Pencil, CalendarOff, X, Settings, DollarSign, Trash2, BarChart3, CalendarDays, Scissors, Users, AlertTriangle, Tag, Crown, UserCheck, Search, Download, FileText, Shield, Lock, Menu, ChevronLeft, ChevronRight, Store, Palette, Mail, Languages, Image, Info, Bell, MessageSquare, Loader2, Ellipsis, MoreHorizontal, Phone, CreditCard, Square, RotateCcw, BookOpen, ScrollText, Eye, Clock, Check, Bot, FileSpreadsheet, Printer, History, Bug, ShoppingBag, DatabaseBackup, Upload, Gift, GripVertical, ChevronUp, ChevronDown } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ALL_I18N_KEYS } from '@/lib/i18n-keys';
 import { Switch } from '@/components/ui/switch';
@@ -37,6 +37,7 @@ import { findShiftConflict, aggregateShiftHours, formatMinutesHHMM } from '@/lib
 import {
   WeeklyShiftBlock, DayBlocksMap, fitsInAnyBlock, groupBlocksByDay, flattenBlocksByDay,
 } from '@/lib/weeklyScheduleLogic';
+import { applyStaffDisplayOrder } from '@/lib/staffOrdering';
 import { computeSaleTotals, computeDiscountedSubtotal, computeTipAmount, computeBaseAmount, applyGiftCardToTotal, TipMethod } from '@/lib/checkoutMath';
 import { EMPLOYEE_TABS, EmployeeTab, filterVisibleTabs, resolveActiveTab } from '@/lib/employeeTabs';
 import { useToast } from '@/hooks/use-toast';
@@ -237,6 +238,11 @@ const AdminDashboard = () => {
   // and id of the row currently under the pointer (drop target highlight).
   const [draggedServiceId, setDraggedServiceId] = useState<string | null>(null);
   const [dragOverServiceId, setDragOverServiceId] = useState<string | null>(null);
+
+  // Same drag-to-reorder pair for the staff list — controls therapists.display_order,
+  // which is the order customers see in the booking page's staff picker.
+  const [draggedTherapistId, setDraggedTherapistId] = useState<string | null>(null);
+  const [dragOverTherapistId, setDragOverTherapistId] = useState<string | null>(null);
 
   // Therapist form state
   const [staffAvailabilitySubTab, setStaffAvailabilitySubTab] = useState<'staff' | 'shift'>('staff');
@@ -555,7 +561,10 @@ const AdminDashboard = () => {
   const { data: therapists } = useQuery({
     queryKey: ['admin-therapists'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('therapists').select('*, therapist_weekly_hours(*)').order('created_at');
+      // Same order the customer booking page uses — see staffOrdering.ts.
+      const { data, error } = await applyStaffDisplayOrder(
+        supabase.from('therapists').select('*, therapist_weekly_hours(*)')
+      );
       if (error) throw error;
       return data;
     },
@@ -2679,7 +2688,14 @@ const AdminDashboard = () => {
         const { error } = await supabase.from('therapists').update(payload).eq('id', editingTherapist.id);
         if (error) throw error;
       } else {
-        const { data, error } = await supabase.from('therapists').insert({ ...payload, tenant_id: TENANT_ID }).select('id').single();
+        // New staff go to the bottom of the list — the column default of 0
+        // would otherwise sort them above everyone the backfill numbered.
+        const nextDisplayOrder = Math.max(0, ...(therapists || []).map(th => th.display_order ?? 0)) + 1;
+        const { data, error } = await supabase
+          .from('therapists')
+          .insert({ ...payload, display_order: nextDisplayOrder, tenant_id: TENANT_ID })
+          .select('id')
+          .single();
         if (error) throw error;
         therapistId = data.id;
       }
@@ -2704,6 +2720,56 @@ const AdminDashboard = () => {
       toast({ title: editingTherapist ? t('Đã cập nhật thợ') : t('Đã thêm thợ') });
     },
   });
+
+  // Persists a full reordering of the staff list — takes the new top-to-bottom
+  // id order and writes 1-based display_order to every row, which is the order
+  // the customer booking page's staff picker reads. Only touches display_order,
+  // so nothing else about a staff member changes.
+  const reorderTherapists = useMutation({
+    mutationFn: async (orderedIds: string[]) => {
+      if (!isAdmin) throw new Error('Admin only');
+      await Promise.all(
+        orderedIds.map((id, i) => supabase.from('therapists').update({ display_order: i + 1 }).eq('id', id))
+      ).then(results => {
+        const failed = results.find(r => r.error);
+        if (failed?.error) throw failed.error;
+      });
+    },
+    onMutate: async (orderedIds: string[]) => {
+      await queryClient.cancelQueries({ queryKey: ['admin-therapists'] });
+      const previous = queryClient.getQueryData<any[]>(['admin-therapists']);
+      if (previous) {
+        // orderedIds only covers the visible (active) staff — hidden ones are
+        // never in the drag list, so keep them on the end rather than dropping them.
+        const byId = new Map(previous.map(th => [th.id, th]));
+        const reordered = orderedIds.map(id => byId.get(id)).filter(Boolean);
+        const untouched = previous.filter(th => !orderedIds.includes(th.id));
+        queryClient.setQueryData(['admin-therapists'], [...reordered, ...untouched]);
+      }
+      return { previous };
+    },
+    onError: (e: any, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(['admin-therapists'], context.previous);
+      toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' });
+    },
+    onSuccess: () => {
+      logActivity('reorder_therapists', 'Reordered staff');
+      queryClient.invalidateQueries({ queryKey: ['admin-therapists'] });
+      queryClient.invalidateQueries({ queryKey: ['therapists'] });
+    },
+  });
+
+  // Shared by the drag handlers (desktop) and the move up/down buttons (mobile,
+  // where HTML5 drag events don't fire on touch): moves `id` to `toIdx` within
+  // the given top-to-bottom list and persists the result.
+  const moveTherapistTo = (orderedIds: string[], id: string, toIdx: number) => {
+    const fromIdx = orderedIds.indexOf(id);
+    if (fromIdx === -1 || toIdx < 0 || toIdx >= orderedIds.length || fromIdx === toIdx) return;
+    const next = [...orderedIds];
+    next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, id);
+    reorderTherapists.mutate(next);
+  };
 
   const deleteTherapist = useMutation({
     mutationFn: async (id: string) => {
@@ -5326,16 +5392,23 @@ const AdminDashboard = () => {
                     }
                     return (
                     <>
-                      {hiddenCount > 0 && (
-                        <div className="flex justify-end">
-                          <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground" onClick={() => setHiddenStaffDialog(true)}>
+                      <div className="flex items-center justify-between gap-3">
+                        {isAdmin && visibleTherapists.length > 1 ? (
+                          <p className="text-[11px] text-muted-foreground/60">
+                            {t('Thứ tự này là thứ tự khách thấy khi đặt lịch. Kéo để sắp xếp lại.')}
+                          </p>
+                        ) : <span />}
+                        {hiddenCount > 0 && (
+                          <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground shrink-0" onClick={() => setHiddenStaffDialog(true)}>
                             {`${t('Nhân viên đã xoá')} (${hiddenCount})`}
                           </Button>
-                        </div>
-                      )}
-                      {/* Desktop rows */}
+                        )}
+                      </div>
+                      {/* Desktop rows — drag to reorder (admin only). Row order here is
+                          exactly what customers see in the booking page staff picker. */}
                       <div className="hidden sm:block rounded-xl border border-[#E5E5E5]/50 bg-white overflow-hidden">
-                        <div className="grid grid-cols-[1fr_1fr_auto_auto_44px] gap-4 px-5 py-3 text-[11px] font-medium tracking-wider uppercase text-muted-foreground/50 border-b border-[#E5E5E5]/30 bg-[#F5F5F5]/50">
+                        <div className="grid grid-cols-[28px_1fr_1fr_auto_auto_44px] gap-4 px-5 py-3 text-[11px] font-medium tracking-wider uppercase text-muted-foreground/50 border-b border-[#E5E5E5]/30 bg-[#F5F5F5]/50">
+                          <span>#</span>
                           <span>{t('Nhân viên')}</span>
                           <span>{t('Giờ làm việc')}</span>
                           <span className="w-24">{t('Trạng thái')}</span>
@@ -5343,11 +5416,38 @@ const AdminDashboard = () => {
                           <span></span>
                         </div>
                         <div className="divide-y divide-[#E5E5E5]/20">
-                          {visibleTherapists.map(th => (
+                          {visibleTherapists.map((th, idx) => (
                             <div
                               key={th.id}
-                              className="group grid grid-cols-[1fr_1fr_auto_auto_44px] gap-4 items-center px-5 py-4 rounded-xl transition-colors hover:bg-[#F5F5F5]/60"
+                              draggable={isAdmin}
+                              onDragStart={() => setDraggedTherapistId(th.id)}
+                              onDragOver={(e) => { e.preventDefault(); if (th.id !== draggedTherapistId) setDragOverTherapistId(th.id); }}
+                              onDragLeave={() => setDragOverTherapistId(prev => (prev === th.id ? null : prev))}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                setDragOverTherapistId(null);
+                                const draggedId = draggedTherapistId;
+                                setDraggedTherapistId(null);
+                                if (!draggedId || draggedId === th.id) return;
+                                moveTherapistTo(visibleTherapists.map(v => v.id), draggedId, idx);
+                              }}
+                              onDragEnd={() => { setDraggedTherapistId(null); setDragOverTherapistId(null); }}
+                              className={cn(
+                                "group grid grid-cols-[28px_1fr_1fr_auto_auto_44px] gap-4 items-center px-5 py-4 rounded-xl transition-colors hover:bg-[#F5F5F5]/60",
+                                draggedTherapistId === th.id && "opacity-40",
+                                dragOverTherapistId === th.id && "bg-[#006AFF]/5 outline outline-2 outline-[#006AFF]/30 -outline-offset-2",
+                              )}
                             >
+                              {/* Position — swaps to a drag handle on hover for admins */}
+                              <div className="text-[12px] tabular-nums text-muted-foreground/40 shrink-0">
+                                <span className={cn(isAdmin && "group-hover:hidden")}>{idx + 1}</span>
+                                {isAdmin && (
+                                  <span className="hidden group-hover:block cursor-grab active:cursor-grabbing" title={t('Kéo để sắp xếp')}>
+                                    <GripVertical className="h-4 w-4" />
+                                  </span>
+                                )}
+                              </div>
+
                               {/* Name + contact stacked */}
                               <div className="flex items-center gap-3.5 min-w-0">
                                 <div className="w-10 h-10 rounded-full bg-[#F0F0F0] flex items-center justify-center text-[13px] font-semibold text-[#737373] shrink-0">
@@ -5413,12 +5513,14 @@ const AdminDashboard = () => {
                         </div>
                       </div>
 
-                      {/* Mobile cards */}
+                      {/* Mobile cards — reordered with the up/down buttons below, since
+                          HTML5 drag events don't fire on touch devices. */}
                       <div className="sm:hidden space-y-2">
-                        {visibleTherapists.map(th => (
+                        {visibleTherapists.map((th, idx) => (
                           <div key={th.id} className="bg-white rounded-xl border border-[#E5E5E5]/40 p-4 transition-colors hover:border-[#CCCCCC]">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-3 min-w-0">
+                                <span className="text-[11px] tabular-nums text-muted-foreground/40 shrink-0 w-3">{idx + 1}</span>
                                 <div className="w-10 h-10 rounded-full bg-[#F0F0F0] flex items-center justify-center text-[13px] font-semibold text-[#737373] shrink-0">
                                   {(th.name || '?').charAt(0).toUpperCase()}
                                 </div>
@@ -5440,6 +5542,26 @@ const AdminDashboard = () => {
                                 {th.phone && <span className="text-[11px] text-muted-foreground/50 font-mono">{th.phone}</span>}
                               </div>
                               <div className="flex items-center gap-1">
+                                {isAdmin && (
+                                  <>
+                                    <Button
+                                      variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/50"
+                                      disabled={idx === 0 || reorderTherapists.isPending}
+                                      aria-label={t('Di chuyển lên')}
+                                      onClick={() => moveTherapistTo(visibleTherapists.map(v => v.id), th.id, idx - 1)}
+                                    >
+                                      <ChevronUp className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/50"
+                                      disabled={idx === visibleTherapists.length - 1 || reorderTherapists.isPending}
+                                      aria-label={t('Di chuyển xuống')}
+                                      onClick={() => moveTherapistTo(visibleTherapists.map(v => v.id), th.id, idx + 1)}
+                                    >
+                                      <ChevronDown className="h-4 w-4" />
+                                    </Button>
+                                  </>
+                                )}
                                 <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/50" onClick={() => openTherapistEdit(th)}>
                                   <Pencil className="h-3 w-3" />
                                 </Button>
