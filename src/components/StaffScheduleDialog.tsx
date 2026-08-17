@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { Plus, X, Loader2, Lock } from 'lucide-react';
 import { useI18n } from '@/hooks/useI18n';
-import { therapistColorFor } from '@/lib/therapistColors';
+import { normalizeTherapistColor, therapistColor, therapistColorFor } from '@/lib/therapistColors';
 import { cn } from '@/lib/utils';
 
 export type StaffScheduleMode = 'all-staff' | 'single-therapist' | 'shop-holidays';
@@ -102,7 +102,11 @@ export function StaffScheduleDialog({
     );
   };
 
-  const therapistColor = (id: string) => therapistColorFor(id, therapists);
+  // Prefer the colour joined onto the row — `therapists` here is the active
+  // staff list, so a day off belonging to a hidden staff member would otherwise
+  // fall back to their per-id colour instead of the one admins assigned.
+  const colorForUnavailability = (u: { therapist_id?: string | null; therapists?: { color?: string | null } | null }) =>
+    normalizeTherapistColor(u?.therapists?.color) ?? therapistColorFor(u?.therapist_id, therapists);
 
   const unavailEvents = unavailabilities
     .filter((u: any) => mode === 'shop-holidays' ? false : (effectiveTherapistId === 'all' || u.therapist_id === effectiveTherapistId))
@@ -111,7 +115,7 @@ export function StaffScheduleDialog({
       allDay: true,
       display: 'list-item',
       title: effectiveTherapistId === 'all' ? `${u.therapists?.name || t('Ngày nghỉ')} — ${t('Nghỉ')}` : (u.reason || t('Ngày nghỉ')),
-      color: effectiveTherapistId === 'all' ? therapistColor(u.therapist_id) : '#ef4444',
+      color: effectiveTherapistId === 'all' ? colorForUnavailability(u) : '#ef4444',
     }));
 
   const holidayEvents = mode === 'shop-holidays'
@@ -143,7 +147,14 @@ export function StaffScheduleDialog({
               <SelectTrigger className="w-full sm:w-[200px] h-9 text-sm rounded-full bg-[#F5F5F5] border-[#E5E5E5]/50"><SelectValue placeholder={t('Chọn thợ')} /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{t('Tất cả thợ')}</SelectItem>
-                {therapists.map(th => <SelectItem key={th.id} value={th.id}>{th.name}</SelectItem>)}
+                {therapists.map(th => (
+                  <SelectItem key={th.id} value={th.id}>
+                    <span className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: therapistColor(th) }} />
+                      {th.name}
+                    </span>
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             {staffFilter !== 'all' && (

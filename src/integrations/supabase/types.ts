@@ -2109,6 +2109,7 @@ export type Database = {
         Row: {
           break_end: number | null
           break_start: number | null
+          color: string | null
           created_at: string
           display_order: number
           email: string | null
@@ -2125,6 +2126,7 @@ export type Database = {
         Insert: {
           break_end?: number | null
           break_start?: number | null
+          color?: string | null
           created_at?: string
           display_order?: number
           email?: string | null
@@ -2141,6 +2143,7 @@ export type Database = {
         Update: {
           break_end?: number | null
           break_start?: number | null
+          color?: string | null
           created_at?: string
           display_order?: number
           email?: string | null

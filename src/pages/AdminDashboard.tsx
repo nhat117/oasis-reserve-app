@@ -38,6 +38,7 @@ import {
   WeeklyShiftBlock, DayBlocksMap, fitsInAnyBlock, groupBlocksByDay, flattenBlocksByDay,
 } from '@/lib/weeklyScheduleLogic';
 import { applyStaffDisplayOrder } from '@/lib/staffOrdering';
+import { THERAPIST_COLORS, therapistColor, nextAvailableTherapistColor, normalizeTherapistColor } from '@/lib/therapistColors';
 import { computeSaleTotals, computeDiscountedSubtotal, computeTipAmount, computeBaseAmount, applyGiftCardToTotal, TipMethod } from '@/lib/checkoutMath';
 import { EMPLOYEE_TABS, EmployeeTab, filterVisibleTabs, resolveActiveTab } from '@/lib/employeeTabs';
 import { useToast } from '@/hooks/use-toast';
@@ -262,6 +263,9 @@ const AdminDashboard = () => {
   const [therapistName, setTherapistName] = useState('');
   const [therapistPhone, setTherapistPhone] = useState('');
   const [therapistEmail, setTherapistEmail] = useState('');
+  // Calendar colour for this staff member — the one colour they get on every
+  // calendar (bookings, shifts, days off). See src/lib/therapistColors.ts.
+  const [therapistColorHex, setTherapistColorHex] = useState<string>(THERAPIST_COLORS[0]);
   const [therapistWeeklyHours, setTherapistWeeklyHours] = useState<DayBlocksMap>({ 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [] });
   // Which day's schedule the Edit Staff modal is currently showing in place
   // of the staff details form — null means the details form is showing.
@@ -531,7 +535,9 @@ const AdminDashboard = () => {
   const { data: bookings } = useQuery({
     queryKey: ['admin-bookings', filterTherapist],
     queryFn: async () => {
-      let query = supabase.from('bookings').select('*, services(name, duration_minutes, price), therapists(name), booking_services(service_id, service_name, duration_minutes, price)')
+      // therapists(color) travels with the row so the calendar colours a
+      // booking correctly even when its staff member is hidden or filtered out.
+      let query = supabase.from('bookings').select('*, services(name, duration_minutes, price), therapists(name, color), booking_services(service_id, service_name, duration_minutes, price)')
         .order('booking_date', { ascending: true }).order('start_time', { ascending: true });
       if (filterTherapist !== 'all') query = query.eq('therapist_id', filterTherapist);
       const { data, error } = await query;
@@ -1929,7 +1935,7 @@ const AdminDashboard = () => {
   const { data: unavailabilities } = useQuery({
     queryKey: ['admin-unavailability'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('therapist_unavailability').select('*, therapists(name)').order('unavailable_date', { ascending: true });
+      const { data, error } = await supabase.from('therapist_unavailability').select('*, therapists(name, color)').order('unavailable_date', { ascending: true });
       if (error) throw error;
       return data;
     },
@@ -1941,7 +1947,7 @@ const AdminDashboard = () => {
   const { data: unavailabilitiesInRange, isFetching: unavailRangeFetching } = useQuery({
     queryKey: ['admin-unavailability-range', visibleRangeStart, visibleRangeEnd],
     queryFn: async () => {
-      const { data, error } = await supabase.from('therapist_unavailability').select('*, therapists(name)')
+      const { data, error } = await supabase.from('therapist_unavailability').select('*, therapists(name, color)')
         .gte('unavailable_date', visibleRangeStart)
         .lt('unavailable_date', visibleRangeEnd)
         .order('unavailable_date', { ascending: true });
@@ -2095,7 +2101,7 @@ const AdminDashboard = () => {
   const { data: shiftsInRange } = useQuery({
     queryKey: ['therapist-shifts', visibleRangeStart, visibleRangeEnd],
     queryFn: async () => {
-      const { data, error } = await supabase.from('therapist_shifts').select('*, therapists(name)')
+      const { data, error } = await supabase.from('therapist_shifts').select('*, therapists(name, color)')
         .gte('shift_date', visibleRangeStart)
         .lt('shift_date', visibleRangeEnd)
         .order('shift_date', { ascending: true })
@@ -2671,6 +2677,9 @@ const AdminDashboard = () => {
         name: therapistName,
         phone: therapistPhone || null,
         email: therapistEmail || null,
+        // Falls back to the palette rather than writing an invalid hex, which
+        // the therapists_color_hex_check constraint would reject anyway.
+        color: normalizeTherapistColor(therapistColorHex) ?? THERAPIST_COLORS[0],
       } as any;
       const vErr = validateForm(therapistSchema, {
         name: payload.name,
@@ -2933,6 +2942,10 @@ const AdminDashboard = () => {
     setTherapistName(therapist?.name || '');
     setTherapistPhone(therapist?.phone || '');
     setTherapistEmail(therapist?.email || '');
+    // Existing staff show what they actually render as today (their stored
+    // colour, or the stable per-id fallback); new staff get the palette entry
+    // the team uses least so colours stay distinguishable.
+    setTherapistColorHex(therapist ? therapistColor(therapist) : nextAvailableTherapistColor(therapists || []));
     if (therapist) {
       const existing: WeeklyShiftBlock[] = therapist.therapist_weekly_hours || [];
       setTherapistWeeklyHours(groupBlocksByDay(existing));
@@ -3905,6 +3918,9 @@ const AdminDashboard = () => {
               <div className="rounded-xl border border-[#E5E5E5]/40 bg-white overflow-hidden">
                 <BookingCalendar
                   bookings={(bookings as any) || []}
+                  // Full list, not just active staff — a booking held by a
+                  // soft-deleted staff member must keep their colour.
+                  therapists={therapists || []}
                   holidays={(shopHolidays as any) || []}
                   openTime={openTime}
                   closeTime={closeTime}
@@ -5177,6 +5193,46 @@ const AdminDashboard = () => {
                               <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('SĐT')}</Label>
                               <Input value={therapistPhone} onChange={e => setTherapistPhone(e.target.value)} className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60 focus:border-[#737373] focus:ring-[#737373]/20" placeholder="04xx xxx xxx" />
                             </div>
+                            {/* Calendar colour — one colour per staff member, used
+                                on every calendar. Palette-only so white event text
+                                stays readable and the hex is always valid. */}
+                            <div>
+                              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('Màu trên lịch')}</Label>
+                              <div className="mt-1.5 flex flex-wrap gap-2">
+                                {THERAPIST_COLORS.map(color => {
+                                  const takenBy = (therapists || []).find(
+                                    th => th.id !== editingTherapist?.id && therapistColor(th) === color,
+                                  );
+                                  const selected = therapistColorHex === color;
+                                  return (
+                                    <button
+                                      key={color}
+                                      type="button"
+                                      aria-label={color}
+                                      aria-pressed={selected}
+                                      title={takenBy ? `${t('Đang dùng bởi')} ${takenBy.name}` : color}
+                                      onClick={() => setTherapistColorHex(color)}
+                                      className={cn(
+                                        'relative w-8 h-8 rounded-full transition-transform hover:scale-105',
+                                        selected
+                                          ? 'ring-2 ring-offset-2 ring-[#1B1B1B]'
+                                          : 'ring-1 ring-inset ring-black/10',
+                                      )}
+                                      style={{ backgroundColor: color }}
+                                    >
+                                      {/* Not blocked — two staff may share a colour if an admin wants it,
+                                          but flag it so it isn't accidental. */}
+                                      {takenBy && !selected && (
+                                        <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-white border border-[#E5E5E5]" />
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              <p className="text-[11px] text-muted-foreground/60 mt-2">
+                                {t('Màu này dùng cho tất cả lịch hẹn của nhân viên.')}
+                              </p>
+                            </div>
                           </div>
                           <div className="border-t border-[#E5E5E5]/30 pt-4">
                             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">{t('Giờ làm việc theo ngày')}</p>
@@ -5450,7 +5506,13 @@ const AdminDashboard = () => {
 
                               {/* Name + contact stacked */}
                               <div className="flex items-center gap-3.5 min-w-0">
-                                <div className="w-10 h-10 rounded-full bg-[#F0F0F0] flex items-center justify-center text-[13px] font-semibold text-[#737373] shrink-0">
+                                {/* Avatar carries the staff member's calendar colour so
+                                    the list doubles as the colour key. */}
+                                <div
+                                  className="w-10 h-10 rounded-full flex items-center justify-center text-[13px] font-semibold text-white shrink-0"
+                                  style={{ backgroundColor: therapistColor(th) }}
+                                  title={t('Màu trên lịch')}
+                                >
                                   {(th.name || '?').charAt(0).toUpperCase()}
                                 </div>
                                 <div className="min-w-0">
@@ -5521,7 +5583,10 @@ const AdminDashboard = () => {
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-3 min-w-0">
                                 <span className="text-[11px] tabular-nums text-muted-foreground/40 shrink-0 w-3">{idx + 1}</span>
-                                <div className="w-10 h-10 rounded-full bg-[#F0F0F0] flex items-center justify-center text-[13px] font-semibold text-[#737373] shrink-0">
+                                <div
+                                  className="w-10 h-10 rounded-full flex items-center justify-center text-[13px] font-semibold text-white shrink-0"
+                                  style={{ backgroundColor: therapistColor(th) }}
+                                >
                                   {(th.name || '?').charAt(0).toUpperCase()}
                                 </div>
                                 <div className="min-w-0">
@@ -5669,7 +5734,11 @@ const AdminDashboard = () => {
                 {(therapists || []).filter(th => !th.is_active).map(th => (
                   <div key={th.id} className="flex items-center justify-between gap-3 rounded-lg border border-[#E5E5E5]/60 p-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-9 h-9 rounded-full bg-[#F0F0F0] flex items-center justify-center text-[12px] font-semibold text-[#737373] shrink-0">
+                      {/* Hidden staff keep their colour — their past bookings still render with it. */}
+                      <div
+                        className="w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-semibold text-white shrink-0 opacity-60"
+                        style={{ backgroundColor: therapistColor(th) }}
+                      >
                         {(th.name || '?').charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0">

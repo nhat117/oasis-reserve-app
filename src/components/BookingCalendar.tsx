@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/hooks/useI18n';
+import { buildTherapistColorMap, fallbackTherapistColor, normalizeTherapistColor } from '@/lib/therapistColors';
 
 export interface Booking {
   id: string;
@@ -26,7 +27,7 @@ export interface Booking {
   service_id: string;
   therapist_id: string;
   services?: { name: string } | null;
-  therapists?: { name: string } | null;
+  therapists?: { name: string; color?: string | null } | null;
   booking_services?: Array<{ service_id: string | null; service_name: string; duration_minutes: number; price: number }> | null;
   // Payment fields (available after migration)
   payment_status?: string | null;
@@ -48,8 +49,16 @@ export interface ShopHoliday {
   reason?: string | null;
 }
 
+export interface CalendarTherapist {
+  id: string;
+  name: string;
+  color?: string | null;
+}
+
 interface BookingCalendarProps {
   bookings: Booking[];
+  /** Staff records carrying the assigned colours; also fixes the legend order. */
+  therapists?: CalendarTherapist[];
   holidays?: ShopHoliday[];
   openTime?: string;
   closeTime?: string;
@@ -64,12 +73,11 @@ interface BookingCalendarProps {
   onEdit?: (booking: Booking) => void;
 }
 
-const THERAPIST_COLORS = [
-  '#3b82f6', '#f43f5e', '#10b981', '#f59e0b',
-  '#8b5cf6', '#06b6d4', '#ec4899', '#f97316',
-];
+// Cancelled bookings drop their staff colour so they read as inactive.
+const CANCELLED_BG = '#9ca3af';
+const CANCELLED_BORDER = '#6b7280';
 
-export function BookingCalendar({ bookings, holidays = [], openTime = '09:00', closeTime = '19:00', openDays, onCancel, onDelete, onRefund, onMarkCompleted, onMarkNoShow, onReschedule, onDateSelect, onEdit }: BookingCalendarProps) {
+export function BookingCalendar({ bookings, therapists = [], holidays = [], openTime = '09:00', closeTime = '19:00', openDays, onCancel, onDelete, onRefund, onMarkCompleted, onMarkNoShow, onReschedule, onDateSelect, onEdit }: BookingCalendarProps) {
   const { t, lang } = useI18n();
   const calendarRef = useRef<FullCalendar>(null);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
@@ -85,33 +93,42 @@ export function BookingCalendar({ bookings, holidays = [], openTime = '09:00', c
   const statusVariant = (status: string): 'default' | 'destructive' | 'outline' | 'secondary' =>
     status === 'confirmed' ? 'default' : status === 'cancelled' ? 'destructive' : status === 'no_show' ? 'outline' : 'secondary';
 
-  // Build therapist color map
-  const therapistColorMap = useMemo(() => {
-    const ids = [...new Set(bookings.map(b => b.therapist_id))];
-    const map: Record<string, string> = {};
-    ids.forEach((id, i) => { map[id] = THERAPIST_COLORS[i % THERAPIST_COLORS.length]; });
-    return map;
-  }, [bookings]);
+  // Colours come from the staff records themselves, not from a booking's
+  // position in this list — otherwise the same staff member changes colour
+  // whenever the loaded date range or filter changes.
+  const therapistColorMap = useMemo(() => buildTherapistColorMap(therapists), [therapists]);
+
+  // Bookings can reference staff who are hidden, soft-deleted, or simply not in
+  // the list this view was given, so prefer the colour joined onto the booking
+  // row itself and fall back to a stable per-id colour — never to index 0,
+  // which used to make unknown staff impersonate the first therapist.
+  const colorForBooking = useCallback(
+    (b: Booking) =>
+      normalizeTherapistColor(b.therapists?.color)
+      ?? therapistColorMap[b.therapist_id]
+      ?? fallbackTherapistColor(b.therapist_id),
+    [therapistColorMap],
+  );
 
   // Convert bookings to FullCalendar events
   const bookingEvents = useMemo(() => {
     return bookings.map(b => {
-      const color = therapistColorMap[b.therapist_id] || THERAPIST_COLORS[0];
+      const color = colorForBooking(b);
       const isCancelled = b.status === 'cancelled';
       return {
         id: b.id,
         title: `${b.customer_name} · ${serviceLabel(b)}`,
         start: `${b.booking_date}T${b.start_time}`,
         end: `${b.booking_date}T${b.end_time}`,
-        backgroundColor: isCancelled ? '#9ca3af' : color,
-        borderColor: isCancelled ? '#6b7280' : color,
+        backgroundColor: isCancelled ? CANCELLED_BG : color,
+        borderColor: isCancelled ? CANCELLED_BORDER : color,
         textColor: '#ffffff',
         editable: !isCancelled,
         classNames: isCancelled ? ['opacity-50', 'line-through'] : [],
         extendedProps: { booking: b },
       };
     });
-  }, [bookings, therapistColorMap]);
+  }, [bookings, colorForBooking]);
 
   // Shop closed / early-close days shown as all-day markers
   const holidayEvents = useMemo(() => {
@@ -212,22 +229,37 @@ export function BookingCalendar({ bookings, holidays = [], openTime = '09:00', c
     onDateSelect(format(dayDrawerDate, 'yyyy-MM-dd'));
   };
 
-  // Legend
-  const uniqueTherapists = useMemo(() => {
-    return [...new Map(
-      bookings.filter(b => b.status !== 'cancelled').map(b => [b.therapist_id, b])
-    ).values()];
-  }, [bookings]);
+  // Legend — every staff member with a booking in the loaded range, listed in
+  // the staff list's own order (display_order) so the legend doesn't reshuffle
+  // as bookings load. Staff missing from `therapists` (hidden/deleted) are kept
+  // at the end using the name snapshotted on the booking.
+  const legendEntries = useMemo(() => {
+    // Resolved through colorForBooking so a legend swatch can never disagree
+    // with the events it is explaining.
+    const byId = new Map<string, { id: string; name: string; color: string }>();
+    for (const b of bookings) {
+      if (b.status === 'cancelled' || byId.has(b.therapist_id)) continue;
+      byId.set(b.therapist_id, {
+        id: b.therapist_id,
+        name: b.therapists?.name || 'N/A',
+        color: colorForBooking(b),
+      });
+    }
+    const ordered = therapists.map(th => byId.get(th.id)).filter((e): e is NonNullable<typeof e> => !!e);
+    const orderedIds = new Set(ordered.map(e => e.id));
+    const rest = [...byId.values()].filter(e => !orderedIds.has(e.id));
+    return [...ordered, ...rest];
+  }, [bookings, therapists, colorForBooking]);
 
   return (
     <div>
       {/* Legend */}
-      {uniqueTherapists.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-4">
-          {uniqueTherapists.map(b => (
-            <div key={b.therapist_id} className="flex items-center gap-1.5 text-xs">
-              <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: therapistColorMap[b.therapist_id] }} />
-              <span>{b.therapists?.name || 'N/A'}</span>
+      {legendEntries.length > 0 && (
+        <div className="flex flex-wrap gap-x-3 gap-y-2 mb-4">
+          {legendEntries.map(entry => (
+            <div key={entry.id} className="flex items-center gap-1.5 text-xs">
+              <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: entry.color }} />
+              <span>{entry.name}</span>
             </div>
           ))}
         </div>
@@ -288,7 +320,7 @@ export function BookingCalendar({ bookings, holidays = [], openTime = '09:00', c
                 </Badge>
               </div>
               <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: therapistColorMap[selectedBooking.therapist_id] }} />
+                <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: colorForBooking(selectedBooking) }} />
                 <span className="text-sm font-medium">{selectedBooking.therapists?.name}</span>
               </div>
               <div className="bg-muted rounded-lg p-3 space-y-1.5 text-sm">
@@ -397,7 +429,10 @@ export function BookingCalendar({ bookings, holidays = [], openTime = '09:00', c
                     b.status === 'cancelled' && 'opacity-60',
                   )}
                 >
-                  <span className="w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0" style={{ backgroundColor: therapistColorMap[b.therapist_id] }} />
+                  <span
+                    className="w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0"
+                    style={{ backgroundColor: b.status === 'cancelled' ? CANCELLED_BG : colorForBooking(b) }}
+                  />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-semibold">{b.start_time?.slice(0, 5)} – {b.end_time?.slice(0, 5)}</span>

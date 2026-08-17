@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Loader2, Trash2 } from 'lucide-react';
 import { useI18n } from '@/hooks/useI18n';
-import { therapistColorFor } from '@/lib/therapistColors';
+import { therapistColor, therapistColorFor } from '@/lib/therapistColors';
 
 export interface ShiftRow {
   id: string;
@@ -40,6 +40,7 @@ interface ShopHolidayRow {
 interface Therapist {
   id: string;
   name: string;
+  color?: string | null;
 }
 
 interface MutationLike<TVars> {
@@ -90,6 +91,8 @@ export function ShiftCalendar({
   const [formBreakEnd, setFormBreakEnd] = useState('12:30');
   const [formNotes, setFormNotes] = useState('');
 
+  // Same colour this staff member gets on the bookings calendar and day-off
+  // calendar — resolved from their record, not their row position.
   const accent = selectedTherapistId ? therapistColorFor(selectedTherapistId, therapists) : '#006AFF';
 
   const ownShifts = useMemo(
@@ -259,7 +262,14 @@ export function ShiftCalendar({
           <SelectValue placeholder={t('Chọn thợ')} />
         </SelectTrigger>
         <SelectContent>
-          {therapists.map(th => <SelectItem key={th.id} value={th.id}>{th.name}</SelectItem>)}
+          {therapists.map(th => (
+            <SelectItem key={th.id} value={th.id}>
+              <span className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: therapistColor(th) }} />
+                {th.name}
+              </span>
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
 
