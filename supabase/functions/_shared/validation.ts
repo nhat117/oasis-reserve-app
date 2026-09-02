@@ -42,6 +42,33 @@ export const deleteAllSchema = z.object({
   password: z.string().min(1, 'Password required'),
 });
 
+const HTML_TAG_REGEX = /<[^>]*>/g;
+const noHtmlTags = (val: string) => !HTML_TAG_REGEX.test(val);
+const PHONE_REGEX = /^[\d\s\-+().]{7,20}$/;
+
+export const createBookingSchema = z.object({
+  service_id: z.string().uuid('Invalid service'),
+  therapist_id: z.string().uuid('Invalid therapist').optional().nullable(),
+  customer_name: z.string().trim().min(2, 'Name must be at least 2 characters').max(100, 'Name must be under 100 characters').refine(noHtmlTags, 'Name contains invalid characters'),
+  customer_phone: z.string().trim().min(7, 'Phone number is too short').regex(PHONE_REGEX, 'Please enter a valid phone number'),
+  customer_email: z.string().trim().min(1, 'Email is required').email('Please enter a valid email address'),
+  booking_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date'),
+  start_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Invalid time'),
+  end_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Invalid time'),
+  notes: z.string().max(1000).optional().nullable(),
+  tenant_id: z.string().uuid('Invalid tenant').optional().nullable(),
+  turnstile_token: z.string().min(1, 'Verification token required'),
+  // Optional: when the caller supports multi-service bookings (add-ons),
+  // one row per service is written to booking_services.
+  services: z.array(z.object({
+    id: z.string().uuid(),
+    name: z.string().max(200),
+    duration_minutes: z.number().int().positive(),
+    price: z.number().nonnegative(),
+  })).max(20).optional(),
+  combined_service_name: z.string().max(500).optional(),
+});
+
 export const createAdminSchema = z.object({
   email: z.string().email('Invalid email'),
   password: z.string().min(6, 'Password must be at least 6 characters'),

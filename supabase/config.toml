@@ -57,6 +57,9 @@ verify_jwt = true
 [functions.create-square-payment]
 verify_jwt = false
 
+[functions.create-booking]
+verify_jwt = false
+
 [functions.create-stripe-refund]
 verify_jwt = true
 
