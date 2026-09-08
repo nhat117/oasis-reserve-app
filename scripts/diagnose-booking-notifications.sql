@@ -30,6 +30,16 @@ WHERE name = 'email_queue_service_role_key';
 -- No row => the trigger sends "Bearer " with nothing after it and the function
 -- rejects the call. Recreate with:
 --   SELECT vault.create_secret('<SERVICE_ROLE_KEY>', 'email_queue_service_role_key');
+--
+-- The value has to be byte-identical to whatever SUPABASE_SERVICE_ROLE_KEY holds
+-- *inside the functions*, because send-booking-reminders and send-sms-reminder
+-- compare the bearer token to it as a string. That is not necessarily the legacy
+-- service_role JWT: this project was migrated to the new API key format, so the
+-- env var now holds the "default" secret key (sb_secret_…) while the vault still
+-- held the legacy eyJ… JWT — which is why every cron call 401'd for weeks
+-- (fixed 2026-09-09). To check without printing either key, compare hashes:
+--   Dashboard hash:  GET /v1/projects/<ref>/secrets → sha256 of each value
+--   Stored key:      SELECT md5(decrypted_secret) FROM vault.decrypted_secrets …
 
 -- 3. What did the function actually answer? This is the evidence the trigger
 --    discards. 401 = bad/rotated vault key, 404 = function not deployed,

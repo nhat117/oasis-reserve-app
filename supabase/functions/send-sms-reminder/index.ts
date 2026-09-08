@@ -27,6 +27,13 @@ Deno.serve(async (req) => {
     });
     const { data: { user: caller } } = await callerClient.auth.getUser();
     if (!caller) {
+      // The pg_cron job authenticates with the email_queue_service_role_key vault
+      // secret and its response is discarded, so a key that no longer matches this
+      // function's env shows up as silently missing reminders. Log enough to tell
+      // "wrong key" apart from "not a user" without printing either key.
+      console.error(
+        `[send-sms-reminder] Unauthorized: bearer prefix ${authHeader.slice(7, 19)}… does not match SUPABASE_SERVICE_ROLE_KEY (${supabaseKey.slice(0, 12)}…) and is not a valid user token`,
+      );
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
