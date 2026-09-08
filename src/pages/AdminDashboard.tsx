@@ -95,7 +95,13 @@ const AdminDashboard = () => {
   const { t, lang } = useI18n();
   const canAccessSettings = isAdmin;
   const requireAdmin = () => {
-    if (!isAdmin) throw new Error('Admin only');
+    if (!isAdmin) throw new Error(t('Chỉ quản lý mới sửa được mục này.'));
+  };
+  // Every mutation needs this: without an onError a failed write is completely
+  // silent — the dialog just sits there and the change appears to be ignored,
+  // which is indistinguishable from a broken button to whoever is using it.
+  const mutationErrorToast = (e: Error) => {
+    toast({ title: t('Lỗi'), description: e?.message || t('Không lưu được, vui lòng thử lại.'), variant: 'destructive' });
   };
   // app_settings is keyed by (tenant_id, key) — always upsert through this
   // helper so writes never collide with another tenant's row for the same key.
@@ -965,6 +971,7 @@ const AdminDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ['admin-sales'] });
       toast({ title: t('Đã xoá thanh toán') });
     },
+    onError: mutationErrorToast,
   });
 
   const refundSale = useMutation({
@@ -1010,6 +1017,7 @@ const AdminDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ['employee-visible-tabs'] });
       toast({ title: t('Đã lưu quyền nhân viên') });
     },
+    onError: mutationErrorToast,
   });
 
   // Random therapist setting
@@ -1039,6 +1047,7 @@ const AdminDashboard = () => {
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['random-therapist-setting'] }); toast({ title: t('Đã cập nhật cài đặt') }); },
+    onError: mutationErrorToast,
   });
 
   // Twilio SMS setting
@@ -1061,6 +1070,7 @@ const AdminDashboard = () => {
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['twilio-number-setting'] }); toast({ title: t('Đã lưu số SMS') }); },
+    onError: mutationErrorToast,
   });
 
   // Twilio credentials
@@ -1100,6 +1110,7 @@ const AdminDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ['twilio-credentials'] });
       toast({ title: t('Đã lưu cấu hình Twilio') });
     },
+    onError: mutationErrorToast,
   });
 
   // Stripe credentials
@@ -1143,6 +1154,7 @@ const AdminDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ['stripe-credentials'] });
       toast({ title: t('Đã lưu cấu hình Stripe') });
     },
+    onError: mutationErrorToast,
   });
 
   // Square credentials
@@ -1192,6 +1204,7 @@ const AdminDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ['square-credentials'] });
       toast({ title: t('Đã lưu cấu hình Square') });
     },
+    onError: mutationErrorToast,
   });
 
   // WhatsApp setting
@@ -1211,6 +1224,7 @@ const AdminDashboard = () => {
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['whatsapp-setting'] }); toast({ title: t('Đã cập nhật WhatsApp') }); },
+    onError: mutationErrorToast,
   });
 
   // Currency settings
@@ -1282,6 +1296,7 @@ const AdminDashboard = () => {
       }
     },
     onSuccess: () => { logActivity('update_shop_info', 'Updated shop contact info'); queryClient.invalidateQueries({ queryKey: ['shop-info-settings'] }); queryClient.invalidateQueries({ queryKey: ['spa-name-setting'] }); toast({ title: t('Đã lưu thông tin tiệm') }); },
+    onError: mutationErrorToast,
   });
 
   // Resend email settings
@@ -1343,6 +1358,7 @@ const AdminDashboard = () => {
       if (error) throw error;
     },
     onSuccess: () => { logActivity('update_card_surcharge', `Surcharge: ${cardSurchargePercent}%`); queryClient.invalidateQueries({ queryKey: ['card-surcharge-setting'] }); toast({ title: t('Đã lưu phụ phí thẻ') }); },
+    onError: mutationErrorToast,
   });
 
   // Tax rate setting
@@ -1395,6 +1411,7 @@ const AdminDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ['tax-type-setting'] });
       toast({ title: t('Đã lưu thuế') });
     },
+    onError: mutationErrorToast,
   });
 
   // OpenAI settings
@@ -1439,6 +1456,7 @@ const AdminDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ['ai-config'] });
       toast({ title: aiReplyConfig?.ai_enabled ? t('AI Reply disabled') : t('AI Reply enabled') });
     },
+    onError: mutationErrorToast,
   });
 
   // AI License key — gates AI Chat & Inbox features
@@ -1502,6 +1520,7 @@ const AdminDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ['inbox-enabled'] });
       toast({ title: inboxEnabled ? t('Đã ẩn hộp thư') : t('Đã hiện hộp thư') });
     },
+    onError: mutationErrorToast,
   });
 
   const saveOpenaiSettings = useMutation({
@@ -1666,6 +1685,7 @@ const AdminDashboard = () => {
   const deleteTier = useMutation({
     mutationFn: async (id: string) => { if (!isAdmin) throw new Error('Admin only'); const { error } = await supabase.from('membership_tiers').delete().eq('id', id); if (error) throw error; },
     onSuccess: (_d, id) => { logActivity('delete_membership_tier', `Tier ID: ${id}`); queryClient.invalidateQueries({ queryKey: ['membership-tiers'] }); toast({ title: t('Đã xoá') }); },
+    onError: mutationErrorToast,
   });
 
   const toggleTierActive = useMutation({
@@ -1675,6 +1695,7 @@ const AdminDashboard = () => {
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['membership-tiers'] }); },
+    onError: mutationErrorToast,
   });
 
   // Membership & discount enabled toggles
@@ -1703,6 +1724,7 @@ const AdminDashboard = () => {
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['membership-enabled'] }); toast({ title: t('Đã cập nhật') }); },
+    onError: mutationErrorToast,
   });
 
   // Receipt printing
@@ -1722,6 +1744,7 @@ const AdminDashboard = () => {
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['print-receipt-enabled'] }); toast({ title: t('Đã cập nhật') }); },
+    onError: mutationErrorToast,
   });
 
   const printReceipt = (sale: { amount: number; customerName: string; customerPhone: string; serviceName: string; addOns: { name: string; price: number }[]; products?: { name: string; price: number }[]; paymentMethod: string; discount?: number; surcharge?: number; tax?: number; taxRatePercent?: number; taxLabel?: string; tip?: number; coupon?: string; giftCardCode?: string; giftCardApplied?: number; giftCardRemainingBalance?: number; date: string }) => {
@@ -1926,6 +1949,7 @@ const AdminDashboard = () => {
       }
     },
     onSuccess: () => { logActivity('update_currency', 'Updated currency settings'); queryClient.invalidateQueries({ queryKey: ['currency-settings'] }); toast({ title: t('Đã lưu cài đặt tiền tệ') }); },
+    onError: mutationErrorToast,
   });
 
   // Therapist unavailability — unscoped fetch kept as-is because booking slot
@@ -1970,6 +1994,7 @@ const AdminDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ['admin-unavailability-range'] });
       toast({ title: t('Đã thêm ngày nghỉ') });
     },
+    onError: mutationErrorToast,
   });
 
   const removeUnavailability = useMutation({
@@ -1984,6 +2009,7 @@ const AdminDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ['admin-unavailability-range'] });
       toast({ title: t('Đã xoá ngày nghỉ') });
     },
+    onError: mutationErrorToast,
   });
 
   // therapist_unavailability is one row per day (unique per therapist+date), so a
@@ -2204,6 +2230,7 @@ const AdminDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ['therapist-shifts-for-calendar'] });
       toast({ title: t('Đã xoá ca làm') });
     },
+    onError: mutationErrorToast,
   });
 
   // Admin accounts list
@@ -2256,6 +2283,7 @@ const AdminDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ['shop-holidays-range'] });
       toast({ title: t('Đã thêm ngày nghỉ tiệm') });
     },
+    onError: mutationErrorToast,
   });
 
   const removeHoliday = useMutation({
@@ -2269,6 +2297,7 @@ const AdminDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ['shop-holidays-range'] });
       toast({ title: t('Đã xoá ngày nghỉ tiệm') });
     },
+    onError: mutationErrorToast,
   });
 
   const cancelBooking = useMutation({
@@ -2345,6 +2374,7 @@ const AdminDashboard = () => {
       if (error) throw error;
     },
     onSuccess: () => { logActivity('reschedule_booking', 'Rescheduled a booking'); queryClient.invalidateQueries({ queryKey: ['admin-bookings'] }); toast({ title: t('Đã dời lịch hẹn') }); },
+    onError: mutationErrorToast,
   });
 
   // Create booking from admin
@@ -2569,6 +2599,7 @@ const AdminDashboard = () => {
       setServiceImagePreview(null);
       toast({ title: editingService ? t('Đã cập nhật dịch vụ') : t('Đã thêm dịch vụ') });
     },
+    onError: mutationErrorToast,
   });
 
   const deleteService = useMutation({
@@ -2654,6 +2685,7 @@ const AdminDashboard = () => {
       setProductImagePreview(null);
       toast({ title: editingProduct ? t('Đã cập nhật sản phẩm') : t('Đã thêm sản phẩm') });
     },
+    onError: mutationErrorToast,
   });
 
   const deleteProduct = useMutation({
@@ -2712,6 +2744,15 @@ const AdminDashboard = () => {
       // Weekly hours are fully replaced each save — simpler than diffing
       // per-day block lists, since this dialog always holds the full
       // 7-day map already.
+      // PostgREST gives us no transaction across the delete and the insert, and
+      // a staff member with zero rows reads as "off every day" everywhere. Keep
+      // the old shifts in hand so a failed insert doesn't wipe the roster.
+      const previousRows = ((editingTherapist?.therapist_weekly_hours || []) as WeeklyShiftBlock[]).map(r => ({
+        day_of_week: r.day_of_week,
+        is_working: true,
+        start_minute: r.start_minute,
+        end_minute: r.end_minute,
+      }));
       const { error: delError } = await supabase.from('therapist_weekly_hours').delete().eq('therapist_id', therapistId);
       if (delError) throw delError;
       const flatRows = flattenBlocksByDay(therapistWeeklyHours);
@@ -2719,15 +2760,26 @@ const AdminDashboard = () => {
         const { error: hoursError } = await supabase.from('therapist_weekly_hours').insert(
           flatRows.map(row => ({ ...row, therapist_id: therapistId, tenant_id: TENANT_ID }))
         );
-        if (hoursError) throw hoursError;
+        if (hoursError) {
+          if (previousRows.length > 0) {
+            await supabase.from('therapist_weekly_hours').insert(
+              previousRows.map(row => ({ ...row, therapist_id: therapistId, tenant_id: TENANT_ID }))
+            );
+          }
+          throw hoursError;
+        }
       }
     },
     onSuccess: () => {
       logActivity(editingTherapist ? 'update_therapist' : 'create_therapist', `Therapist: ${therapistName}`);
       queryClient.invalidateQueries({ queryKey: ['admin-therapists'] });
+      // The customer booking page reads this list too — without this the staff
+      // member's new hours only show up in the dashboard until a hard refresh.
+      queryClient.invalidateQueries({ queryKey: ['therapists'] });
       setTherapistDialog(false);
       toast({ title: editingTherapist ? t('Đã cập nhật thợ') : t('Đã thêm thợ') });
     },
+    onError: mutationErrorToast,
   });
 
   // Persists a full reordering of the staff list — takes the new top-to-bottom
@@ -3825,9 +3877,20 @@ const AdminDashboard = () => {
                               <SelectTrigger className="mt-1.5 bg-[#F5F5F5] border-[#E5E5E5]/60"><SelectValue placeholder={t('Chọn thợ')} /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="random">{t('Tự động (ai rảnh)')}</SelectItem>
-                                {activeTherapists.map(t => (
-                                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                                ))}
+                                {activeTherapists.map(th => {
+                                  // Staff stay selectable — an admin may want to book
+                                  // someone in off-roster — but say when their weekly
+                                  // hours don't cover this weekday, otherwise the time
+                                  // list just comes back empty with no explanation.
+                                  const rostered = !bookingDate
+                                    || getTherapistDayBlocks(th, bookingDate.getDay() === 0 ? 7 : bookingDate.getDay()).length > 0;
+                                  return (
+                                    <SelectItem key={th.id} value={th.id}>
+                                      {th.name}
+                                      {!rostered && <span className="text-muted-foreground/60"> — {t('nghỉ ngày này')}</span>}
+                                    </SelectItem>
+                                  );
+                                })}
                               </SelectContent>
                             </Select>
                           </div>
@@ -5242,7 +5305,13 @@ const AdminDashboard = () => {
                               dayLabels={DAYS_OF_WEEK.map(d => d.label)}
                             />
                           </div>
-                          <Button className="w-full h-10 bg-[#006AFF] hover:bg-[#1B1B1B] text-white" onClick={() => saveTherapist.mutate()} disabled={!therapistName.trim() || saveTherapist.isPending}>
+                          {/* Editing an existing staff member is admin-only (saveTherapist
+                              calls requireAdmin). Say so up front instead of letting the
+                              Update button look broken. */}
+                          {editingTherapist && !isAdmin && (
+                            <p className="text-[11px] text-destructive">{t('Chỉ quản lý mới sửa được mục này.')}</p>
+                          )}
+                          <Button className="w-full h-10 bg-[#006AFF] hover:bg-[#1B1B1B] text-white" onClick={() => saveTherapist.mutate()} disabled={!therapistName.trim() || saveTherapist.isPending || (!!editingTherapist && !isAdmin)}>
                             {saveTherapist.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : (editingTherapist ? t('Cập nhật') : t('Thêm mới'))}
                           </Button>
                         </div>

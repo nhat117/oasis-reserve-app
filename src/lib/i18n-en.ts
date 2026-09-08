@@ -75,6 +75,7 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Không có khung giờ trống. Vui lòng chọn ngày hoặc thợ khác.": "No available time slots. Please choose another date or staff.",
   "Không còn thợ trống. Vui lòng chọn giờ khác.": "No staff available. Please choose another time.",
   "Thợ nghỉ ngày này": "Staff off this day",
+  "nghỉ ngày này": "off this day",
   "Không có lý do": "No reason given",
   "Xem lịch để thêm lịch hẹn": "View calendar to add appointments",
   "Không thể đặt lịch. Vui lòng thử lại.": "Could not book. Please try again.",
@@ -647,6 +648,8 @@ export const EN_TRANSLATIONS: Record<string, string> = {
 
   // Misc
   "Lỗi": "Error",
+  "Không lưu được, vui lòng thử lại.": "Could not save — please try again.",
+  "Chỉ quản lý mới sửa được mục này.": "Only an admin can change this.",
   "Tạo": "Create",
   "Tải lên": "Upload",
   "Đổi file": "Change File",

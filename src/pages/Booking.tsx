@@ -118,6 +118,15 @@ const Booking = () => {
 
   const formatMinutesHHMM = (mins: number) => `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
 
+  /** 1=Mon..7=Sun for a date, matching therapist_weekly_hours.day_of_week. */
+  const dayOfWeekFor = (date: Date) => (date.getDay() === 0 ? 7 : date.getDay());
+
+  /** Does this staff member work at all on `date` (has weekly blocks and isn't on a day off)? */
+  const worksOnDate = useCallback((therapist: { id: string; therapist_weekly_hours?: WeeklyShiftBlock[] | null }, date: Date, offToday: string[] = []) => {
+    if (offToday.includes(therapist.id)) return false;
+    return getTherapistDayBlocks(therapist, dayOfWeekFor(date)).length > 0;
+  }, []);
+
   const { data: randomEnabled } = useQuery({
     queryKey: ['random-therapist-setting'],
     queryFn: async () => {
@@ -693,7 +702,17 @@ const Booking = () => {
                   <Calendar
                     mode="single"
                     selected={selectedDate}
-                    onSelect={(d) => { setSelectedDate(d); setSelectedTime(''); }}
+                    onSelect={(d) => {
+                      setSelectedDate(d);
+                      setSelectedTime('');
+                      // A staff member picked for the previous date may be off on
+                      // the new one — drop the stale choice instead of leaving a
+                      // name selected that the list below no longer offers.
+                      if (d && selectedTherapist !== 'any') {
+                        const picked = therapists?.find(th => th.id === selectedTherapist);
+                        if (!picked || !worksOnDate(picked, d, unavailability || [])) setSelectedTherapist('any');
+                      }
+                    }}
                     disabled={(date) => {
                       if (isBefore(startOfDay(date), startOfDay(new Date()))) return true;
                       const dateStr = format(date, 'yyyy-MM-dd');
@@ -735,12 +754,12 @@ const Booking = () => {
                     {randomEnabled !== false && (
                       <SelectItem value="any">{t('Tự động chọn (bất kỳ thợ trống)')}</SelectItem>
                     )}
-                    {therapists?.filter(t => !unavailability?.includes(t.id)).map(t => {
-                      const dayOfWeek = selectedDate.getDay() === 0 ? 7 : selectedDate.getDay();
-                      const dayBlocks = [...getTherapistDayBlocks(t, dayOfWeek)].sort((a, b) => a.start_minute - b.start_minute);
-                      const blocksLabel = dayBlocks.length
-                        ? ` (${dayBlocks.map(b => `${formatMinutesHHMM(b.start_minute)}–${formatMinutesHHMM(b.end_minute)}`).join(', ')})`
-                        : '';
+                    {/* Only staff who actually work the chosen date — someone
+                        rostered off that day has no bookable slot, so offering
+                        them here only leads to an empty time list. */}
+                    {therapists?.filter(t => worksOnDate(t, selectedDate, unavailability || [])).map(t => {
+                      const dayBlocks = [...getTherapistDayBlocks(t, dayOfWeekFor(selectedDate))].sort((a, b) => a.start_minute - b.start_minute);
+                      const blocksLabel = ` (${dayBlocks.map(b => `${formatMinutesHHMM(b.start_minute)}–${formatMinutesHHMM(b.end_minute)}`).join(', ')})`;
                       return (
                         <SelectItem key={t.id} value={t.id}>
                           {t.name}{blocksLabel}

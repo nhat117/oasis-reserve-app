@@ -86,8 +86,17 @@ Deno.serve(async (req) => {
       const notifyEmail = s["notify_email"];
       const resendApiKey = s["resend_api_key"];
 
-      if (!notifyEmail) return { error: "Notification email not configured" };
-      if (!resendApiKey) return { error: "Resend API key not configured. Go to Settings > Email." };
+      // Every `return { error }` below is also logged: this function is invoked
+      // by the bookings AFTER INSERT trigger, which discards the response body,
+      // so the function log is the only place a failed owner email is visible.
+      if (!notifyEmail) {
+        console.error("[notify-new-booking] Owner email skipped: notify_email is not set for tenant", tenantId);
+        return { error: "Notification email not configured" };
+      }
+      if (!resendApiKey) {
+        console.error("[notify-new-booking] Owner email skipped: resend_api_key is not set for tenant", tenantId);
+        return { error: "Resend API key not configured. Go to Settings > Email." };
+      }
 
       const senderEmail = s["resend_from_email"] || "onboarding@resend.dev";
       const html = `
@@ -117,8 +126,19 @@ Deno.serve(async (req) => {
           }),
         });
         const resendData = await resendResponse.json();
-        return resendResponse.ok ? { id: resendData.id } : { error: resendData };
+        if (!resendResponse.ok) {
+          // Typical causes: the API key was revoked, `senderEmail` is on a domain
+          // Resend hasn't verified, or the fallback onboarding@resend.dev is being
+          // used to mail an address that isn't the Resend account owner's.
+          console.error(
+            `[notify-new-booking] Resend rejected the owner email (${resendResponse.status}) from=${senderEmail} to=${notifyEmail}:`,
+            JSON.stringify(resendData),
+          );
+          return { error: resendData };
+        }
+        return { id: resendData.id };
       } catch (emailErr) {
+        console.error("[notify-new-booking] Owner email request threw:", emailErr);
         return { error: String(emailErr) };
       }
     };
@@ -184,6 +204,10 @@ Deno.serve(async (req) => {
     // --- Email via Resend ---
     if (emailEnabled) {
       result.email = await sendOwnerEmail();
+    } else {
+      console.log(
+        `[notify-new-booking] Email channel off for tenant ${tenantId} (notify_email_enabled=${s["notify_email_enabled"] ?? "unset"})`,
+      );
     }
 
     // --- Push notification (device push, e.g. to staff phones) ---

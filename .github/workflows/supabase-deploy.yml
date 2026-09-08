@@ -14,9 +14,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pinned on purpose. With `version: latest` the action resolves the newest
+      # release through the unauthenticated GitHub API, which rate-limits on
+      # shared runners — every run of this workflow since 2026-07-23 failed with
+      # "Failed to resolve latest Supabase CLI release: rate limit exceeded",
+      # so migrations and functions silently stopped reaching production.
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.117.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Link project
         run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
