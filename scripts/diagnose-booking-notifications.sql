@@ -80,6 +80,24 @@ WHERE tenant_id = '93f1bd20-74c3-4013-b6de-d0eb8f3d56b6'
 ORDER BY created_at DESC
 LIMIT 10;
 
+-- 7. Every owner-email attempt since 2026-09-09, newest first. notify-new-booking
+--    writes one row per attempt so this question stops needing a live reproduction.
+SELECT created_at, status, recipient_email, message_id,
+       metadata ->> 'from' AS from_address,
+       left(error_message, 300) AS error_message
+FROM public.email_send_log
+WHERE template_name = 'owner_new_booking'
+  AND tenant_id = '93f1bd20-74c3-4013-b6de-d0eb8f3d56b6'
+ORDER BY created_at DESC
+LIMIT 20;
+-- status = 'sent' only means Resend accepted the message. If bookings exist with
+-- no row here, the function never reached the email branch (see 1 and 3). If rows
+-- say 'sent' but the owner sees nothing, it is a deliverability problem: look up
+-- message_id in Resend > Emails, and check the sending domain's SPF/DMARC.
+-- As of 2026-09-09, resend_from_email is nonreply@cms.acquyxenang.shop, which has
+-- Resend DKIM but an unrelated IONOS SPF record and no _dmarc record at all —
+-- exactly the profile Gmail files as spam or drops silently.
+
 -- Also worth checking outside SQL:
 --   Dashboard > Edge Functions > notify-new-booking > Logs — after the change in
 --   supabase/functions/notify-new-booking/index.ts, a refused email now logs

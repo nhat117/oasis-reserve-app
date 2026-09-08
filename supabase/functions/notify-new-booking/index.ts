@@ -86,15 +86,45 @@ Deno.serve(async (req) => {
       const notifyEmail = s["notify_email"];
       const resendApiKey = s["resend_api_key"];
 
+      // Function logs are kept for a few days, so "the owner stopped getting
+      // emails weeks ago" can't be answered from them. One row per attempt in
+      // email_send_log turns that into a single query. Best-effort: a logging
+      // failure must never take the notification down with it.
+      const logAttempt = async (
+        status: "sent" | "failed",
+        detail: { messageId?: string; error?: unknown },
+      ) => {
+        try {
+          await supabase.from("email_send_log").insert({
+            tenant_id: tenantId,
+            template_name: "owner_new_booking",
+            recipient_email: notifyEmail || "(notify_email unset)",
+            status,
+            message_id: detail.messageId ?? null,
+            error_message: detail.error === undefined
+              ? null
+              : (typeof detail.error === "string" ? detail.error : JSON.stringify(detail.error)).slice(0, 1000),
+            metadata: {
+              booking_id: booking.id,
+              from: s["resend_from_email"] || "onboarding@resend.dev",
+            },
+          });
+        } catch (logErr) {
+          console.error("[notify-new-booking] Could not write email_send_log row:", logErr);
+        }
+      };
+
       // Every `return { error }` below is also logged: this function is invoked
       // by the bookings AFTER INSERT trigger, which discards the response body,
       // so the function log is the only place a failed owner email is visible.
       if (!notifyEmail) {
         console.error("[notify-new-booking] Owner email skipped: notify_email is not set for tenant", tenantId);
+        await logAttempt("failed", { error: "notify_email is not set" });
         return { error: "Notification email not configured" };
       }
       if (!resendApiKey) {
         console.error("[notify-new-booking] Owner email skipped: resend_api_key is not set for tenant", tenantId);
+        await logAttempt("failed", { error: "resend_api_key is not set" });
         return { error: "Resend API key not configured. Go to Settings > Email." };
       }
 
@@ -134,11 +164,16 @@ Deno.serve(async (req) => {
             `[notify-new-booking] Resend rejected the owner email (${resendResponse.status}) from=${senderEmail} to=${notifyEmail}:`,
             JSON.stringify(resendData),
           );
+          await logAttempt("failed", { error: { status: resendResponse.status, response: resendData } });
           return { error: resendData };
         }
+        // "sent" means Resend accepted it, not that it reached the inbox —
+        // check the message_id against Resend's Emails log for delivery.
+        await logAttempt("sent", { messageId: resendData.id });
         return { id: resendData.id };
       } catch (emailErr) {
         console.error("[notify-new-booking] Owner email request threw:", emailErr);
+        await logAttempt("failed", { error: String(emailErr) });
         return { error: String(emailErr) };
       }
     };
