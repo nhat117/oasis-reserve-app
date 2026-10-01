@@ -94,9 +94,10 @@ LIMIT 20;
 -- no row here, the function never reached the email branch (see 1 and 3). If rows
 -- say 'sent' but the owner sees nothing, it is a deliverability problem: look up
 -- message_id in Resend > Emails, and check the sending domain's SPF/DMARC.
--- As of 2026-09-09, resend_from_email is nonreply@cms.acquyxenang.shop, which has
--- Resend DKIM but an unrelated IONOS SPF record and no _dmarc record at all —
--- exactly the profile Gmail files as spam or drops silently.
+-- As of 2026-10-01, resend_from_email is nonreply@cms.acquyxenang.shop: Resend DKIM,
+-- SPF on send.cms.acquyxenang.shop, and DMARC p=none on acquyxenang.shop, so it
+-- authenticates. The stored Resend key is send-only, so delivery status has to be
+-- read in the Resend dashboard, not via the API.
 
 -- Also worth checking outside SQL:
 --   Dashboard > Edge Functions > notify-new-booking > Logs — after the change in

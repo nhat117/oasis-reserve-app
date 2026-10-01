@@ -5229,7 +5229,7 @@ const AdminDashboard = () => {
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                   <h2 className="text-xl font-semibold text-[#1B1B1B] tracking-tight">{t('Nhân viên & Lịch nghỉ')}</h2>
-                  <p className="text-sm text-muted-foreground/70 mt-0.5">{therapists?.length || 0} {t('nhân viên')}</p>
+                  <p className="text-sm text-muted-foreground/70 mt-0.5">{activeTherapists.length} {t('nhân viên')}</p>
                 </div>
                 <Dialog open={therapistDialog} onOpenChange={(open) => { setTherapistDialog(open); if (!open) setSelectedEditDay(null); }}>
                   <DialogTrigger asChild>
