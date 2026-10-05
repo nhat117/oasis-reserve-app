@@ -954,6 +954,17 @@ export const EN_TRANSLATIONS: Record<string, string> = {
   "Không thể lưu trạng thái": "Could not save your progress",
   "Vui lòng thử lại. Nếu vẫn lỗi, hãy tải lại trang.": "Please try again. If it keeps failing, reload the page.",
 
+  "Không xoá được nhân viên này. Tài khoản của bạn có thể không có quyền, hoặc nhân viên đã bị xoá.": "Couldn't delete this staff member. Your account may not have permission, or they were already removed.",
+  "Không xoá được lịch hẹn. Tài khoản của bạn có thể không có quyền, hoặc lịch hẹn đã bị xoá.": "Couldn't delete this booking. Your account may not have permission, or it was already removed.",
+
+  "Email nhận thông báo không hợp lệ.": "The notification email address isn't valid.",
+  "Số điện thoại nhận thông báo không hợp lệ.": "The notification phone number isn't valid.",
+
+  "Gửi email thử": "Send test email",
+  "Đã gửi email thử": "Test email sent",
+  "Đang gửi...": "Sending...",
+  "Chưa có email nhận thông báo. Hãy nhập ở Thông báo & Nhắc lịch.": "No notification email set. Enter one under Notifications & Reminders.",
+
   // Translation tool
   "batch": "batch",
 };

@@ -1323,8 +1323,8 @@ const AdminDashboard = () => {
     mutationFn: async () => {
       requireAdmin();
       const rows = [
-        { key: 'resend_api_key', value: resendApiKey },
-        { key: 'resend_from_email', value: resendFromEmail },
+        { key: 'resend_api_key', value: resendApiKey.trim() },
+        { key: 'resend_from_email', value: resendFromEmail.trim() },
       ];
       for (const row of rows) {
         if (row.value) {
@@ -1333,8 +1333,37 @@ const AdminDashboard = () => {
         }
       }
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['resend-settings'] }); toast({ title: t('Đã lưu cài đặt Resend') }); },
-    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['resend-settings'] });
+      toast({ title: t('Đã lưu cài đặt Resend') });
+    },
+    onError: mutationErrorToast,
+  });
+
+  // Sends a real email through the saved Resend settings and reports Resend's
+  // own answer. New-booking emails are sent by a background job whose failures
+  // nobody sees, so this is the one place a bad key or unverified sender shows.
+  const sendTestEmail = useMutation({
+    mutationFn: async () => {
+      requireAdmin();
+      const to = (notifyEmail || user?.email || '').trim();
+      if (!to) throw new Error(t('Chưa có email nhận thông báo. Hãy nhập ở Thông báo & Nhắc lịch.'));
+      const { data, error } = await supabase.functions.invoke('send-email-resend', {
+        body: { to, subject: 'Test email', html: '<p>If you can read this, Resend is set up correctly.</p>' },
+      });
+      if (error) {
+        let detail = error.message;
+        try {
+          const body = await (error as any).context?.json?.();
+          if (body) detail = `${body.error || ''} ${body.details ? JSON.stringify(body.details) : ''}`.trim() || detail;
+        } catch { /* keep the generic message */ }
+        throw new Error(detail);
+      }
+      if (data?.error) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error));
+      return to;
+    },
+    onSuccess: (to) => toast({ title: t('Đã gửi email thử'), description: to }),
+    onError: mutationErrorToast,
   });
 
   // Card surcharge setting
@@ -1609,23 +1638,36 @@ const AdminDashboard = () => {
   const saveReminderSettings = useMutation({
     mutationFn: async () => {
       requireAdmin();
+      // Catch typos here instead of saving a value the SMS/email sender will
+      // later choke on without telling anyone.
+      if (notifyEmailEnabled && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(notifyEmail.trim())) {
+        throw new Error(t('Email nhận thông báo không hợp lệ.'));
+      }
+      if (notifySmsEnabled && notifyPhone.replace(/\D/g, '').length < 8) {
+        throw new Error(t('Số điện thoại nhận thông báo không hợp lệ.'));
+      }
       const rows = [
         { key: 'reminder_email_enabled', value: String(reminderEmailEnabled) },
         { key: 'reminder_sms_enabled', value: String(reminderSmsEnabled) },
         { key: 'reminder_1st_hours', value: reminder1stHours },
         { key: 'reminder_2nd_hours', value: reminder2ndHours },
         { key: 'notify_sms_enabled', value: String(notifySmsEnabled) },
-        { key: 'notify_phone', value: notifyPhone },
+        { key: 'notify_phone', value: notifyPhone.trim() },
         { key: 'notify_email_enabled', value: String(notifyEmailEnabled) },
-        { key: 'notify_email', value: notifyEmail },
-      ];
-      for (const row of rows) {
-        const { error } = await upsertSetting(row.key, row.value);
-        if (error) throw error;
-      }
+        { key: 'notify_email', value: notifyEmail.trim() },
+      ].map(r => ({ ...r, tenant_id: TENANT_ID }));
+      // One request so the settings save all-or-nothing, instead of eight
+      // sequential writes that can leave them half-saved.
+      const { error } = await supabase.from('app_settings').upsert(rows, { onConflict: 'tenant_id,key' });
+      if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['reminder-settings'] }); toast({ title: t('Đã lưu cài đặt nhắc lịch') }); },
-    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reminder-settings'] });
+      toast({ title: t('Đã lưu cài đặt nhắc lịch') });
+      // Close only once the save worked — closing immediately hid every error.
+      setSettingsModal(null);
+    },
+    onError: mutationErrorToast,
   });
 
   // Push notification registration status for *this* browser/device — refreshed
@@ -2326,11 +2368,18 @@ const AdminDashboard = () => {
 
   const deleteBooking = useMutation({
     mutationFn: async (id: string) => {
-      if (!isAdmin) throw new Error('Admin only');
-      // Delete associated sales first
-      await supabase.from('sales').delete().eq('booking_id', id);
-      const { error } = await supabase.from('bookings').delete().eq('id', id);
+      if (!isAdmin) throw new Error(t('Chỉ quản lý mới sửa được mục này.'));
+      // Delete associated sales first — and surface a failure here, because
+      // ignoring it leaves the booking delete to fail with a confusing error.
+      const { error: salesError } = await supabase.from('sales').delete().eq('booking_id', id);
+      if (salesError) throw salesError;
+      // .select() so a delete filtered to zero rows by RLS is reported, not
+      // shown as "deleted" while the booking is still on the calendar.
+      const { data: deletedRows, error } = await supabase.from('bookings').delete().eq('id', id).select('id');
       if (error) throw error;
+      if ((deletedRows?.length ?? 0) === 0) {
+        throw new Error(t('Không xoá được lịch hẹn. Tài khoản của bạn có thể không có quyền, hoặc lịch hẹn đã bị xoá.'));
+      }
     },
     onSuccess: (_d, id) => {
       logActivity('delete_booking', `Booking ID: ${id}`);
@@ -2338,7 +2387,7 @@ const AdminDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ['admin-sales'] });
       toast({ title: t('Đã xoá lịch hẹn') });
     },
-    onError: (e) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+    onError: mutationErrorToast,
   });
 
   const [refundingBookingId, setRefundingBookingId] = useState<string | null>(null);
@@ -2834,18 +2883,26 @@ const AdminDashboard = () => {
 
   const deleteTherapist = useMutation({
     mutationFn: async (id: string) => {
-      if (!isAdmin) throw new Error('Admin only');
-      const { error } = await supabase.from('therapists').delete().eq('id', id);
-      if (error) {
-        // 23503 = foreign key violation — staff has bookings/sales history, can't hard-delete
-        if (error.code === '23503') {
-          const { error: deactivateError } = await supabase.from('therapists').update({ is_active: false }).eq('id', id);
-          if (deactivateError) throw deactivateError;
-          return { deactivated: true };
-        }
-        throw error;
+      if (!isAdmin) throw new Error(t('Chỉ quản lý mới sửa được mục này.'));
+      // .select() makes PostgREST return the deleted rows, so a delete that
+      // row-level security silently filtered to zero rows is detectable
+      // instead of looking like a success while the staff member remains.
+      const { data: deletedRows, error } = await supabase.from('therapists').delete().eq('id', id).select('id');
+      if (!error && (deletedRows?.length ?? 0) > 0) return { deactivated: false };
+
+      // 23503 = foreign key violation (staff has bookings/sales history and
+      // can't be hard-deleted). Also fall back when nothing was deleted, so
+      // the admin still gets the staff member hidden rather than a dead end.
+      const blockedByHistory = !error || error.code === '23503' || error.code === '409' || /foreign key|violates/i.test(error.message || '');
+      if (!blockedByHistory) throw error;
+
+      const { data: hiddenRows, error: deactivateError } = await supabase
+        .from('therapists').update({ is_active: false }).eq('id', id).select('id');
+      if (deactivateError) throw deactivateError;
+      if ((hiddenRows?.length ?? 0) === 0) {
+        throw new Error(t('Không xoá được nhân viên này. Tài khoản của bạn có thể không có quyền, hoặc nhân viên đã bị xoá.'));
       }
-      return { deactivated: false };
+      return { deactivated: true };
     },
     onSuccess: (result, id) => {
       logActivity(result?.deactivated ? 'deactivate_therapist' : 'delete_therapist', `Therapist ID: ${id}`);
@@ -2854,7 +2911,7 @@ const AdminDashboard = () => {
         ? { title: t('Đã ẩn nhân viên'), description: t('Nhân viên này có lịch sử đặt lịch nên không thể xoá hoàn toàn. Đã chuyển sang trạng thái ẩn, dữ liệu cũ vẫn được giữ lại.') }
         : { title: t('Đã xoá thợ') });
     },
-    onError: (e: any) => { toast({ title: t('Lỗi'), description: e.message, variant: 'destructive' }); },
+    onError: mutationErrorToast,
   });
 
   const reactivateTherapist = useMutation({
@@ -6506,9 +6563,14 @@ const AdminDashboard = () => {
                       {t('Dùng')} <code className="text-xs">onboarding@resend.dev</code> {t('để test, hoặc domain đã xác minh trên Resend')}
                     </p>
                   </div>
-                  <Button size="sm" onClick={() => { saveResendSettings.mutate(); setSettingsModal(null); }} disabled={!resendApiKey.trim() || saveResendSettings.isPending}>
-                    {saveResendSettings.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : t('Lưu cài đặt email')}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={() => saveResendSettings.mutate()} disabled={!resendApiKey.trim() || saveResendSettings.isPending}>
+                      {saveResendSettings.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : t('Lưu cài đặt email')}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => sendTestEmail.mutate()} disabled={!resendSettings?.['resend_api_key'] || sendTestEmail.isPending}>
+                      {sendTestEmail.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang gửi...')}</> : t('Gửi email thử')}
+                    </Button>
+                  </div>
                   {resendSettings?.['resend_api_key'] && (
                     <div className="bg-muted rounded-lg p-3 text-sm space-y-1">
                       <p className="text-muted-foreground">{t('Resend API key đã được cấu hình')}</p>
@@ -7608,7 +7670,7 @@ const AdminDashboard = () => {
                     </div>
                   </div>
 
-                  <Button size="sm" onClick={() => { saveReminderSettings.mutate(); setSettingsModal(null); }} disabled={saveReminderSettings.isPending}>
+                  <Button size="sm" onClick={() => saveReminderSettings.mutate()} disabled={saveReminderSettings.isPending}>
                     {saveReminderSettings.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('Đang lưu...')}</> : t('Lưu cài đặt thông báo')}
                   </Button>
                 </div>
