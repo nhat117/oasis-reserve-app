@@ -43,12 +43,23 @@ Deno.serve(async (req) => {
     if (parsed.response) return parsed.response
     const { to, subject, html, from_name, from_email } = parsed.data
 
+    // Settings are per salon. Without this filter the service-role queries below
+    // see every tenant's rows, and .single() fails as soon as a second salon
+    // has its own resend_api_key.
+    const { data: tenantId } = await callerClient.rpc('get_my_tenant_id')
+    if (!tenantId) {
+      return new Response(JSON.stringify({ error: 'Could not determine your salon' }), {
+        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     // Get Resend API key from app_settings
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     const { data: apiKeySetting, error: settingError } = await supabase
       .from('app_settings')
       .select('value')
+      .eq('tenant_id', tenantId)
       .eq('key', 'resend_api_key')
       .single()
 
@@ -66,6 +77,7 @@ Deno.serve(async (req) => {
     const { data: senderSettings } = await supabase
       .from('app_settings')
       .select('key, value')
+      .eq('tenant_id', tenantId)
       .in('key', ['resend_from_email', 'spa_name'])
 
     const settingsMap: Record<string, string> = {}
